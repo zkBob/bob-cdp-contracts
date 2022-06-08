@@ -9,5 +9,5 @@ interface IOracle {
     function price(
         address token0,
         address token1
-    ) external view returns (uint256 price);
+    ) external view returns (uint256 priceX96);
 }

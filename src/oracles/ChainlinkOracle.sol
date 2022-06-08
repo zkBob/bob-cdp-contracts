@@ -14,9 +14,7 @@ import "../interfaces/oracles/IOracle.sol";
 contract ChainlinkOracle is IOracle, DefaultAccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    /// @inheritdoc IChainlinkOracle
     mapping(address => address) public oraclesIndex;
-    /// @inheritdoc IChainlinkOracle
     mapping(address => int256) public decimalsIndex;
     EnumerableSet.AddressSet private _tokens;
 
@@ -30,21 +28,17 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     // -------------------------  EXTERNAL, VIEW  ------------------------------
 
-    /// @inheritdoc IChainlinkOracle
     function hasOracle(address token) external view returns (bool) {
         return _tokens.contains(token);
     }
 
-    /// @inheritdoc IChainlinkOracle
     function supportedTokens() external view returns (address[] memory) {
         return _tokens.values();
     }
 
     /// @inheritdoc IOracle
-    function price(
-        address token0,
-        address token1,
-    ) external view returns (uint256 priceX96) {
+    function price(address token0, address token1) external view returns (uint256 priceX96) {
+        priceX96 = 0;
         IAggregatorV3 chainlinkOracle0 = IAggregatorV3(oraclesIndex[token0]);
         IAggregatorV3 chainlinkOracle1 = IAggregatorV3(oraclesIndex[token1]);
         if ((address(chainlinkOracle0) == address(0)) || (address(chainlinkOracle1) == address(0))) {
@@ -69,19 +63,16 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
         } else if (decimals0 > decimals1) {
             price0 *= 10**(uint256(decimals0 - decimals1));
         }
-        pricesX96 = new uint256[](1);
-        safetyIndices = new uint256[](1);
-        pricesX96[0] = FullMath.mulDiv(price0, CommonLibrary.Q96, price1);
+        priceX96 = FullMath.mulDiv(price0, CommonLibrary.Q96, price1);
     }
 
     /// @inheritdoc IERC165
     function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
-        return super.supportsInterface(interfaceId) || interfaceId == type(IChainlinkOracle).interfaceId;
+        return super.supportsInterface(interfaceId) || interfaceId == type(IOracle).interfaceId;
     }
 
     // -------------------------  EXTERNAL, MUTATING  ------------------------------
 
-    /// @inheritdoc IChainlinkOracle
     function addChainlinkOracles(address[] memory tokens, address[] memory oracles) external {
         _requireAdmin();
         _addChainlinkOracles(tokens, oracles);
