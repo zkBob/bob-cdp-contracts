@@ -12,6 +12,7 @@ library ExceptionsLibrary {
     string constant NULL = "NULL";
     string constant TIMESTAMP = "TS";
     string constant FORBIDDEN = "FRB";
+    string constant UNPAID_DEBT = "UD";
     string constant ALLOWLIST = "ALL";
     string constant LIMIT_OVERFLOW = "LIMO";
     string constant LIMIT_UNDERFLOW = "LIMU";
