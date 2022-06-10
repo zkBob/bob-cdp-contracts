@@ -29,9 +29,13 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
 
     function stagedLiquidationThresholdTimestamp(address target) external view returns (uint256);
 
+    function stagedWhitelistedPoolTimestamp(address target) external view returns (uint256);
+
     function isTokenPairTotalCapitalLimited(address token0, address token1) external view returns (bool);
 
     function tokenPairTotalCapitalLimits(address token0, address token1) external view returns (uint256);
+
+    function isPoolWhitelisted(address pool) external view returns (bool);
 
     // -------------------  EXTERNAL, MUTATING, GOVERNANCE, IMMEDIATE  -------------------
 
@@ -39,11 +43,17 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
 
     function commitLiquidationThreshold(address pool) external;
 
+    function commitWhitelistedPool(address pool) external;
+
+    function revokeWhitelistedPool(address pool) external;
+
     // -------------------  EXTERNAL, MUTATING, GOVERNANCE, DELAY  -------------------
 
     function stageParams(ProtocolParams calldata newParams) external;
 
     function stageLiquidationThreshold(address pool, uint256 liquidationRatio) external;
+
+    function stageWhitelistedPool(address pool) external;
 
     function stagePairTokensLimit(address token0, address token1, uint256 newLimit) external;
 

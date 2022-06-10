@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: BSL-1.1
 pragma solidity ^0.8.13;
 
-
+import "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol";
 import "./interfaces/IProtocolGovernance.sol";
 import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
 import "./utils/DefaultAccessControl.sol";
@@ -17,7 +17,6 @@ contract ProtocolGovernance is ContractMeta, IProtocolGovernance, ERC165, Defaul
     uint256 public constant MAX_PERCENTAGE_RATE = DENOMINATOR;
 
     EnumerableSet.AddressSet private _whitelistedPools;
-    EnumerableSet.AddressSet private _stagedWhitelistedPools;
 
     ProtocolParams private _protocolParams;
     ProtocolParams private _stagedProtocolParams;
@@ -35,6 +34,9 @@ contract ProtocolGovernance is ContractMeta, IProtocolGovernance, ERC165, Defaul
     mapping(address => uint256) public stagedLiquidationThresholdTimestamp;
 
     /// @inheritdoc IProtocolGovernance
+    mapping(address => uint256) public stagedWhitelistedPoolTimestamp;
+
+    /// @inheritdoc IProtocolGovernance
     mapping(address => mapping(address => bool)) public isTokenPairTotalCapitalLimited;
 
     /// @inheritdoc IProtocolGovernance
@@ -45,13 +47,17 @@ contract ProtocolGovernance is ContractMeta, IProtocolGovernance, ERC165, Defaul
     // -------------------  EXTERNAL, VIEW  -------------------
 
     /// @inheritdoc IProtocolGovernance
-    function protocolParams() public view returns (ProtocolParams memory) {
+    function protocolParams() external view returns (ProtocolParams memory) {
         return _protocolParams;
     }
 
     /// @inheritdoc IProtocolGovernance
-    function stagedProtocolParams() public view returns (ProtocolParams memory) {
+    function stagedProtocolParams() external view returns (ProtocolParams memory) {
         return _stagedProtocolParams;
+    }
+
+    function isPoolWhitelisted(address pool) external view returns (bool) {
+        return (_whitelistedPools.contains(pool));
     }
     
     function supportsInterface(bytes4 interfaceId)
@@ -75,6 +81,47 @@ contract ProtocolGovernance is ContractMeta, IProtocolGovernance, ERC165, Defaul
     }
 
     /// @inheritdoc IProtocolGovernance
+    function commitParams() external {
+        _requireAdmin();
+        require(stagedParamsTimestamp != 0, ExceptionsLibrary.NULL);
+        require(
+            block.timestamp >= stagedParamsTimestamp,
+            ExceptionsLibrary.TIMESTAMP
+        );
+        _protocolParams = _stagedProtocolParams;
+        delete _stagedProtocolParams;
+        delete stagedParamsTimestamp;
+        emit ParamsCommitted(tx.origin, msg.sender, _protocolParams);
+    }
+
+    function stageWhitelistedPool(address pool) external {
+        _requireAdmin();
+        require(pool != address(0), ExceptionsLibrary.ADDRESS_ZERO);
+        uint256 usageTimestamp = block.timestamp + _protocolParams.governanceDelay;
+
+        stagedWhitelistedPoolTimestamp[pool] = usageTimestamp;
+       emit WhitelistedPoolStaged(tx.origin, msg.sender, pool, usageTimestamp);
+    }
+
+    function commitWhitelistedPool(address pool) external {
+        _requireAdmin();
+        uint256 commitTime = stagedWhitelistedPoolTimestamp[pool];
+        require(commitTime != 0, ExceptionsLibrary.ADDRESS_ZERO);
+        require(commitTime <= block.timestamp, ExceptionsLibrary.TIMESTAMP);
+        _whitelistedPools.add(pool);
+        delete stagedWhitelistedPoolTimestamp[pool];
+
+        emit WhitelistedPoolCommited(tx.origin, msg.sender, pool);
+
+    }
+
+    function revokeWhitelistedPool(address pool) external {
+        _requireAdmin();
+        _whitelistedPools.remove(pool);
+        emit WhitelistedPoolRevoked(tx.origin, msg.sender, pool);
+    }
+
+    /// @inheritdoc IProtocolGovernance
     function stageLiquidationThreshold(address pool, uint256 liquidationRatio) external {
 
         _requireAdmin();
@@ -84,8 +131,20 @@ contract ProtocolGovernance is ContractMeta, IProtocolGovernance, ERC165, Defaul
         uint256 usageTimestamp = block.timestamp + _protocolParams.governanceDelay;
 
         stagedLiquidationThreshold[pool] = liquidationRatio;
-        stagedLiquidationThresholdTimestamp[pool] = block.timestamp + _protocolParams.governanceDelay;
+        stagedLiquidationThresholdTimestamp[pool] = usageTimestamp;
         emit LiquidationRatioStaged(tx.origin, msg.sender, pool, liquidationRatio, usageTimestamp);
+    }
+
+    /// @inheritdoc IProtocolGovernance
+    function commitLiquidationThreshold(address pool) external {
+        _requireAdmin();
+        uint256 commitTime = stagedLiquidationThresholdTimestamp[pool];
+        require(commitTime != 0, ExceptionsLibrary.ADDRESS_ZERO);
+        require(commitTime <= block.timestamp, ExceptionsLibrary.TIMESTAMP);
+        liquidationThreshold[pool] = stagedLiquidationThreshold[pool];
+        delete stagedLiquidationThreshold[pool];
+        delete stagedLiquidationThresholdTimestamp[pool];
+        emit LiquidationRatioCommited(tx.origin, msg.sender, pool);
     }
 
     /// @inheritdoc IProtocolGovernance
@@ -101,32 +160,6 @@ contract ProtocolGovernance is ContractMeta, IProtocolGovernance, ERC165, Defaul
         isTokenPairTotalCapitalLimited[token0][token1] = true;
         tokenPairTotalCapitalLimits[token0][token1] = newLimit;
         emit PairTokensLimitStaged(tx.origin, msg.sender, token0, token1, newLimit);
-    }
-
-    /// @inheritdoc IProtocolGovernance
-    function commitParams() external {
-        _requireAdmin();
-        require(stagedParamsTimestamp != 0, ExceptionsLibrary.NULL);
-        require(
-            block.timestamp >= stagedParamsTimestamp,
-            ExceptionsLibrary.TIMESTAMP
-        );
-        _protocolParams = _stagedProtocolParams;
-        delete _stagedProtocolParams;
-        delete stagedParamsTimestamp;
-        emit ParamsCommitted(tx.origin, msg.sender, _protocolParams);
-    }
-
-    /// @inheritdoc IProtocolGovernance
-    function commitLiquidationThreshold(address pool) external {
-        _requireAdmin();
-        uint256 commitTime = stagedLiquidationThresholdTimestamp[pool];
-        require(commitTime != 0, ExceptionsLibrary.ADDRESS_ZERO);
-        require(commitTime <= block.timestamp, ExceptionsLibrary.TIMESTAMP);
-        liquidationThreshold[pool] = stagedLiquidationThreshold[pool];
-        delete stagedLiquidationThreshold[pool];
-        delete stagedLiquidationThresholdTimestamp[pool];
-        emit LiquidationRatioCommited(tx.origin, msg.sender, pool);
     }
 
     // -------------------------  INTERNAL, VIEW  ------------------------------
@@ -152,6 +185,9 @@ contract ProtocolGovernance is ContractMeta, IProtocolGovernance, ERC165, Defaul
     event ParamsCommitted(address indexed origin, address indexed sender, ProtocolParams params);
     event LiquidationRatioStaged(address indexed origin, address indexed sender, address indexed pool, uint256 liquidationRatio, uint256 usageTimestamp);
     event LiquidationRatioCommited(address indexed origin, address indexed sender, address indexed pool);
+    event WhitelistedPoolStaged(address indexed origin, address indexed sender, address indexed pool, uint256 usageTimestamp);
+    event WhitelistedPoolCommited(address indexed origin, address indexed sender, address indexed pool);
+    event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address indexed pool);
     event PairTokensLimitStaged(address indexed origin, address indexed sender, address token0, address token1, uint256 stagedLimit);
 
 }
