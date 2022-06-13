@@ -1,14 +1,13 @@
 // SPDX-License-Identifier: BSL-1.1
 pragma solidity ^0.8.13;
 
-import "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "./interfaces/IProtocolGovernance.sol";
-import "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol";
 import "./utils/DefaultAccessControl.sol";
 import "src/libraries/CommonLibrary.sol";
-import "./utils/ContractMeta.sol";
 
-contract ProtocolGovernance is ContractMeta, IProtocolGovernance, ERC165, DefaultAccessControl {
+contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 public constant DENOMINATOR = 10**9;
@@ -163,14 +162,6 @@ contract ProtocolGovernance is ContractMeta, IProtocolGovernance, ERC165, Defaul
     }
 
     // -------------------------  INTERNAL, VIEW  ------------------------------
-
-    function _contractName() internal pure override returns (bytes32) {
-        return bytes32("ProtocolGovernance");
-    }
-
-    function _contractVersion() internal pure override returns (bytes32) {
-        return bytes32("1.0.0");
-    }
 
     function _validateGovernanceParams(ProtocolParams calldata newParams) private pure {
         require(newParams.governanceDelay <= MAX_GOVERNANCE_DELAY);
