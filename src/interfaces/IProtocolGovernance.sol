@@ -2,7 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "./utils/IDefaultAccessControl.sol";
-import "lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol";
+import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     
