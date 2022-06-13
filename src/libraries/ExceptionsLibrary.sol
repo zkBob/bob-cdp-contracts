@@ -21,6 +21,7 @@ library ExceptionsLibrary {
     string constant INVALID_TARGET = "INVTR";
     string constant INVALID_TOKEN = "INVTO";
     string constant INVALID_INTERFACE = "INVI";
+    string constant INVALID_POOL = "INVP";
     string constant INVALID_SELECTOR = "INVS";
     string constant INVALID_STATE = "INVST";
     string constant INVALID_LENGTH = "INVL";

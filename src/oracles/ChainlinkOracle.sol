@@ -14,6 +14,8 @@ import "../interfaces/oracles/IOracle.sol";
 contract ChainlinkOracle is IOracle, DefaultAccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
 
+    int256 constant DECIMALS = 18;
+
     mapping(address => address) public oraclesIndex;
     mapping(address => int256) public decimalsIndex;
     EnumerableSet.AddressSet private _tokens;
@@ -37,31 +39,25 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     }
 
     /// @inheritdoc IOracle
-    function price(address token0, address token1) external view returns (uint256 priceX96) {
+    function price(address token) external view returns (uint256 priceX96) {
         priceX96 = 0;
-        IAggregatorV3 chainlinkOracle0 = IAggregatorV3(oraclesIndex[token0]);
-        IAggregatorV3 chainlinkOracle1 = IAggregatorV3(oraclesIndex[token1]);
-        if ((address(chainlinkOracle0) == address(0)) || (address(chainlinkOracle1) == address(0))) {
+        IAggregatorV3 chainlinkOracle = IAggregatorV3(oraclesIndex[token]);
+        if (address(chainlinkOracle) == address(0)) {
             return priceX96;
         }
         uint256 price0;
-        uint256 price1;
+        uint256 price1 = 1;
         bool success;
         (success, price0) = _queryChainlinkOracle(chainlinkOracle0);
         if (!success) {
             return priceX96;
         }
-        (success, price1) = _queryChainlinkOracle(chainlinkOracle1);
-        if (!success) {
-            return priceX96;
-        }
 
-        int256 decimals0 = decimalsIndex[token0];
-        int256 decimals1 = decimalsIndex[token1];
-        if (decimals1 > decimals0) {
-            price1 *= 10**(uint256(decimals1 - decimals0));
+        int256 decimals0 = decimalsIndex[token];
+        if (DECIMALS > decimals0) {
+            price1 *= 10**(uint256(DECIMALS - decimals0));
         } else if (decimals0 > decimals1) {
-            price0 *= 10**(uint256(decimals0 - decimals1));
+            price0 *= 10**(uint256(decimals0 - DECIMALS));
         }
         priceX96 = FullMath.mulDiv(price0, CommonLibrary.Q96, price1);
     }
