@@ -5,7 +5,6 @@ import "./utils/IDefaultAccessControl.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
-    
     struct ProtocolParams {
         uint256 stabilizationFee;
         uint256 liquidationFee;
@@ -20,7 +19,7 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     function protocolParams() external view returns (ProtocolParams memory);
 
     function stagedProtocolParams() external view returns (ProtocolParams memory);
-    
+
     function stagedParamsTimestamp() external view returns (uint256);
 
     function liquidationThreshold(address target) external view returns (uint256);
@@ -55,6 +54,9 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
 
     function stageWhitelistedPool(address pool) external;
 
-    function stagePairTokensLimit(address token0, address token1, uint256 newLimit) external;
-
+    function stagePairTokensLimit(
+        address token0,
+        address token1,
+        uint256 newLimit
+    ) external;
 }
