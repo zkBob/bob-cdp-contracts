@@ -65,10 +65,7 @@ contract Vault is DefaultAccessControl {
     }
 
     function openVault() external returns (uint256 vaultId) {
-        require(
-            !isPrivate || _depositorsAllowlist.contains(msg.sender),
-            ExceptionsLibrary.ALLOWLIST
-        );
+        require(!isPrivate || _depositorsAllowlist.contains(msg.sender), ExceptionsLibrary.ALLOWLIST);
         ++vaultCount;
         ownedVaults[msg.sender].add(vaultCount);
         vaultOwners[vaultCount] = msg.sender;
@@ -81,7 +78,11 @@ contract Vault is DefaultAccessControl {
         _closeVault(vaultId, msg.sender, msg.sender);
     }
 
-    function _closeVault(uint256 vaultId, address vaultOwner, address nftsRecipient) internal {
+    function _closeVault(
+        uint256 vaultId,
+        address vaultOwner,
+        address nftsRecipient
+    ) internal {
         uint256[] memory nfts = vaultNfts[];
 
         for (uint256 i = 0; i < nfts.length(); ++i) {
@@ -111,12 +112,11 @@ contract Vault is DefaultAccessControl {
     }
 
     function depositCollateral(uint256 vaultId, uint256 nft) external {
-        require(
-            !isPrivate || _depositorsAllowlist.contains(msg.sender),
-            ExceptionsLibrary.ALLOWLIST
-        );
+        require(!isPrivate || _depositorsAllowlist.contains(msg.sender), ExceptionsLibrary.ALLOWLIST);
         require(vaultOwner[vaultId] == msg.sender, ExceptionsLibrary.FORBIDDEN);
-        (,,
+        (
+            ,
+            ,
             address token0,
             address token1,
             uint24 fee,
@@ -189,7 +189,11 @@ contract Vault is DefaultAccessControl {
         return result;
     }
 
-    function _calculatePosition(PositionInfo memory position, uint256 liquidationThreshold) internal view returns (uint256) {
+    function _calculatePosition(PositionInfo memory position, uint256 liquidationThreshold)
+        internal
+        view
+        returns (uint256)
+    {
         tokenAmounts = new uint256[](2);
         (uint160 sqrtPriceX96, , , , , , ) = position.targetPool.slot0();
 
@@ -200,23 +204,29 @@ contract Vault is DefaultAccessControl {
             position.liquidity
         );
 
-        (, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, , ) = position.targetPool.positions(position.positionKey);
-
-        tokenAmounts[0] += position.tokensOwed0 + uint128(
-            FullMath.mulDiv(
-                feeGrowthInside0LastX128 - position.feeGrowthInside0LastX128,
-                position.liquidity,
-                CommonLibrary.Q128
-            )
+        (, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, , ) = position.targetPool.positions(
+            position.positionKey
         );
 
-        tokenAmounts[1] += position.tokensOwed1 + uint128(
-            FullMath.mulDiv(
-                feeGrowthInside1LastX128 - position.feeGrowthInside1LastX128,
-                position.liquidity,
-                CommonLibrary.Q128
-            )
-        );
+        tokenAmounts[0] +=
+            position.tokensOwed0 +
+            uint128(
+                FullMath.mulDiv(
+                    feeGrowthInside0LastX128 - position.feeGrowthInside0LastX128,
+                    position.liquidity,
+                    CommonLibrary.Q128
+                )
+            );
+
+        tokenAmounts[1] +=
+            position.tokensOwed1 +
+            uint128(
+                FullMath.mulDiv(
+                    feeGrowthInside1LastX128 - position.feeGrowthInside1LastX128,
+                    position.liquidity,
+                    CommonLibrary.Q128
+                )
+            );
 
         uint256 pricesX96 = new uint256[](2);
         pricesX96[0] = oracle.price(position.token0);
@@ -251,16 +261,16 @@ contract Vault is DefaultAccessControl {
         require(healthFactor < debt[vaultId], ExceptionsLibrary.LIMIT_UNDERFLOW);
 
         uint256 vaultAmount = _calculateVaultAmount(vaultId);
-        uint256 returnAmount = FullMath.mulDiv(DENOMINATOR - protocolGovernance.protocolParams().liquidationPremium, vaultAmount, DENOMINATOR);
-        token.transferFrom(
-            msg.sender,
-            address(this),
-            returnAmount
+        uint256 returnAmount = FullMath.mulDiv(
+            DENOMINATOR - protocolGovernance.protocolParams().liquidationPremium,
+            vaultAmount,
+            DENOMINATOR
         );
+        token.transferFrom(msg.sender, address(this), returnAmount);
 
         uint256 daoReceiveAmount = FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFee);
         token.transfer(treasury, daoReceiveAmount);
-        token.transfer(vaultOwners[i], returnAmount - daoRecieveAmount  - debt[vaultId]);
+        token.transfer(vaultOwners[i], returnAmount - daoRecieveAmount - debt[vaultId]);
 
         _closeVault(vaultId, vaultOwners[vaultId], msg.sender);
     }

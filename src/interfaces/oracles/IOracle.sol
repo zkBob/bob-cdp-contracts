@@ -5,7 +5,5 @@ interface IOracle {
     /// @notice Oracle price for token.
     /// @param token Reference to token
     /// @return priceX96 Price that satisfy token
-    function price(
-        address token
-    ) external view returns (uint256 priceX96);
+    function price(address token) external view returns (uint256 priceX96);
 }

@@ -58,7 +58,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function isPoolWhitelisted(address pool) external view returns (bool) {
         return (_whitelistedPools.contains(pool));
     }
-    
+
     function supportsInterface(bytes4 interfaceId)
         public
         view
@@ -83,10 +83,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function commitParams() external {
         _requireAdmin();
         require(stagedParamsTimestamp != 0, ExceptionsLibrary.NULL);
-        require(
-            block.timestamp >= stagedParamsTimestamp,
-            ExceptionsLibrary.TIMESTAMP
-        );
+        require(block.timestamp >= stagedParamsTimestamp, ExceptionsLibrary.TIMESTAMP);
         _protocolParams = _stagedProtocolParams;
         delete _stagedProtocolParams;
         delete stagedParamsTimestamp;
@@ -99,7 +96,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         uint256 usageTimestamp = block.timestamp + _protocolParams.governanceDelay;
 
         stagedWhitelistedPoolTimestamp[pool] = usageTimestamp;
-       emit WhitelistedPoolStaged(tx.origin, msg.sender, pool, usageTimestamp);
+        emit WhitelistedPoolStaged(tx.origin, msg.sender, pool, usageTimestamp);
     }
 
     function commitWhitelistedPool(address pool) external {
@@ -111,7 +108,6 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         delete stagedWhitelistedPoolTimestamp[pool];
 
         emit WhitelistedPoolCommited(tx.origin, msg.sender, pool);
-
     }
 
     function revokeWhitelistedPool(address pool) external {
@@ -122,7 +118,6 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     /// @inheritdoc IProtocolGovernance
     function stageLiquidationThreshold(address pool, uint256 liquidationRatio) external {
-
         _requireAdmin();
         require(pool != address(0), ExceptionsLibrary.ADDRESS_ZERO);
         require(liquidationRatio > 0, ExceptionsLibrary.ADDRESS_ZERO);
@@ -147,7 +142,11 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     }
 
     /// @inheritdoc IProtocolGovernance
-    function stagePairTokensLimit(address token0, address token1, uint256 newLimit) external {
+    function stagePairTokensLimit(
+        address token0,
+        address token1,
+        uint256 newLimit
+    ) external {
         require(token0 != address(0), ExceptionsLibrary.ADDRESS_ZERO);
         require(token1 != address(0), ExceptionsLibrary.ADDRESS_ZERO);
         require(token0 != token1, ExceptionsLibrary.DUPLICATE);
@@ -174,11 +173,27 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     event ParamsStaged(address indexed origin, address indexed sender, uint256 usageTimestamp, ProtocolParams params);
     event ParamsCommitted(address indexed origin, address indexed sender, ProtocolParams params);
-    event LiquidationRatioStaged(address indexed origin, address indexed sender, address indexed pool, uint256 liquidationRatio, uint256 usageTimestamp);
+    event LiquidationRatioStaged(
+        address indexed origin,
+        address indexed sender,
+        address indexed pool,
+        uint256 liquidationRatio,
+        uint256 usageTimestamp
+    );
     event LiquidationRatioCommited(address indexed origin, address indexed sender, address indexed pool);
-    event WhitelistedPoolStaged(address indexed origin, address indexed sender, address indexed pool, uint256 usageTimestamp);
+    event WhitelistedPoolStaged(
+        address indexed origin,
+        address indexed sender,
+        address indexed pool,
+        uint256 usageTimestamp
+    );
     event WhitelistedPoolCommited(address indexed origin, address indexed sender, address indexed pool);
     event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address indexed pool);
-    event PairTokensLimitStaged(address indexed origin, address indexed sender, address token0, address token1, uint256 stagedLimit);
-
+    event PairTokensLimitStaged(
+        address indexed origin,
+        address indexed sender,
+        address token0,
+        address token1,
+        uint256 stagedLimit
+    );
 }
