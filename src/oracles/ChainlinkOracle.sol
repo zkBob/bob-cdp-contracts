@@ -47,7 +47,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
         uint256 price0;
         uint256 price1 = 1;
         bool success;
-        (success, price0) = _queryChainlinkOracle(chainlinkOracle0);
+        (success, price0) = _queryChainlinkOracle(chainlinkOracle);
         if (!success) {
             return priceX96;
         }
@@ -55,7 +55,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
         int256 decimals0 = decimalsIndex[token];
         if (DECIMALS > decimals0) {
             price1 *= 10**(uint256(DECIMALS - decimals0));
-        } else if (decimals0 > decimals1) {
+        } else if (decimals0 > DECIMALS) {
             price0 *= 10**(uint256(decimals0 - DECIMALS));
         }
         priceX96 = FullMath.mulDiv(price0, CommonLibrary.Q96, price1);
