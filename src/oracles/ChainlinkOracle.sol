@@ -8,6 +8,7 @@ import "../libraries/ExceptionsLibrary.sol";
 import "../libraries/CommonLibrary.sol";
 import "../utils/DefaultAccessControl.sol";
 import "../interfaces/oracles/IOracle.sol";
+
 /// @notice Contract for getting chainlink data
 contract ChainlinkOracle is IOracle, DefaultAccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -17,6 +18,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     mapping(address => address) public oraclesIndex;
     mapping(address => int256) public decimalsIndex;
     EnumerableSet.AddressSet private _tokens;
+
     constructor(
         address[] memory tokens,
         address[] memory oracles,
@@ -30,6 +32,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     function hasOracle(address token) external view returns (bool) {
         return _tokens.contains(token);
     }
+
     function supportedTokens() external view returns (address[] memory) {
         return _tokens.values();
     }
