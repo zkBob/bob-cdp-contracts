@@ -4,10 +4,13 @@ pragma solidity ^0.8.13;
 import "@solmate/src/tokens/ERC20.sol";
 
 contract MUSD is ERC20 {
-
     address public governingVault;
 
-    constructor(string memory name, string memory symbol, address vault) ERC20(name, symbol, 18){
+    constructor(
+        string memory name,
+        string memory symbol,
+        address vault
+    ) ERC20(name, symbol, 18) {
         governingVault = vault;
     }
 
@@ -21,5 +24,3 @@ contract MUSD is ERC20 {
         _burn(from, amount);
     }
 }
-
-

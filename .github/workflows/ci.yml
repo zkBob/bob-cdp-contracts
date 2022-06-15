@@ -1,6 +1,6 @@
 name: test
 
-on: workflow_dispatch
+on: ["push", "pull_request"]
 
 env:
   FOUNDRY_PROFILE: ci
@@ -21,6 +21,12 @@ jobs:
         uses: foundry-rs/foundry-toolchain@v1
         with:
           version: nightly
+
+      - name: Install yarn dependencies
+        run: yarn
+
+      - name: Check prettier
+        run: yarn prettier:check
 
       - name: Run Forge build
         run: |
