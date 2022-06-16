@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: BSL-1.1
 pragma solidity 0.8.13;
-
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../interfaces/external/chainlink/IAggregatorV3.sol";
@@ -48,7 +47,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
         uint256 price0;
         uint256 price1 = 1;
         bool success;
-        (success, price0) = _queryChainlinkOracle(chainlinkOracle0);
+        (success, price0) = _queryChainlinkOracle(chainlinkOracle);
         if (!success) {
             return priceX96;
         }
@@ -56,7 +55,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
         int256 decimals0 = decimalsIndex[token];
         if (DECIMALS > decimals0) {
             price1 *= 10**(uint256(DECIMALS - decimals0));
-        } else if (decimals0 > decimals1) {
+        } else if (decimals0 > DECIMALS) {
             price0 *= 10**(uint256(decimals0 - DECIMALS));
         }
         priceX96 = FullMath.mulDiv(price0, CommonLibrary.Q96, price1);
@@ -87,7 +86,9 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     // -------------------------  INTERNAL, MUTATING  ------------------------------
 
     function _addChainlinkOracles(address[] memory tokens, address[] memory oracles) internal {
-        require(tokens.length == oracles.length, ExceptionsLibrary.INVALID_VALUE);
+        if (tokens.length != oracles.length) {
+            revert ExceptionsLibrary.InvalidValue();
+        }
         for (uint256 i = 0; i < tokens.length; i++) {
             address token = tokens[i];
             address oracle = oracles[i];

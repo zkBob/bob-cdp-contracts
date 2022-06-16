@@ -2,6 +2,7 @@
 pragma solidity ^0.8.13;
 
 import "@solmate/src/tokens/ERC20.sol";
+import "./libraries/ExceptionsLibrary.sol";
 
 contract MUSD is ERC20 {
     address public immutable governingVault;
@@ -15,12 +16,16 @@ contract MUSD is ERC20 {
     }
 
     function mint(address to, uint256 amount) external {
-        require(msg.sender == governingVault);
+        if (msg.sender != governingVault) {
+            revert ExceptionsLibrary.Forbidden();
+        }
         _mint(to, amount);
     }
 
     function burn(address from, uint256 amount) external {
-        require(msg.sender == governingVault);
+        if (msg.sender != governingVault) {
+            revert ExceptionsLibrary.Forbidden();
+        }
         _burn(from, amount);
     }
 }
