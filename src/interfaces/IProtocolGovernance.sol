@@ -11,52 +11,41 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
         uint256 liquidationPremium;
         uint256 maxDebtPerVault;
         uint256 minSingleNftCapital;
-        uint256 governanceDelay;
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
 
+    function liquidationThreshold(address pool) external view returns (uint256);
+
+    function isTokenCapitalLimited(address token) external view returns (bool);
+
+    function tokenCapitalLimit(address token) external view returns (uint256);
+
     function protocolParams() external view returns (ProtocolParams memory);
-
-    function stagedProtocolParams() external view returns (ProtocolParams memory);
-
-    function stagedParamsTimestamp() external view returns (uint256);
-
-    function liquidationThreshold(address target) external view returns (uint256);
-
-    function stagedLiquidationThreshold(address target) external view returns (uint256);
-
-    function stagedLiquidationThresholdTimestamp(address target) external view returns (uint256);
-
-    function stagedWhitelistedPoolTimestamp(address target) external view returns (uint256);
-
-    function isTokenPairTotalCapitalLimited(address token0, address token1) external view returns (bool);
-
-    function tokenPairTotalCapitalLimits(address token0, address token1) external view returns (uint256);
 
     function isPoolWhitelisted(address pool) external view returns (bool);
 
-    // -------------------  EXTERNAL, MUTATING, GOVERNANCE, IMMEDIATE  -------------------
+    function getTokenLimit(address token) external view returns (uint256);
 
-    function commitParams() external;
+    // -------------------  EXTERNAL, MUTATING  -------------------
 
-    function commitLiquidationThreshold(address pool) external;
+    function setParams(ProtocolParams calldata newParams) external;
 
-    function commitWhitelistedPool(address pool) external;
+    function changeStabilizationFee(uint256 stabilizationFee) external;
+
+    function changeLiquidationFee(uint256 liquidationFee) external;
+
+    function changeLiquidationPremium(uint256 liquidationPremium) external;
+
+    function changeMaxDebtPerVault(uint256 maxDebtPerVault) external;
+
+    function changeMinSingleNftCapital(uint256 minSingleNftCapital) external;
+
+    function setWhitelistedPool(address pool) external;
 
     function revokeWhitelistedPool(address pool) external;
 
-    // -------------------  EXTERNAL, MUTATING, GOVERNANCE, DELAY  -------------------
+    function setLiquidationThreshold(address pool, uint256 liquidationRatio) external;
 
-    function stageParams(ProtocolParams calldata newParams) external;
-
-    function stageLiquidationThreshold(address pool, uint256 liquidationRatio) external;
-
-    function stageWhitelistedPool(address pool) external;
-
-    function stagePairTokensLimit(
-        address token0,
-        address token1,
-        uint256 newLimit
-    ) external;
+    function setTokenLimit(address token, uint256 newLimit) external;
 }
