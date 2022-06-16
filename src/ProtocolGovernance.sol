@@ -73,38 +73,62 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     /// @inheritdoc IProtocolGovernance
     function stageParams(ProtocolParams calldata newParams) external {
         _requireAdmin();
+
         _validateGovernanceParams(newParams);
         _stagedProtocolParams = newParams;
         stagedParamsTimestamp = block.timestamp + _protocolParams.governanceDelay;
+
         emit ParamsStaged(tx.origin, msg.sender, stagedParamsTimestamp, _stagedProtocolParams);
     }
 
     /// @inheritdoc IProtocolGovernance
     function commitParams() external {
         _requireAdmin();
-        require(stagedParamsTimestamp != 0, ExceptionsLibrary.NULL);
-        require(block.timestamp >= stagedParamsTimestamp, ExceptionsLibrary.TIMESTAMP);
+
+        if (stagedParamsTimestamp == 0) {
+            revert ExceptionsLibrary.Null();
+        }
+
+        if (stagedParamsTimestamp > block.timestamp) {
+            revert ExceptionsLibrary.Timestamp();
+        }
+
         _protocolParams = _stagedProtocolParams;
+
         delete _stagedProtocolParams;
         delete stagedParamsTimestamp;
+
         emit ParamsCommitted(tx.origin, msg.sender, _protocolParams);
     }
 
     function stageWhitelistedPool(address pool) external {
         _requireAdmin();
-        require(pool != address(0), ExceptionsLibrary.ADDRESS_ZERO);
+
+        if (pool == address(0)) {
+            revert ExceptionsLibrary.AddressZero();
+        }
+
         uint256 usageTimestamp = block.timestamp + _protocolParams.governanceDelay;
 
         stagedWhitelistedPoolTimestamp[pool] = usageTimestamp;
+
         emit WhitelistedPoolStaged(tx.origin, msg.sender, pool, usageTimestamp);
     }
 
     function commitWhitelistedPool(address pool) external {
         _requireAdmin();
         uint256 commitTime = stagedWhitelistedPoolTimestamp[pool];
-        require(commitTime != 0, ExceptionsLibrary.ADDRESS_ZERO);
-        require(commitTime <= block.timestamp, ExceptionsLibrary.TIMESTAMP);
+
+        if (commitTime == 0) {
+            revert ExceptionsLibrary.Null();
+        }
+
+        if (commitTime > block.timestamp) {
+            revert ExceptionsLibrary.Timestamp();
+        }
+
         _whitelistedPools.add(pool);
+
         delete stagedWhitelistedPoolTimestamp[pool];
 
         emit WhitelistedPoolCommited(tx.origin, msg.sender, pool);
@@ -113,19 +137,27 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function revokeWhitelistedPool(address pool) external {
         _requireAdmin();
         _whitelistedPools.remove(pool);
+
         emit WhitelistedPoolRevoked(tx.origin, msg.sender, pool);
     }
 
     /// @inheritdoc IProtocolGovernance
     function stageLiquidationThreshold(address pool, uint256 liquidationRatio) external {
         _requireAdmin();
-        require(pool != address(0), ExceptionsLibrary.ADDRESS_ZERO);
-        require(liquidationRatio > 0, ExceptionsLibrary.ADDRESS_ZERO);
+
+        if (pool == address(0)) {
+            revert ExceptionsLibrary.AddressZero();
+        }
+
+        if (liquidationRatio == 0) {
+            revert ExceptionsLibrary.ValueZero();
+        }
 
         uint256 usageTimestamp = block.timestamp + _protocolParams.governanceDelay;
 
         stagedLiquidationThreshold[pool] = liquidationRatio;
         stagedLiquidationThresholdTimestamp[pool] = usageTimestamp;
+
         emit LiquidationRatioStaged(tx.origin, msg.sender, pool, liquidationRatio, usageTimestamp);
     }
 
@@ -133,11 +165,20 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function commitLiquidationThreshold(address pool) external {
         _requireAdmin();
         uint256 commitTime = stagedLiquidationThresholdTimestamp[pool];
-        require(commitTime != 0, ExceptionsLibrary.ADDRESS_ZERO);
-        require(commitTime <= block.timestamp, ExceptionsLibrary.TIMESTAMP);
+
+        if (commitTime == 0) {
+            revert ExceptionsLibrary.Null();
+        }
+
+        if (commitTime > block.timestamp) {
+            revert ExceptionsLibrary.Timestamp();
+        }
+
         liquidationThreshold[pool] = stagedLiquidationThreshold[pool];
+
         delete stagedLiquidationThreshold[pool];
         delete stagedLiquidationThresholdTimestamp[pool];
+
         emit LiquidationRatioCommited(tx.origin, msg.sender, pool);
     }
 
@@ -147,9 +188,12 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         address token1,
         uint256 newLimit
     ) external {
-        require(token0 != address(0), ExceptionsLibrary.ADDRESS_ZERO);
-        require(token1 != address(0), ExceptionsLibrary.ADDRESS_ZERO);
-        require(token0 != token1, ExceptionsLibrary.DUPLICATE);
+        if (token0 == address(0) || token1 == address(0)) {
+            revert ExceptionsLibrary.AddressZero();
+        }
+        if (token0 == token1) {
+            revert ExceptionsLibrary.Duplicate();
+        }
 
         if (token0 > token1) {
             (token0, token1) = (token1, token0);
@@ -157,16 +201,21 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
         isTokenPairTotalCapitalLimited[token0][token1] = true;
         tokenPairTotalCapitalLimits[token0][token1] = newLimit;
+
         emit PairTokensLimitStaged(tx.origin, msg.sender, token0, token1, newLimit);
     }
 
     // -------------------------  INTERNAL, VIEW  ------------------------------
 
     function _validateGovernanceParams(ProtocolParams calldata newParams) private pure {
-        require(newParams.governanceDelay <= MAX_GOVERNANCE_DELAY);
-        require(newParams.stabilizationFee <= MAX_PERCENTAGE_RATE);
-        require(newParams.liquidationFee <= MAX_LIQUIDATION_FEE_RATE);
-        require(newParams.liquidationPremium <= MAX_LIQUIDATION_FEE_RATE);
+        if (
+            newParams.governanceDelay > MAX_GOVERNANCE_DELAY ||
+            newParams.stabilizationFee > MAX_PERCENTAGE_RATE ||
+            newParams.liquidationFee > MAX_LIQUIDATION_FEE_RATE ||
+            newParams.liquidationPremium > MAX_LIQUIDATION_FEE_RATE
+        ) {
+            revert ExceptionsLibrary.InvalidValue();
+        }
     }
 
     // --------------------------  EVENTS  --------------------------

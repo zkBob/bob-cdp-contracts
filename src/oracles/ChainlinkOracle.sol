@@ -86,7 +86,9 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     // -------------------------  INTERNAL, MUTATING  ------------------------------
 
     function _addChainlinkOracles(address[] memory tokens, address[] memory oracles) internal {
-        require(tokens.length == oracles.length, ExceptionsLibrary.INVALID_VALUE);
+        if (tokens.length != oracles.length) {
+            revert ExceptionsLibrary.InvalidValue();
+        }
         for (uint256 i = 0; i < tokens.length; i++) {
             address token = tokens[i];
             address oracle = oracles[i];

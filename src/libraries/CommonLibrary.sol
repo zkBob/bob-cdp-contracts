@@ -158,7 +158,9 @@ library CommonLibrary {
             uint8 v
         )
     {
-        require(sig.length == 65, ExceptionsLibrary.INVALID_LENGTH);
+        if (sig.length != 65) {
+            revert ExceptionsLibrary.InvalidLength({actualLength: sig.length, targetLength: 65});
+        }
 
         assembly {
             r := mload(add(sig, 32))

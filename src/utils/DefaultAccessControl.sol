@@ -18,7 +18,9 @@ contract DefaultAccessControl is IDefaultAccessControl, AccessControlEnumerable 
     /// @notice Creates a new contract.
     /// @param admin Admin of the contract
     constructor(address admin) {
-        require(admin != address(0), ExceptionsLibrary.ADDRESS_ZERO);
+        if (admin == address(0)) {
+            revert ExceptionsLibrary.AddressZero();
+        }
 
         _setupRole(OPERATOR, admin);
         _setupRole(ADMIN_ROLE, admin);
@@ -47,10 +49,14 @@ contract DefaultAccessControl is IDefaultAccessControl, AccessControlEnumerable 
     // -------------------------  INTERNAL, VIEW  ------------------------------
 
     function _requireAdmin() internal view {
-        require(isAdmin(msg.sender), ExceptionsLibrary.FORBIDDEN);
+        if (!isAdmin(msg.sender)) {
+            revert ExceptionsLibrary.Forbidden();
+        }
     }
 
     function _requireAtLeastOperator() internal view {
-        require(isAdmin(msg.sender) || isOperator(msg.sender), ExceptionsLibrary.FORBIDDEN);
+        if (!isAdmin(msg.sender) && !isOperator(msg.sender)) {
+            revert ExceptionsLibrary.Forbidden();
+        }
     }
 }
