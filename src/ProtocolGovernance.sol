@@ -11,9 +11,10 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 public constant DENOMINATOR = 10**9;
+    uint256 public constant TOKEN_DECIMALS = 18;
     uint256 public constant MAX_LIQUIDATION_FEE_RATE = (DENOMINATOR / 100) * 10;
     uint256 public constant MAX_PERCENTAGE_RATE = DENOMINATOR;
-    uint256 public constant MAX_NFT_CAPITAL_LIMIT = 200_000;
+    uint256 public constant MAX_NFT_CAPITAL_LIMIT_USD = 200_000;
 
     EnumerableSet.AddressSet private _whitelistedPools;
 
@@ -37,10 +38,12 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         return _protocolParams;
     }
 
+    /// @inheritdoc IProtocolGovernance
     function isPoolWhitelisted(address pool) external view returns (bool) {
         return (_whitelistedPools.contains(pool));
     }
 
+    /// @inheritdoc IProtocolGovernance
     function getTokenLimit(address token) external view returns (uint256) {
         if (!isTokenCapitalLimited[token]) {
             return type(uint256).max;
@@ -107,7 +110,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     /// @inheritdoc IProtocolGovernance
     function changeMinSingleNftCapital(uint256 minSingleNftCapital) external {
         _requireAdmin();
-        if (minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT) {
+        if (minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS)) {
             revert ExceptionsLibrary.InvalidValue();
         }
         _protocolParams.minSingleNftCapital = minSingleNftCapital;
@@ -166,7 +169,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
             (newParams.stabilizationFee > MAX_PERCENTAGE_RATE) ||
             (newParams.liquidationFee > MAX_LIQUIDATION_FEE_RATE) ||
             (newParams.liquidationPremium > MAX_LIQUIDATION_FEE_RATE) ||
-            (newParams.minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT)
+            (newParams.minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS)))
         ) {
             revert ExceptionsLibrary.InvalidValue();
         }
