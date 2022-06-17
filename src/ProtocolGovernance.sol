@@ -11,35 +11,23 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 public constant DENOMINATOR = 10**9;
-    uint256 public constant MAX_GOVERNANCE_DELAY = 3 days;
+    uint256 public constant TOKEN_DECIMALS = 18;
     uint256 public constant MAX_LIQUIDATION_FEE_RATE = (DENOMINATOR / 100) * 10;
     uint256 public constant MAX_PERCENTAGE_RATE = DENOMINATOR;
+    uint256 public constant MAX_NFT_CAPITAL_LIMIT_USD = 200_000;
 
     EnumerableSet.AddressSet private _whitelistedPools;
 
     ProtocolParams private _protocolParams;
-    ProtocolParams private _stagedProtocolParams;
-
-    /// @inheritdoc IProtocolGovernance
-    uint256 public stagedParamsTimestamp;
 
     /// @inheritdoc IProtocolGovernance
     mapping(address => uint256) public liquidationThreshold;
 
     /// @inheritdoc IProtocolGovernance
-    mapping(address => uint256) public stagedLiquidationThreshold;
+    mapping(address => bool) public isTokenCapitalLimited;
 
     /// @inheritdoc IProtocolGovernance
-    mapping(address => uint256) public stagedLiquidationThresholdTimestamp;
-
-    /// @inheritdoc IProtocolGovernance
-    mapping(address => uint256) public stagedWhitelistedPoolTimestamp;
-
-    /// @inheritdoc IProtocolGovernance
-    mapping(address => mapping(address => bool)) public isTokenPairTotalCapitalLimited;
-
-    /// @inheritdoc IProtocolGovernance
-    mapping(address => mapping(address => uint256)) public tokenPairTotalCapitalLimits;
+    mapping(address => uint256) public tokenCapitalLimit;
 
     constructor(address admin) DefaultAccessControl(admin) {}
 
@@ -51,12 +39,16 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     }
 
     /// @inheritdoc IProtocolGovernance
-    function stagedProtocolParams() external view returns (ProtocolParams memory) {
-        return _stagedProtocolParams;
-    }
-
     function isPoolWhitelisted(address pool) external view returns (bool) {
         return (_whitelistedPools.contains(pool));
+    }
+
+    /// @inheritdoc IProtocolGovernance
+    function getTokenLimit(address token) external view returns (uint256) {
+        if (!isTokenCapitalLimited[token]) {
+            return type(uint256).max;
+        }
+        return tokenCapitalLimit[token];
     }
 
     function supportsInterface(bytes4 interfaceId)
@@ -71,148 +63,113 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     // -------------------  EXTERNAL, MUTATING  -------------------
 
     /// @inheritdoc IProtocolGovernance
-    function stageParams(ProtocolParams calldata newParams) external {
+    function setParams(ProtocolParams calldata newParams) external {
         _requireAdmin();
-
         _validateGovernanceParams(newParams);
-        _stagedProtocolParams = newParams;
-        stagedParamsTimestamp = block.timestamp + _protocolParams.governanceDelay;
-
-        emit ParamsStaged(tx.origin, msg.sender, stagedParamsTimestamp, _stagedProtocolParams);
+        _protocolParams = newParams;
+        emit ParamsSet(tx.origin, msg.sender, newParams);
     }
 
     /// @inheritdoc IProtocolGovernance
-    function commitParams() external {
+    function changeStabilizationFee(uint256 stabilizationFee) external {
         _requireAdmin();
-
-        if (stagedParamsTimestamp == 0) {
-            revert ExceptionsLibrary.Null();
+        if (stabilizationFee > MAX_PERCENTAGE_RATE) {
+            revert ExceptionsLibrary.InvalidValue();
         }
-
-        if (stagedParamsTimestamp > block.timestamp) {
-            revert ExceptionsLibrary.Timestamp();
-        }
-
-        _protocolParams = _stagedProtocolParams;
-
-        delete _stagedProtocolParams;
-        delete stagedParamsTimestamp;
-
-        emit ParamsCommitted(tx.origin, msg.sender, _protocolParams);
+        _protocolParams.stabilizationFee = stabilizationFee;
+        emit StabilizationFeeChanged(tx.origin, msg.sender, stabilizationFee);
     }
 
-    function stageWhitelistedPool(address pool) external {
+    /// @inheritdoc IProtocolGovernance
+    function changeLiquidationFee(uint256 liquidationFee) external {
         _requireAdmin();
+        if (liquidationFee > MAX_LIQUIDATION_FEE_RATE) {
+            revert ExceptionsLibrary.InvalidValue();
+        }
+        _protocolParams.liquidationFee = liquidationFee;
+        emit LiquidationFeeChanged(tx.origin, msg.sender, liquidationFee);
+    }
 
+    /// @inheritdoc IProtocolGovernance
+    function changeLiquidationPremium(uint256 liquidationPremium) external {
+        _requireAdmin();
+        if (liquidationPremium > MAX_LIQUIDATION_FEE_RATE) {
+            revert ExceptionsLibrary.InvalidValue();
+        }
+        _protocolParams.liquidationPremium = liquidationPremium;
+        emit LiquidationPremiumChanged(tx.origin, msg.sender, liquidationPremium);
+    }
+
+    /// @inheritdoc IProtocolGovernance
+    function changeMaxDebtPerVault(uint256 maxDebtPerVault) external {
+        _requireAdmin();
+        _protocolParams.maxDebtPerVault = maxDebtPerVault;
+        emit MaxDebtPerVaultChanged(tx.origin, msg.sender, maxDebtPerVault);
+    }
+
+    /// @inheritdoc IProtocolGovernance
+    function changeMinSingleNftCapital(uint256 minSingleNftCapital) external {
+        _requireAdmin();
+        if (minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS)) {
+            revert ExceptionsLibrary.InvalidValue();
+        }
+        _protocolParams.minSingleNftCapital = minSingleNftCapital;
+        emit MinSingleNftCapitalChanged(tx.origin, msg.sender, minSingleNftCapital);
+    }
+
+    /// @inheritdoc IProtocolGovernance
+    function setWhitelistedPool(address pool) external {
+        _requireAdmin();
         if (pool == address(0)) {
             revert ExceptionsLibrary.AddressZero();
         }
-
-        uint256 usageTimestamp = block.timestamp + _protocolParams.governanceDelay;
-
-        stagedWhitelistedPoolTimestamp[pool] = usageTimestamp;
-
-        emit WhitelistedPoolStaged(tx.origin, msg.sender, pool, usageTimestamp);
-    }
-
-    function commitWhitelistedPool(address pool) external {
-        _requireAdmin();
-        uint256 commitTime = stagedWhitelistedPoolTimestamp[pool];
-
-        if (commitTime == 0) {
-            revert ExceptionsLibrary.Null();
-        }
-
-        if (commitTime > block.timestamp) {
-            revert ExceptionsLibrary.Timestamp();
-        }
-
         _whitelistedPools.add(pool);
-
-        delete stagedWhitelistedPoolTimestamp[pool];
-
-        emit WhitelistedPoolCommited(tx.origin, msg.sender, pool);
+        emit WhitelistedPoolSet(tx.origin, msg.sender, pool);
     }
 
+    /// @inheritdoc IProtocolGovernance
     function revokeWhitelistedPool(address pool) external {
         _requireAdmin();
         _whitelistedPools.remove(pool);
-
         emit WhitelistedPoolRevoked(tx.origin, msg.sender, pool);
     }
 
     /// @inheritdoc IProtocolGovernance
-    function stageLiquidationThreshold(address pool, uint256 liquidationRatio) external {
+    function setLiquidationThreshold(address pool, uint256 liquidationRatio) external {
         _requireAdmin();
-
         if (pool == address(0)) {
             revert ExceptionsLibrary.AddressZero();
         }
-
         if (liquidationRatio == 0) {
             revert ExceptionsLibrary.ValueZero();
         }
+        if (liquidationRatio > DENOMINATOR) {
+            revert ExceptionsLibrary.InvalidValue();
+        }
 
-        uint256 usageTimestamp = block.timestamp + _protocolParams.governanceDelay;
-
-        stagedLiquidationThreshold[pool] = liquidationRatio;
-        stagedLiquidationThresholdTimestamp[pool] = usageTimestamp;
-
-        emit LiquidationRatioStaged(tx.origin, msg.sender, pool, liquidationRatio, usageTimestamp);
+        liquidationThreshold[pool] = liquidationRatio;
+        emit LiquidationThresholdSet(tx.origin, msg.sender, pool, liquidationRatio);
     }
 
     /// @inheritdoc IProtocolGovernance
-    function commitLiquidationThreshold(address pool) external {
-        _requireAdmin();
-        uint256 commitTime = stagedLiquidationThresholdTimestamp[pool];
-
-        if (commitTime == 0) {
-            revert ExceptionsLibrary.Null();
-        }
-
-        if (commitTime > block.timestamp) {
-            revert ExceptionsLibrary.Timestamp();
-        }
-
-        liquidationThreshold[pool] = stagedLiquidationThreshold[pool];
-
-        delete stagedLiquidationThreshold[pool];
-        delete stagedLiquidationThresholdTimestamp[pool];
-
-        emit LiquidationRatioCommited(tx.origin, msg.sender, pool);
-    }
-
-    /// @inheritdoc IProtocolGovernance
-    function stagePairTokensLimit(
-        address token0,
-        address token1,
-        uint256 newLimit
-    ) external {
-        if (token0 == address(0) || token1 == address(0)) {
+    function setTokenLimit(address token, uint256 newLimit) external {
+        if (token == address(0)) {
             revert ExceptionsLibrary.AddressZero();
         }
-        if (token0 == token1) {
-            revert ExceptionsLibrary.Duplicate();
-        }
 
-        if (token0 > token1) {
-            (token0, token1) = (token1, token0);
-        }
-
-        isTokenPairTotalCapitalLimited[token0][token1] = true;
-        tokenPairTotalCapitalLimits[token0][token1] = newLimit;
-
-        emit PairTokensLimitStaged(tx.origin, msg.sender, token0, token1, newLimit);
+        isTokenCapitalLimited[token] = true;
+        tokenCapitalLimit[token] = newLimit;
+        emit TokenLimitSet(tx.origin, msg.sender, token, newLimit);
     }
 
     // -------------------------  INTERNAL, VIEW  ------------------------------
 
     function _validateGovernanceParams(ProtocolParams calldata newParams) private pure {
         if (
-            newParams.governanceDelay > MAX_GOVERNANCE_DELAY ||
-            newParams.stabilizationFee > MAX_PERCENTAGE_RATE ||
-            newParams.liquidationFee > MAX_LIQUIDATION_FEE_RATE ||
-            newParams.liquidationPremium > MAX_LIQUIDATION_FEE_RATE
+            (newParams.stabilizationFee > MAX_PERCENTAGE_RATE) ||
+            (newParams.liquidationFee > MAX_LIQUIDATION_FEE_RATE) ||
+            (newParams.liquidationPremium > MAX_LIQUIDATION_FEE_RATE) ||
+            (newParams.minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS))
         ) {
             revert ExceptionsLibrary.InvalidValue();
         }
@@ -220,29 +177,23 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     // --------------------------  EVENTS  --------------------------
 
-    event ParamsStaged(address indexed origin, address indexed sender, uint256 usageTimestamp, ProtocolParams params);
-    event ParamsCommitted(address indexed origin, address indexed sender, ProtocolParams params);
-    event LiquidationRatioStaged(
+    event ParamsSet(address indexed origin, address indexed sender, ProtocolParams params);
+    event StabilizationFeeChanged(address indexed origin, address indexed sender, uint256 indexed stabilizationFee);
+    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 indexed liquidationFee);
+    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 indexed liquidationPremium);
+    event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 indexed maxDebtPerVault);
+    event MinSingleNftCapitalChanged(
+        address indexed origin,
+        address indexed sender,
+        uint256 indexed minSingleNftCapital
+    );
+    event LiquidationThresholdSet(
         address indexed origin,
         address indexed sender,
         address indexed pool,
-        uint256 liquidationRatio,
-        uint256 usageTimestamp
+        uint256 liquidationRatio
     );
-    event LiquidationRatioCommited(address indexed origin, address indexed sender, address indexed pool);
-    event WhitelistedPoolStaged(
-        address indexed origin,
-        address indexed sender,
-        address indexed pool,
-        uint256 usageTimestamp
-    );
-    event WhitelistedPoolCommited(address indexed origin, address indexed sender, address indexed pool);
+    event WhitelistedPoolSet(address indexed origin, address indexed sender, address indexed pool);
     event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address indexed pool);
-    event PairTokensLimitStaged(
-        address indexed origin,
-        address indexed sender,
-        address token0,
-        address token1,
-        uint256 stagedLimit
-    );
+    event TokenLimitSet(address indexed origin, address indexed sender, address token, uint256 stagedLimit);
 }
