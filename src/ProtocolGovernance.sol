@@ -169,7 +169,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
             (newParams.stabilizationFee > MAX_PERCENTAGE_RATE) ||
             (newParams.liquidationFee > MAX_LIQUIDATION_FEE_RATE) ||
             (newParams.liquidationPremium > MAX_LIQUIDATION_FEE_RATE) ||
-            (newParams.minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS)))
+            (newParams.minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS))
         ) {
             revert ExceptionsLibrary.InvalidValue();
         }
