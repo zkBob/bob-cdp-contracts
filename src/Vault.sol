@@ -17,7 +17,6 @@ import "./libraries/external/LiquidityAmounts.sol";
 import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
 
-
 contract Vault is DefaultAccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -215,15 +214,15 @@ contract Vault is DefaultAccessControl {
         delete _positionInfo[nft];
     }
 
-    function _updateDebt(uint256 vaultId) internal {
-
-    }
+    function _updateDebt(uint256 vaultId) internal {}
 
     function calculateHealthFactor(uint256 vaultId) public view returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
             uint256 nft = _vaultNfts[vaultId].at(i);
-            uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(address(_positionInfo[nft].targetPool));
+            uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(
+                address(_positionInfo[nft].targetPool)
+            );
             result += _calculatePosition(_positionInfo[nft], liquidationThreshold);
         }
         return result;
@@ -327,7 +326,11 @@ contract Vault is DefaultAccessControl {
         );
         token.transferFrom(msg.sender, address(this), returnAmount);
 
-        uint256 daoReceiveAmount = FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFee, vaultAmount, DENOMINATOR);
+        uint256 daoReceiveAmount = FullMath.mulDiv(
+            protocolGovernance.protocolParams().liquidationFee,
+            vaultAmount,
+            DENOMINATOR
+        );
         token.transfer(treasury, daoReceiveAmount);
         token.transfer(vaultOwners[vaultId], returnAmount - daoReceiveAmount - debt[vaultId]);
 
