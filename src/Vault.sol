@@ -32,8 +32,8 @@ contract Vault is DefaultAccessControl {
         uint256 feeGrowthInside1LastX128;
         uint128 tokensOwed0;
         uint128 tokensOwed1;
-        uint160 sqrtPriceAX96;
-        uint160 sqrtPriceBX96;
+        uint160 sqrtRatioAX96;
+        uint160 sqrtRatioBX96;
         IUniswapV3Pool targetPool;
         uint256 vaultId;
     }
@@ -54,6 +54,7 @@ contract Vault is DefaultAccessControl {
     mapping(uint256 => address) public vaultOwners;
     mapping(uint256 => uint256) public debt;
     mapping(uint256 => uint256) private _lastDebtFeeUpdateTimestamp;
+    mapping(address => uint256) public maxCollateralSupply;
     mapping(uint256 => PositionInfo) private _positionInfo;
 
     uint256 vaultCount = 0;
@@ -119,7 +120,14 @@ contract Vault is DefaultAccessControl {
         uint256[] memory nfts = _vaultNfts[vaultId].values();
 
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
-            // todo: add limits support
+            PositionInfo memory position = _positionInfo[nfts[i]];
+
+            uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
+            uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
+
+            maxCollateralSupply[position.token0] -= token0LimitImpact;
+            maxCollateralSupply[position.token1] -= token1LimitImpact;
+
             delete _positionInfo[nfts[i]];
 
             positionManager.safeTransferFrom(address(this), nftsRecipient, nfts[i]);
@@ -177,7 +185,7 @@ contract Vault is DefaultAccessControl {
 
             positionManager.transferFrom(msg.sender, address(this), nft);
 
-            PositionInfo memory position = PositionInfo({
+            _positionInfo[nft] = PositionInfo({
                 token0: token0,
                 token1: token1,
                 fee: fee,
@@ -187,16 +195,21 @@ contract Vault is DefaultAccessControl {
                 feeGrowthInside1LastX128: feeGrowthInside1LastX128,
                 tokensOwed0: tokensOwed0,
                 tokensOwed1: tokensOwed1,
-                sqrtPriceAX96: TickMath.getSqrtRatioAtTick(tickLower),
-                sqrtPriceBX96: TickMath.getSqrtRatioAtTick(tickUpper),
+                sqrtRatioAX96: TickMath.getSqrtRatioAtTick(tickLower),
+                sqrtRatioBX96: TickMath.getSqrtRatioAtTick(tickUpper),
                 targetPool: pool,
                 vaultId: vaultId
             });
-
-            _positionInfo[nft] = position;
         }
 
-        // todo: check limits
+        PositionInfo memory position = _positionInfo[nft];
+
+        uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
+        uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
+
+        maxCollateralSupply[position.token0] += token0LimitImpact;
+        maxCollateralSupply[position.token1] += token1LimitImpact;
+
         _vaultNfts[vaultId].add(nft);
     }
 
@@ -215,6 +228,12 @@ contract Vault is DefaultAccessControl {
 
         positionManager.safeTransferFrom(address(this), msg.sender, nft);
 
+        uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
+        uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
+
+        maxCollateralSupply[position.token0] -= token0LimitImpact;
+        maxCollateralSupply[position.token1] -= token1LimitImpact;
+
         _vaultNfts[position.vaultId].remove(nft);
         delete _positionInfo[nft];
     }
@@ -222,7 +241,11 @@ contract Vault is DefaultAccessControl {
     function _updateDebt(uint256 vaultId) internal {
         uint256 timeElapsed = block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId];
         if (timeElapsed > 0) {
-            uint256 factor = FullMath.mulDiv(timeElapsed, protocolGovernance.protocolParams().stabilizationFee, CommonLibrary.YEAR);
+            uint256 factor = FullMath.mulDiv(
+                timeElapsed,
+                protocolGovernance.protocolParams().stabilizationFee,
+                CommonLibrary.YEAR
+            );
             debt[vaultId] = FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
             _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
         }
@@ -255,12 +278,12 @@ contract Vault is DefaultAccessControl {
         returns (uint256)
     {
         uint256[] memory tokenAmounts = new uint256[](2);
-        (uint160 sqrtPriceX96, , , , , , ) = position.targetPool.slot0();
+        (uint160 sqrtRatioX96, , , , , , ) = position.targetPool.slot0();
 
         (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
-            sqrtPriceX96,
-            position.sqrtPriceAX96,
-            position.sqrtPriceBX96,
+            sqrtRatioX96,
+            position.sqrtRatioAX96,
+            position.sqrtRatioBX96,
             position.liquidity
         );
 

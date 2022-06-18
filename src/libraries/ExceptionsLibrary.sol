@@ -5,6 +5,7 @@ pragma solidity 0.8.13;
 library ExceptionsLibrary {
     error AddressZero();
     error AllowList();
+    error CollateralOverflow(address token);
     error DebtOverflow();
     error Duplicate();
     error Forbidden();
