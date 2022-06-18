@@ -53,6 +53,7 @@ contract Vault is DefaultAccessControl {
     mapping(uint256 => EnumerableSet.UintSet) private _vaultNfts;
     mapping(uint256 => address) public vaultOwners;
     mapping(uint256 => uint256) public debt;
+    mapping(uint256 => uint256) private _lastDebtFeeUpdateTimestamp;
     mapping(uint256 => PositionInfo) private _positionInfo;
 
     uint256 vaultCount = 0;
@@ -94,12 +95,14 @@ contract Vault is DefaultAccessControl {
         ++vaultCount;
         _ownedVaults[msg.sender].add(vaultCount);
         vaultOwners[vaultCount] = msg.sender;
+        _lastDebtFeeUpdateTimestamp[vaultCount] = block.timestamp;
 
         return vaultCount;
     }
 
     function closeVault(uint256 vaultId) external {
         _requireVaultOwner(vaultId);
+        _updateDebt(vaultId);
 
         if (debt[vaultId] != 0) {
             revert ExceptionsLibrary.UnpaidDebt();
@@ -126,6 +129,7 @@ contract Vault is DefaultAccessControl {
         delete debt[vaultId];
         delete vaultOwners[vaultId];
         delete _vaultNfts[vaultId];
+        delete _lastDebtFeeUpdateTimestamp[vaultId];
     }
 
     function addDepositorsToAllowlist(address[] calldata depositors) external {
@@ -148,6 +152,7 @@ contract Vault is DefaultAccessControl {
         }
 
         _requireVaultOwner(vaultId);
+        _updateDebt(vaultId);
 
         {
             (
@@ -192,13 +197,13 @@ contract Vault is DefaultAccessControl {
         }
 
         // todo: check limits
-
         _vaultNfts[vaultId].add(nft);
     }
 
     function withdrawCollateral(uint256 nft) external {
         PositionInfo memory position = _positionInfo[nft];
         _requireVaultOwner(position.vaultId);
+        _updateDebt(position.vaultId);
 
         uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(address(position.targetPool));
         uint256 result = calculateHealthFactor(position.vaultId) - _calculatePosition(position, liquidationThreshold);
@@ -214,7 +219,14 @@ contract Vault is DefaultAccessControl {
         delete _positionInfo[nft];
     }
 
-    function _updateDebt(uint256 vaultId) internal {}
+    function _updateDebt(uint256 vaultId) internal {
+        uint256 timeElapsed = block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId];
+        if (timeElapsed > 0) {
+            uint256 factor = FullMath.mulDiv(timeElapsed, protocolGovernance.protocolParams().stabilizationFee, CommonLibrary.YEAR);
+            debt[vaultId] = FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
+            _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
+        }
+    }
 
     function calculateHealthFactor(uint256 vaultId) public view returns (uint256) {
         uint256 result = 0;
@@ -291,6 +303,8 @@ contract Vault is DefaultAccessControl {
 
     function mintDebt(uint256 vaultId, uint256 amount) external {
         _requireVaultOwner(vaultId);
+        _updateDebt(vaultId);
+
         uint256 healthFactor = calculateHealthFactor(vaultId);
 
         if (healthFactor < debt[vaultId] + amount) {
@@ -303,6 +317,7 @@ contract Vault is DefaultAccessControl {
 
     function burnDebt(uint256 vaultId, uint256 amount) external {
         _requireVaultOwner(vaultId);
+        _updateDebt(vaultId);
 
         if (amount > debt[vaultId]) {
             revert ExceptionsLibrary.DebtOverflow();
@@ -313,6 +328,8 @@ contract Vault is DefaultAccessControl {
     }
 
     function liquidate(uint256 vaultId) external {
+        _updateDebt(vaultId);
+
         uint256 healthFactor = calculateHealthFactor(vaultId);
         if (healthFactor >= debt[vaultId]) {
             revert ExceptionsLibrary.PositionHealthy();
