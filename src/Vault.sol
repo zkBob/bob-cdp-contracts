@@ -285,14 +285,22 @@ contract Vault is DefaultAccessControl {
     }
 
     function setToken(IMUSD token_) external {
+        _requireAdmin();
         if (address(token_) == address(0)) {
             revert ExceptionsLibrary.AddressZero();
         }
-        _requireAdmin();
         if (address(token) != address(0)) {
             revert ExceptionsLibrary.TokenSet();
         }
         token = token_;
+    }
+
+    function setOracle(IOracle oracle_) external {
+        _requireAdmin();
+        if (address(oracle_) == address(0)) {
+            revert ExceptionsLibrary.AddressZero();
+        }
+        oracle = oracle_;
     }
 
     function pause() external {
