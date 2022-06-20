@@ -54,7 +54,7 @@ contract Vault is DefaultAccessControl {
     EnumerableSet.AddressSet private _depositorsAllowlist;
     mapping(address => EnumerableSet.UintSet) private _ownedVaults;
     mapping(uint256 => EnumerableSet.UintSet) private _vaultNfts;
-    mapping(uint256 => address) public vaultOwners;
+    mapping(uint256 => address) public vaultOwner;
     mapping(uint256 => uint256) public debt;
     mapping(uint256 => uint256) private _lastDebtFeeUpdateTimestamp;
     mapping(address => uint256) public maxCollateralSupply;
@@ -114,7 +114,7 @@ contract Vault is DefaultAccessControl {
 
         ++vaultCount;
         _ownedVaults[msg.sender].add(vaultCount);
-        vaultOwners[vaultCount] = msg.sender;
+        vaultOwner[vaultCount] = msg.sender;
         _lastDebtFeeUpdateTimestamp[vaultCount] = block.timestamp;
 
         return vaultCount;
@@ -279,9 +279,9 @@ contract Vault is DefaultAccessControl {
             DENOMINATOR
         );
         token.transfer(treasury, daoReceiveAmount);
-        token.transfer(vaultOwners[vaultId], returnAmount - daoReceiveAmount - debt[vaultId]);
+        token.transfer(vaultOwner[vaultId], returnAmount - daoReceiveAmount - debt[vaultId]);
 
-        _closeVault(vaultId, vaultOwners[vaultId], msg.sender);
+        _closeVault(vaultId, vaultOwner[vaultId], msg.sender);
     }
 
     function setToken(IMUSD token_) external {
@@ -385,7 +385,7 @@ contract Vault is DefaultAccessControl {
     }
 
     function _requireVaultOwner(uint256 vaultId) internal view {
-        if (vaultOwners[vaultId] != msg.sender) {
+        if (vaultOwner[vaultId] != msg.sender) {
             revert ExceptionsLibrary.Forbidden();
         }
     }
@@ -394,7 +394,7 @@ contract Vault is DefaultAccessControl {
 
     function _closeVault(
         uint256 vaultId,
-        address vaultOwner,
+        address owner,
         address nftsRecipient
     ) internal {
         uint256[] memory nfts = _vaultNfts[vaultId].values();
@@ -421,9 +421,9 @@ contract Vault is DefaultAccessControl {
             positionManager.safeTransferFrom(address(this), nftsRecipient, nfts[i]);
         }
 
-        _ownedVaults[vaultOwner].remove(vaultId);
+        _ownedVaults[owner].remove(vaultId);
         delete debt[vaultId];
-        delete vaultOwners[vaultId];
+        delete vaultOwner[vaultId];
         delete _vaultNfts[vaultId];
         delete _lastDebtFeeUpdateTimestamp[vaultId];
     }
