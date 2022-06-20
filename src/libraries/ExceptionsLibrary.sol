@@ -16,7 +16,6 @@ library ExceptionsLibrary {
     error PositionHealthy();
     error PositionUnhealthy();
     error Timestamp();
-    error TokenSet();
     error UnpaidDebt();
     error ValueZero();
 }

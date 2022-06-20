@@ -2,8 +2,6 @@
 pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
-import "@openzeppelin/contracts/mocks/EnumerableSetMock.sol";
 import "./interfaces/IMUSD.sol";
 import "./interfaces/IProtocolGovernance.sol";
 import "./interfaces/external/univ3/IUniswapV3Factory.sol";
@@ -43,9 +41,9 @@ contract Vault is DefaultAccessControl {
 
     INonfungiblePositionManager public immutable positionManager;
     IUniswapV3Factory public immutable factory;
-    IProtocolGovernance public protocolGovernance;
+    IProtocolGovernance public immutable protocolGovernance;
     IOracle public oracle;
-    IMUSD public token;
+    IMUSD public immutable token;
     address public immutable treasury;
 
     bool public isPaused = false;
@@ -68,12 +66,14 @@ contract Vault is DefaultAccessControl {
         IUniswapV3Factory factory_,
         IProtocolGovernance protocolGovernance_,
         IOracle oracle_,
+        IMUSD token_,
         address treasury_
     ) DefaultAccessControl(admin) {
         positionManager = positionManager_;
         factory = factory_;
         protocolGovernance = protocolGovernance_;
         oracle = oracle_;
+        token = token_;
         treasury = treasury_;
     }
 
@@ -282,17 +282,6 @@ contract Vault is DefaultAccessControl {
         token.transfer(vaultOwner[vaultId], returnAmount - daoReceiveAmount - debt[vaultId]);
 
         _closeVault(vaultId, vaultOwner[vaultId], msg.sender);
-    }
-
-    function setToken(IMUSD token_) external {
-        _requireAdmin();
-        if (address(token_) == address(0)) {
-            revert ExceptionsLibrary.AddressZero();
-        }
-        if (address(token) != address(0)) {
-            revert ExceptionsLibrary.TokenSet();
-        }
-        token = token_;
     }
 
     function setOracle(IOracle oracle_) external {

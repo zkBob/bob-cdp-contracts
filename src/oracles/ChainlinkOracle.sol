@@ -12,7 +12,7 @@ import "../utils/DefaultAccessControl.sol";
 contract ChainlinkOracle is IOracle, DefaultAccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    int256 constant DECIMALS = 18;
+    int256 public constant DECIMALS = 18;
     uint256 public constant Q96 = 2**96;
 
     mapping(address => address) public oraclesIndex;

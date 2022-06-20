@@ -152,6 +152,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     /// @inheritdoc IProtocolGovernance
     function setTokenLimit(address token, uint256 newLimit) external {
+        _requireAdmin();
         if (token == address(0)) {
             revert ExceptionsLibrary.AddressZero();
         }
