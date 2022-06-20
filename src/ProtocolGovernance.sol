@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "./interfaces/IProtocolGovernance.sol";
 import "./utils/DefaultAccessControl.sol";
-import "src/libraries/CommonLibrary.sol";
 
 contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;

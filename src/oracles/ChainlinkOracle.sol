@@ -3,17 +3,17 @@ pragma solidity 0.8.13;
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../interfaces/external/chainlink/IAggregatorV3.sol";
+import "../interfaces/oracles/IOracle.sol";
 import "../libraries/external/FullMath.sol";
 import "../libraries/ExceptionsLibrary.sol";
-import "../libraries/CommonLibrary.sol";
 import "../utils/DefaultAccessControl.sol";
-import "../interfaces/oracles/IOracle.sol";
 
 /// @notice Contract for getting chainlink data
 contract ChainlinkOracle is IOracle, DefaultAccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
 
     int256 constant DECIMALS = 18;
+    uint256 public constant Q96 = 2**96;
 
     mapping(address => address) public oraclesIndex;
     mapping(address => int256) public decimalsIndex;
@@ -58,7 +58,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
         } else if (decimals0 > DECIMALS) {
             price0 *= 10**(uint256(decimals0 - DECIMALS));
         }
-        priceX96 = FullMath.mulDiv(price0, CommonLibrary.Q96, price1);
+        priceX96 = FullMath.mulDiv(price0, Q96, price1);
     }
 
     /// @inheritdoc IERC165

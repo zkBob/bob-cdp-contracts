@@ -4,23 +4,26 @@ pragma solidity 0.8.13;
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/mocks/EnumerableSetMock.sol";
-import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
-import "./interfaces/external/univ3/IUniswapV3Pool.sol";
-import "./interfaces/oracles/IOracle.sol";
-import "./utils/DefaultAccessControl.sol";
-import "./interfaces/IProtocolGovernance.sol";
 import "./interfaces/IMUSD.sol";
+import "./interfaces/IProtocolGovernance.sol";
 import "./interfaces/external/univ3/IUniswapV3Factory.sol";
+import "./interfaces/external/univ3/IUniswapV3Pool.sol";
+import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
+import "./interfaces/oracles/IOracle.sol";
 import "./libraries/ExceptionsLibrary.sol";
-import "./libraries/CommonLibrary.sol";
 import "./libraries/external/LiquidityAmounts.sol";
 import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
+import "./utils/DefaultAccessControl.sol";
 
 contract Vault is DefaultAccessControl {
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
+
     uint256 public constant DENOMINATOR = 10**9;
+    uint256 public constant YEAR = 365 * 24 * 3600;
+    uint256 public constant Q128 = 2**128;
+    uint256 public constant Q96 = 2**96;
 
     struct PositionInfo {
         address token0;
@@ -42,7 +45,7 @@ contract Vault is DefaultAccessControl {
     IUniswapV3Factory public immutable factory;
     IProtocolGovernance public protocolGovernance;
     IOracle public oracle;
-    IMUSD public immutable token;
+    IMUSD public token;
     address public immutable treasury;
 
     bool public isPaused = false;
@@ -65,16 +68,30 @@ contract Vault is DefaultAccessControl {
         IUniswapV3Factory factory_,
         IProtocolGovernance protocolGovernance_,
         IOracle oracle_,
-        IMUSD token_,
         address treasury_
     ) DefaultAccessControl(admin) {
         positionManager = positionManager_;
         factory = factory_;
         protocolGovernance = protocolGovernance_;
         oracle = oracle_;
-        token = token_;
         treasury = treasury_;
     }
+
+    // -------------------   PUBLIC, VIEW   -------------------
+
+    function calculateHealthFactor(uint256 vaultId) public view returns (uint256) {
+        uint256 result = 0;
+        for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
+            uint256 nft = _vaultNfts[vaultId].at(i);
+            uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(
+                address(_positionInfo[nft].targetPool)
+            );
+            result += _calculatePosition(_positionInfo[nft], liquidationThreshold);
+        }
+        return result;
+    }
+
+    // -------------------  EXTERNAL, VIEW  -------------------
 
     function ownedVaultsByAddress(address target) external view returns (uint256[] memory) {
         return _ownedVaults[target].values();
@@ -87,6 +104,8 @@ contract Vault is DefaultAccessControl {
     function depositorsAllowlist() external view returns (address[] memory) {
         return _depositorsAllowlist.values();
     }
+
+    // -------------------  EXTERNAL, MUTATING  -------------------
 
     function openVault() external returns (uint256 vaultId) {
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
@@ -110,48 +129,6 @@ contract Vault is DefaultAccessControl {
         }
 
         _closeVault(vaultId, msg.sender, msg.sender);
-    }
-
-    function _closeVault(
-        uint256 vaultId,
-        address vaultOwner,
-        address nftsRecipient
-    ) internal {
-        uint256[] memory nfts = _vaultNfts[vaultId].values();
-
-        for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
-            PositionInfo memory position = _positionInfo[nfts[i]];
-
-            uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
-            uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
-
-            maxCollateralSupply[position.token0] -= token0LimitImpact;
-            maxCollateralSupply[position.token1] -= token1LimitImpact;
-
-            delete _positionInfo[nfts[i]];
-
-            positionManager.safeTransferFrom(address(this), nftsRecipient, nfts[i]);
-        }
-
-        _ownedVaults[vaultOwner].remove(vaultId);
-        delete debt[vaultId];
-        delete vaultOwners[vaultId];
-        delete _vaultNfts[vaultId];
-        delete _lastDebtFeeUpdateTimestamp[vaultId];
-    }
-
-    function addDepositorsToAllowlist(address[] calldata depositors) external {
-        _requireAdmin();
-        for (uint256 i = 0; i < depositors.length; i++) {
-            _depositorsAllowlist.add(depositors[i]);
-        }
-    }
-
-    function removeDepositorsFromAllowlist(address[] calldata depositors) external {
-        _requireAdmin();
-        for (uint256 i = 0; i < depositors.length; i++) {
-            _depositorsAllowlist.remove(depositors[i]);
-        }
     }
 
     function depositCollateral(uint256 vaultId, uint256 nft) external {
@@ -204,8 +181,16 @@ contract Vault is DefaultAccessControl {
 
         PositionInfo memory position = _positionInfo[nft];
 
-        uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
-        uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
+        uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(
+            position.sqrtRatioAX96,
+            position.sqrtRatioBX96,
+            position.liquidity
+        );
+        uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(
+            position.sqrtRatioAX96,
+            position.sqrtRatioBX96,
+            position.liquidity
+        );
 
         maxCollateralSupply[position.token0] += token0LimitImpact;
         maxCollateralSupply[position.token1] += token1LimitImpact;
@@ -228,100 +213,22 @@ contract Vault is DefaultAccessControl {
 
         positionManager.safeTransferFrom(address(this), msg.sender, nft);
 
-        uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
-        uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(position.sqrtRatioAX96, position.sqrtRatioBX96, position.liquidity);
+        uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(
+            position.sqrtRatioAX96,
+            position.sqrtRatioBX96,
+            position.liquidity
+        );
+        uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(
+            position.sqrtRatioAX96,
+            position.sqrtRatioBX96,
+            position.liquidity
+        );
 
         maxCollateralSupply[position.token0] -= token0LimitImpact;
         maxCollateralSupply[position.token1] -= token1LimitImpact;
 
         _vaultNfts[position.vaultId].remove(nft);
         delete _positionInfo[nft];
-    }
-
-    function _updateDebt(uint256 vaultId) internal {
-        uint256 timeElapsed = block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId];
-        if (timeElapsed > 0) {
-            uint256 factor = FullMath.mulDiv(
-                timeElapsed,
-                protocolGovernance.protocolParams().stabilizationFee,
-                CommonLibrary.YEAR
-            );
-            debt[vaultId] = FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
-            _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
-        }
-    }
-
-    function calculateHealthFactor(uint256 vaultId) public view returns (uint256) {
-        uint256 result = 0;
-        for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
-            uint256 nft = _vaultNfts[vaultId].at(i);
-            uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(
-                address(_positionInfo[nft].targetPool)
-            );
-            result += _calculatePosition(_positionInfo[nft], liquidationThreshold);
-        }
-        return result;
-    }
-
-    function _calculateVaultAmount(uint256 vaultId) internal view returns (uint256) {
-        uint256 result = 0;
-        for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
-            uint256 nft = _vaultNfts[vaultId].at(i);
-            result += _calculatePosition(_positionInfo[nft], DENOMINATOR);
-        }
-        return result;
-    }
-
-    function _calculatePosition(PositionInfo memory position, uint256 liquidationThreshold)
-        internal
-        view
-        returns (uint256)
-    {
-        uint256[] memory tokenAmounts = new uint256[](2);
-        (uint160 sqrtRatioX96, , , , , , ) = position.targetPool.slot0();
-
-        (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
-            sqrtRatioX96,
-            position.sqrtRatioAX96,
-            position.sqrtRatioBX96,
-            position.liquidity
-        );
-
-        (, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, , ) = position.targetPool.positions(
-            position.positionKey
-        );
-
-        tokenAmounts[0] +=
-            position.tokensOwed0 +
-            uint128(
-                FullMath.mulDiv(
-                    feeGrowthInside0LastX128 - position.feeGrowthInside0LastX128,
-                    position.liquidity,
-                    CommonLibrary.Q128
-                )
-            );
-
-        tokenAmounts[1] +=
-            position.tokensOwed1 +
-            uint128(
-                FullMath.mulDiv(
-                    feeGrowthInside1LastX128 - position.feeGrowthInside1LastX128,
-                    position.liquidity,
-                    CommonLibrary.Q128
-                )
-            );
-
-        uint256[] memory pricesX96 = new uint256[](2);
-        pricesX96[0] = oracle.price(position.token0);
-        pricesX96[1] = oracle.price(position.token1);
-
-        uint256 result = 0;
-        for (uint256 i = 0; i < 2; ++i) {
-            uint256 tokenAmountsUSD = FullMath.mulDiv(tokenAmounts[i], pricesX96[i], CommonLibrary.Q96);
-            result += FullMath.mulDiv(tokenAmountsUSD, liquidationThreshold, DENOMINATOR);
-        }
-
-        return result;
     }
 
     function mintDebt(uint256 vaultId, uint256 amount) external {
@@ -377,10 +284,15 @@ contract Vault is DefaultAccessControl {
         _closeVault(vaultId, vaultOwners[vaultId], msg.sender);
     }
 
-    function _requireVaultOwner(uint256 vaultId) internal view {
-        if (vaultOwners[vaultId] != msg.sender) {
-            revert ExceptionsLibrary.Forbidden();
+    function setToken(IMUSD token_) external {
+        if (address(token_) == address(0)) {
+            revert ExceptionsLibrary.AddressZero();
         }
+        _requireAdmin();
+        if (address(token) != address(0)) {
+            revert ExceptionsLibrary.TokenSet();
+        }
+        token = token_;
     }
 
     function pause() external {
@@ -401,5 +313,127 @@ contract Vault is DefaultAccessControl {
     function makePublic() external {
         _requireAdmin();
         isPrivate = false;
+    }
+
+    function addDepositorsToAllowlist(address[] calldata depositors) external {
+        _requireAdmin();
+        for (uint256 i = 0; i < depositors.length; i++) {
+            _depositorsAllowlist.add(depositors[i]);
+        }
+    }
+
+    function removeDepositorsFromAllowlist(address[] calldata depositors) external {
+        _requireAdmin();
+        for (uint256 i = 0; i < depositors.length; i++) {
+            _depositorsAllowlist.remove(depositors[i]);
+        }
+    }
+
+    // -------------------  INTERNAL, VIEW  -----------------------
+
+    function _calculateVaultAmount(uint256 vaultId) internal view returns (uint256) {
+        uint256 result = 0;
+        for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
+            uint256 nft = _vaultNfts[vaultId].at(i);
+            result += _calculatePosition(_positionInfo[nft], DENOMINATOR);
+        }
+        return result;
+    }
+
+    function _calculatePosition(PositionInfo memory position, uint256 liquidationThreshold)
+        internal
+        view
+        returns (uint256)
+    {
+        uint256[] memory tokenAmounts = new uint256[](2);
+        (uint160 sqrtRatioX96, , , , , , ) = position.targetPool.slot0();
+
+        (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
+            sqrtRatioX96,
+            position.sqrtRatioAX96,
+            position.sqrtRatioBX96,
+            position.liquidity
+        );
+
+        (, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, , ) = position.targetPool.positions(
+            position.positionKey
+        );
+
+        tokenAmounts[0] +=
+            position.tokensOwed0 +
+            uint128(
+                FullMath.mulDiv(feeGrowthInside0LastX128 - position.feeGrowthInside0LastX128, position.liquidity, Q128)
+            );
+
+        tokenAmounts[1] +=
+            position.tokensOwed1 +
+            uint128(
+                FullMath.mulDiv(feeGrowthInside1LastX128 - position.feeGrowthInside1LastX128, position.liquidity, Q128)
+            );
+
+        uint256[] memory pricesX96 = new uint256[](2);
+        pricesX96[0] = oracle.price(position.token0);
+        pricesX96[1] = oracle.price(position.token1);
+
+        uint256 result = 0;
+        for (uint256 i = 0; i < 2; ++i) {
+            uint256 tokenAmountsUSD = FullMath.mulDiv(tokenAmounts[i], pricesX96[i], Q96);
+            result += FullMath.mulDiv(tokenAmountsUSD, liquidationThreshold, DENOMINATOR);
+        }
+
+        return result;
+    }
+
+    function _requireVaultOwner(uint256 vaultId) internal view {
+        if (vaultOwners[vaultId] != msg.sender) {
+            revert ExceptionsLibrary.Forbidden();
+        }
+    }
+
+    // -------------------  INTERNAL, MUTATING  -------------------
+
+    function _closeVault(
+        uint256 vaultId,
+        address vaultOwner,
+        address nftsRecipient
+    ) internal {
+        uint256[] memory nfts = _vaultNfts[vaultId].values();
+
+        for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
+            PositionInfo memory position = _positionInfo[nfts[i]];
+
+            uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(
+                position.sqrtRatioAX96,
+                position.sqrtRatioBX96,
+                position.liquidity
+            );
+            uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(
+                position.sqrtRatioAX96,
+                position.sqrtRatioBX96,
+                position.liquidity
+            );
+
+            maxCollateralSupply[position.token0] -= token0LimitImpact;
+            maxCollateralSupply[position.token1] -= token1LimitImpact;
+
+            delete _positionInfo[nfts[i]];
+
+            positionManager.safeTransferFrom(address(this), nftsRecipient, nfts[i]);
+        }
+
+        _ownedVaults[vaultOwner].remove(vaultId);
+        delete debt[vaultId];
+        delete vaultOwners[vaultId];
+        delete _vaultNfts[vaultId];
+        delete _lastDebtFeeUpdateTimestamp[vaultId];
+    }
+
+    function _updateDebt(uint256 vaultId) internal {
+        uint256 timeElapsed = block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId];
+        if (timeElapsed > 0) {
+            uint256 factor = FullMath.mulDiv(timeElapsed, protocolGovernance.protocolParams().stabilizationFee, YEAR);
+            debt[vaultId] = FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
+            _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
+        }
     }
 }
