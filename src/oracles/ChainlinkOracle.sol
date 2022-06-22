@@ -5,11 +5,12 @@ import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "../interfaces/external/chainlink/IAggregatorV3.sol";
 import "../interfaces/oracles/IOracle.sol";
 import "../libraries/external/FullMath.sol";
-import "../libraries/ExceptionsLibrary.sol";
 import "../utils/DefaultAccessControl.sol";
 
 /// @notice Contract for getting chainlink data
 contract ChainlinkOracle is IOracle, DefaultAccessControl {
+    error InvalidValue();
+
     using EnumerableSet for EnumerableSet.AddressSet;
 
     int256 public constant DECIMALS = 18;
@@ -87,7 +88,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     function _addChainlinkOracles(address[] memory tokens, address[] memory oracles) internal {
         if (tokens.length != oracles.length) {
-            revert ExceptionsLibrary.InvalidValue();
+            revert InvalidValue();
         }
         for (uint256 i = 0; i < tokens.length; i++) {
             address token = tokens[i];

@@ -7,6 +7,9 @@ import "./interfaces/IProtocolGovernance.sol";
 import "./utils/DefaultAccessControl.sol";
 
 contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl {
+    error InvalidValue();
+    error ValueZero();
+
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 public constant DENOMINATOR = 10**9;
@@ -73,7 +76,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function changeStabilizationFee(uint256 stabilizationFee) external {
         _requireAdmin();
         if (stabilizationFee > MAX_PERCENTAGE_RATE) {
-            revert ExceptionsLibrary.InvalidValue();
+            revert InvalidValue();
         }
         _protocolParams.stabilizationFee = stabilizationFee;
         emit StabilizationFeeChanged(tx.origin, msg.sender, stabilizationFee);
@@ -83,7 +86,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function changeLiquidationFee(uint256 liquidationFee) external {
         _requireAdmin();
         if (liquidationFee > MAX_LIQUIDATION_FEE_RATE) {
-            revert ExceptionsLibrary.InvalidValue();
+            revert InvalidValue();
         }
         _protocolParams.liquidationFee = liquidationFee;
         emit LiquidationFeeChanged(tx.origin, msg.sender, liquidationFee);
@@ -93,7 +96,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function changeLiquidationPremium(uint256 liquidationPremium) external {
         _requireAdmin();
         if (liquidationPremium > MAX_LIQUIDATION_FEE_RATE) {
-            revert ExceptionsLibrary.InvalidValue();
+            revert InvalidValue();
         }
         _protocolParams.liquidationPremium = liquidationPremium;
         emit LiquidationPremiumChanged(tx.origin, msg.sender, liquidationPremium);
@@ -110,7 +113,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function changeMinSingleNftCapital(uint256 minSingleNftCapital) external {
         _requireAdmin();
         if (minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS)) {
-            revert ExceptionsLibrary.InvalidValue();
+            revert InvalidValue();
         }
         _protocolParams.minSingleNftCapital = minSingleNftCapital;
         emit MinSingleNftCapitalChanged(tx.origin, msg.sender, minSingleNftCapital);
@@ -120,7 +123,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function setWhitelistedPool(address pool) external {
         _requireAdmin();
         if (pool == address(0)) {
-            revert ExceptionsLibrary.AddressZero();
+            revert AddressZero();
         }
         _whitelistedPools.add(pool);
         emit WhitelistedPoolSet(tx.origin, msg.sender, pool);
@@ -137,13 +140,13 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function setLiquidationThreshold(address pool, uint256 liquidationRatio) external {
         _requireAdmin();
         if (pool == address(0)) {
-            revert ExceptionsLibrary.AddressZero();
+            revert AddressZero();
         }
         if (liquidationRatio == 0) {
-            revert ExceptionsLibrary.ValueZero();
+            revert ValueZero();
         }
         if (liquidationRatio > DENOMINATOR) {
-            revert ExceptionsLibrary.InvalidValue();
+            revert InvalidValue();
         }
 
         liquidationThreshold[pool] = liquidationRatio;
@@ -154,7 +157,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function setTokenLimit(address token, uint256 newLimit) external {
         _requireAdmin();
         if (token == address(0)) {
-            revert ExceptionsLibrary.AddressZero();
+            revert AddressZero();
         }
 
         isTokenCapitalLimited[token] = true;
@@ -171,7 +174,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
             (newParams.liquidationPremium > MAX_LIQUIDATION_FEE_RATE) ||
             (newParams.minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS))
         ) {
-            revert ExceptionsLibrary.InvalidValue();
+            revert InvalidValue();
         }
     }
 

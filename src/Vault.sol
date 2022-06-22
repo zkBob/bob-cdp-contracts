@@ -8,13 +8,21 @@ import "./interfaces/external/univ3/IUniswapV3Factory.sol";
 import "./interfaces/external/univ3/IUniswapV3Pool.sol";
 import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./interfaces/oracles/IOracle.sol";
-import "./libraries/ExceptionsLibrary.sol";
 import "./libraries/external/LiquidityAmounts.sol";
 import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
 import "./utils/DefaultAccessControl.sol";
 
 contract Vault is DefaultAccessControl {
+    error AllowList();
+    error CollateralTokenOverflow(address token);
+    error CollateralUnderflow();
+    error DebtOverflow();
+    error InvalidPool();
+    error PositionHealthy();
+    error PositionUnhealthy();
+    error UnpaidDebt();
+
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
 
@@ -54,6 +62,7 @@ contract Vault is DefaultAccessControl {
     mapping(uint256 => EnumerableSet.UintSet) private _vaultNfts;
     mapping(uint256 => address) public vaultOwner;
     mapping(uint256 => uint256) public debt;
+    mapping(uint256 => uint256) public debtFee;
     mapping(uint256 => uint256) private _lastDebtFeeUpdateTimestamp;
     mapping(address => uint256) public maxCollateralSupply;
     mapping(uint256 => PositionInfo) private _positionInfo;
@@ -69,6 +78,17 @@ contract Vault is DefaultAccessControl {
         IMUSD token_,
         address treasury_
     ) DefaultAccessControl(admin) {
+        if (
+            address(positionManager_) == address(0) ||
+            address(factory_) == address(0) ||
+            address(protocolGovernance_) == address(0) ||
+            address(oracle_) == address(0) ||
+            address(token_) == address(0) ||
+            address(treasury_) == address(0)
+        ) {
+            revert AddressZero();
+        }
+
         positionManager = positionManager_;
         factory = factory_;
         protocolGovernance = protocolGovernance_;
@@ -105,11 +125,15 @@ contract Vault is DefaultAccessControl {
         return _depositorsAllowlist.values();
     }
 
+    function getOverallDebt(uint256 vaultId) external view returns (uint256) {
+        return debt[vaultId] + debtFee[vaultId];
+    }
+
     // -------------------  EXTERNAL, MUTATING  -------------------
 
     function openVault() external returns (uint256 vaultId) {
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
-            revert ExceptionsLibrary.AllowList();
+            revert AllowList();
         }
 
         ++vaultCount;
@@ -122,10 +146,10 @@ contract Vault is DefaultAccessControl {
 
     function closeVault(uint256 vaultId) external {
         _requireVaultOwner(vaultId);
-        _updateDebt(vaultId);
+        _updateDebtFees(vaultId);
 
-        if (debt[vaultId] != 0) {
-            revert ExceptionsLibrary.UnpaidDebt();
+        if (debt[vaultId] != 0 || debtFee[vaultId] != 0) {
+            revert UnpaidDebt();
         }
 
         _closeVault(vaultId, msg.sender, msg.sender);
@@ -133,11 +157,11 @@ contract Vault is DefaultAccessControl {
 
     function depositCollateral(uint256 vaultId, uint256 nft) external {
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
-            revert ExceptionsLibrary.AllowList();
+            revert AllowList();
         }
 
         _requireVaultOwner(vaultId);
-        _updateDebt(vaultId);
+        _updateDebtFees(vaultId);
 
         {
             (
@@ -157,7 +181,7 @@ contract Vault is DefaultAccessControl {
             IUniswapV3Pool pool = IUniswapV3Pool(factory.getPool(token0, token1, fee));
 
             if (!protocolGovernance.isPoolWhitelisted(address(pool))) {
-                revert ExceptionsLibrary.InvalidPool();
+                revert InvalidPool();
             }
 
             positionManager.transferFrom(msg.sender, address(this), nft);
@@ -191,9 +215,22 @@ contract Vault is DefaultAccessControl {
             position.sqrtRatioBX96,
             position.liquidity
         );
+        
+        if (_calculatePosition(position, DENOMINATOR) < protocolGovernance.protocolParams().minSingleNftCapital) {
+            revert CollateralUnderflow();
+        }
 
         maxCollateralSupply[position.token0] += token0LimitImpact;
+
+        if (maxCollateralSupply[position.token0] > protocolGovernance.getTokenLimit(position.token0)) {
+            revert CollateralTokenOverflow(position.token0);
+        }
+
         maxCollateralSupply[position.token1] += token1LimitImpact;
+
+        if (maxCollateralSupply[position.token1] > protocolGovernance.getTokenLimit(position.token1)) {
+            revert CollateralTokenOverflow(position.token1);
+        }
 
         _vaultNfts[vaultId].add(nft);
     }
@@ -201,14 +238,14 @@ contract Vault is DefaultAccessControl {
     function withdrawCollateral(uint256 nft) external {
         PositionInfo memory position = _positionInfo[nft];
         _requireVaultOwner(position.vaultId);
-        _updateDebt(position.vaultId);
+        _updateDebtFees(position.vaultId);
 
         uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(address(position.targetPool));
         uint256 result = calculateHealthFactor(position.vaultId) - _calculatePosition(position, liquidationThreshold);
 
         // checking that health factor is more or equal than 1
-        if (result < debt[position.vaultId]) {
-            revert ExceptionsLibrary.PositionUnhealthy();
+        if (result < debt[position.vaultId] + debtFee[position.vaultId]) {
+            revert PositionUnhealthy();
         }
 
         positionManager.safeTransferFrom(address(this), msg.sender, nft);
@@ -233,12 +270,12 @@ contract Vault is DefaultAccessControl {
 
     function mintDebt(uint256 vaultId, uint256 amount) external {
         _requireVaultOwner(vaultId);
-        _updateDebt(vaultId);
+        _updateDebtFees(vaultId);
 
         uint256 healthFactor = calculateHealthFactor(vaultId);
 
-        if (healthFactor < debt[vaultId] + amount) {
-            revert ExceptionsLibrary.PositionUnhealthy();
+        if (healthFactor < debt[vaultId] + debtFee[vaultId] + amount) {
+            revert PositionUnhealthy();
         }
 
         token.mint(msg.sender, amount);
@@ -247,10 +284,17 @@ contract Vault is DefaultAccessControl {
 
     function burnDebt(uint256 vaultId, uint256 amount) external {
         _requireVaultOwner(vaultId);
-        _updateDebt(vaultId);
+        _updateDebtFees(vaultId);
 
         if (amount > debt[vaultId]) {
-            revert ExceptionsLibrary.DebtOverflow();
+            uint256 burningFeeAmount = amount - debt[vaultId];
+            if (burningFeeAmount > debtFee[vaultId]) {
+                revert DebtOverflow();
+            } else {
+                token.mint(treasury, burningFeeAmount);
+                debtFee[vaultId] -= burningFeeAmount;
+                amount -= burningFeeAmount;
+            }
         }
 
         token.burn(msg.sender, amount);
@@ -258,12 +302,15 @@ contract Vault is DefaultAccessControl {
     }
 
     function liquidate(uint256 vaultId) external {
-        _updateDebt(vaultId);
+        _updateDebtFees(vaultId);
 
         uint256 healthFactor = calculateHealthFactor(vaultId);
-        if (healthFactor >= debt[vaultId]) {
-            revert ExceptionsLibrary.PositionHealthy();
+        uint256 overallDebt = debt[vaultId] + debtFee[vaultId];
+        if (healthFactor >= overallDebt) {
+            revert PositionHealthy();
         }
+
+        address owner = vaultOwner[vaultId];
 
         uint256 vaultAmount = _calculateVaultAmount(vaultId);
         uint256 returnAmount = FullMath.mulDiv(
@@ -273,21 +320,22 @@ contract Vault is DefaultAccessControl {
         );
         token.transferFrom(msg.sender, address(this), returnAmount);
 
-        uint256 daoReceiveAmount = FullMath.mulDiv(
+        uint256 daoReceiveAmount = debtFee[vaultId] + FullMath.mulDiv(
             protocolGovernance.protocolParams().liquidationFee,
             vaultAmount,
             DENOMINATOR
         );
         token.transfer(treasury, daoReceiveAmount);
-        token.transfer(vaultOwner[vaultId], returnAmount - daoReceiveAmount - debt[vaultId]);
+        token.transfer(owner, returnAmount - daoReceiveAmount - overallDebt);
+        token.burn(owner, debt[vaultId]);
 
-        _closeVault(vaultId, vaultOwner[vaultId], msg.sender);
+        _closeVault(vaultId, owner, msg.sender);
     }
 
     function setOracle(IOracle oracle_) external {
         _requireAdmin();
         if (address(oracle_) == address(0)) {
-            revert ExceptionsLibrary.AddressZero();
+            revert AddressZero();
         }
         oracle = oracle_;
     }
@@ -383,7 +431,7 @@ contract Vault is DefaultAccessControl {
 
     function _requireVaultOwner(uint256 vaultId) internal view {
         if (vaultOwner[vaultId] != msg.sender) {
-            revert ExceptionsLibrary.Forbidden();
+            revert Forbidden();
         }
     }
 
@@ -419,17 +467,19 @@ contract Vault is DefaultAccessControl {
         }
 
         _ownedVaults[owner].remove(vaultId);
+
         delete debt[vaultId];
+        delete debtFee[vaultId];
         delete vaultOwner[vaultId];
         delete _vaultNfts[vaultId];
         delete _lastDebtFeeUpdateTimestamp[vaultId];
     }
 
-    function _updateDebt(uint256 vaultId) internal {
+    function _updateDebtFees(uint256 vaultId) internal {
         uint256 timeElapsed = block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId];
         if (timeElapsed > 0) {
             uint256 factor = FullMath.mulDiv(timeElapsed, protocolGovernance.protocolParams().stabilizationFee, YEAR);
-            debt[vaultId] = FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
+            debtFee[vaultId] += FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
             _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
         }
     }

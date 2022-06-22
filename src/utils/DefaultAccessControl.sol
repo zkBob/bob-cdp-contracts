@@ -3,7 +3,6 @@ pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/access/AccessControlEnumerable.sol";
 import "../interfaces/utils/IDefaultAccessControl.sol";
-import "../libraries/ExceptionsLibrary.sol";
 
 /// @notice This is a default access control with 3 roles:
 ///
@@ -11,6 +10,9 @@ import "../libraries/ExceptionsLibrary.sol";
 /// - ADMIN_DELEGATE: allowed to do anything except assigning ADMIN and ADMIN_DELEGATE roles
 /// - OPERATOR: low-privileged role, generally keeper or some other bot
 contract DefaultAccessControl is IDefaultAccessControl, AccessControlEnumerable {
+    error AddressZero();
+    error Forbidden();
+
     bytes32 public constant OPERATOR = keccak256("operator");
     bytes32 public constant ADMIN_ROLE = keccak256("admin");
     bytes32 public constant ADMIN_DELEGATE_ROLE = keccak256("admin_delegate");
@@ -19,7 +21,7 @@ contract DefaultAccessControl is IDefaultAccessControl, AccessControlEnumerable 
     /// @param admin Admin of the contract
     constructor(address admin) {
         if (admin == address(0)) {
-            revert ExceptionsLibrary.AddressZero();
+            revert AddressZero();
         }
 
         _setupRole(OPERATOR, admin);
@@ -50,13 +52,13 @@ contract DefaultAccessControl is IDefaultAccessControl, AccessControlEnumerable 
 
     function _requireAdmin() internal view {
         if (!isAdmin(msg.sender)) {
-            revert ExceptionsLibrary.Forbidden();
+            revert Forbidden();
         }
     }
 
     function _requireAtLeastOperator() internal view {
         if (!isAdmin(msg.sender) && !isOperator(msg.sender)) {
-            revert ExceptionsLibrary.Forbidden();
+            revert Forbidden();
         }
     }
 }
