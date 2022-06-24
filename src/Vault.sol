@@ -293,6 +293,7 @@ contract Vault is DefaultAccessControl {
                 token.mint(treasury, burningFeeAmount);
                 debtFee[vaultId] -= burningFeeAmount;
                 amount -= burningFeeAmount;
+                token.burn(msg.sender, burningFeeAmount);
             }
         }
 
