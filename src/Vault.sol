@@ -92,7 +92,6 @@ contract Vault is DefaultAccessControl {
         factory = factory_;
         protocolGovernance = protocolGovernance_;
         oracle = oracle_;
-        token = token_;
         treasury = treasury_;
     }
 
