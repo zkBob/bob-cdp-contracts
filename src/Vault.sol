@@ -21,6 +21,7 @@ contract Vault is DefaultAccessControl {
     error InvalidPool();
     error PositionHealthy();
     error PositionUnhealthy();
+    error TokenSet();
     error UnpaidDebt();
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -51,7 +52,7 @@ contract Vault is DefaultAccessControl {
     IUniswapV3Factory public immutable factory;
     IProtocolGovernance public immutable protocolGovernance;
     IOracle public oracle;
-    IMUSD public immutable token;
+    IMUSD public token;
     address public immutable treasury;
 
     bool public isPaused = false;
@@ -75,7 +76,6 @@ contract Vault is DefaultAccessControl {
         IUniswapV3Factory factory_,
         IProtocolGovernance protocolGovernance_,
         IOracle oracle_,
-        IMUSD token_,
         address treasury_
     ) DefaultAccessControl(admin) {
         if (
@@ -83,7 +83,6 @@ contract Vault is DefaultAccessControl {
             address(factory_) == address(0) ||
             address(protocolGovernance_) == address(0) ||
             address(oracle_) == address(0) ||
-            address(token_) == address(0) ||
             address(treasury_) == address(0)
         ) {
             revert AddressZero();
@@ -338,6 +337,17 @@ contract Vault is DefaultAccessControl {
             revert AddressZero();
         }
         oracle = oracle_;
+    }
+
+    function setToken(IMUSD token_) external {
+        _requireAdmin();
+        if (address(token_) == address(0)) {
+            revert AddressZero();
+        }
+        if (address(token) != address(0)) {
+            revert TokenSet();
+        }
+        token = token_;
     }
 
     function pause() external {
