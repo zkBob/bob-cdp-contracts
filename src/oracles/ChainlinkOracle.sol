@@ -13,11 +13,11 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     using EnumerableSet for EnumerableSet.AddressSet;
 
-    int256 public constant DECIMALS = 18;
+    uint256 public constant DECIMALS = 18;
     uint256 public constant Q96 = 2**96;
 
     mapping(address => address) public oraclesIndex;
-    mapping(address => int256) public decimalsIndex;
+    mapping(address => uint256) public decimalsIndex;
     EnumerableSet.AddressSet private _tokens;
 
     constructor(
@@ -45,21 +45,22 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
         if (address(chainlinkOracle) == address(0)) {
             return priceX96;
         }
-        uint256 price0;
-        uint256 price1 = 1;
+        uint256 priceNumerator;
         bool success;
-        (success, price0) = _queryChainlinkOracle(chainlinkOracle);
+        (success, priceNumerator) = _queryChainlinkOracle(chainlinkOracle);
         if (!success) {
             return priceX96;
         }
 
-        int256 decimals0 = decimalsIndex[token];
-        if (DECIMALS > decimals0) {
-            price1 *= 10**(uint256(DECIMALS - decimals0));
-        } else if (decimals0 > DECIMALS) {
-            price0 *= 10**(uint256(decimals0 - DECIMALS));
+        uint256 decimals = decimalsIndex[token];
+        uint256 priceDenominator = 1;
+
+        if (DECIMALS > decimals) {
+            priceNumerator *= 10**(DECIMALS - decimals);
+        } else if (decimals > DECIMALS) {
+            priceDenominator *= 10**(decimals - DECIMALS);
         }
-        priceX96 = FullMath.mulDiv(price0, Q96, price1);
+        priceX96 = FullMath.mulDiv(priceNumerator, Q96, priceDenominator);
     }
 
     /// @inheritdoc IERC165
@@ -95,9 +96,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
             address oracle = oracles[i];
             _tokens.add(token);
             oraclesIndex[token] = oracle;
-            decimalsIndex[token] = int256(
-                -int8(IERC20Metadata(token).decimals()) - int8(IAggregatorV3(oracle).decimals())
-            );
+            decimalsIndex[token] = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
         }
         emit OraclesAdded(tx.origin, msg.sender, tokens, oracles);
     }

@@ -15,6 +15,7 @@ import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./utils/Utilities.sol";
+import "./mocks/MockChainlinkOracle.sol";
 
 contract ChainlinkOracleTest is Test, SetupContract, Utilities {
     event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles);
@@ -76,13 +77,29 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
         address[] memory currentOracles = new address[](0);
 
         vm.expectRevert(ChainlinkOracle.InvalidValue.selector);
-        currentOracle.addChainlinkOracles(currentTokens, currentOracles);
+        oracle.addChainlinkOracles(currentTokens, currentOracles);
     }
 
     // price
 
     function testPrice() public {
-        // todo: check and fix
-        console2.log(oracle.price(weth));
+        assertApproxEqual(1500, oracle.price(weth) >> 96, 500);
+    }
+
+    function testPriceReturnsZeroForNonSetToken() public {
+        assertEq(oracle.price(getNextUserAddress()), 0);
+    }
+
+    function testPriceReturnsZeroForBrokenOracle() public {
+        MockChainlinkOracle mockOracle = new MockChainlinkOracle();
+
+        address[] memory currentTokens = new address[](1);
+        currentTokens[0] = ape;
+        address[] memory currentOracles = new address[](1);
+        currentOracles[0] = address(mockOracle);
+
+        oracle.addChainlinkOracles(currentTokens, currentOracles);
+
+        assertEq(oracle.price(ape), 0);
     }
 }

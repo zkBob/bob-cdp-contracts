@@ -12,6 +12,8 @@
   },
   "scripts": {
     "prettier": "prettier --write **.sol",
-    "prettier:check": "prettier --check **.sol"
+    "prettier:check": "prettier --check **.sol",
+    "test": "forge test -vvvv --fork-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --fork-block-number 15035420",
+    "test:better": "forge test -vvvv --fork-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --fork-block-number 15035420 --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2)"
   }
 }
