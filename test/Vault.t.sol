@@ -346,7 +346,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         console2.log(token.balanceOf(address(this)));
         uint256 targetTreasuryBalance = (1600 * 10**18 * protocolGovernance.protocolParams().liquidationFee) / 10**9;
         console2.log(targetTreasuryBalance, token.balanceOf(address(treasury)));
-        assertApproxEqual(targetTreasuryBalance, token.balanceOf(address(treasury)), 100);
+        assertApproxEqual(targetTreasuryBalance, token.balanceOf(address(treasury)), 150);
         assertEq(positionManager.ownerOf(tokenId), liquidator);
     }
 
