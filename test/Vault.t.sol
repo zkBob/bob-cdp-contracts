@@ -2,7 +2,6 @@
 pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
-import "forge-std/console2.sol";
 import "forge-std/Vm.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../lib/forge-std/src/Test.sol";
@@ -328,11 +327,9 @@ contract VaultTest is Test, SetupContract, Utilities {
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        console2.log(vault.calculateHealthFactor(vaultId));
         vault.mintDebt(vaultId, 1100 * 10**18);
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
-        console2.log(vault.calculateHealthFactor(vaultId));
 
         address liquidator = getNextUserAddress();
 
@@ -343,9 +340,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.liquidate(vaultId);
         vm.stopPrank();
 
-        console2.log(token.balanceOf(address(this)));
         uint256 targetTreasuryBalance = (1600 * 10**18 * protocolGovernance.protocolParams().liquidationFee) / 10**9;
-        console2.log(targetTreasuryBalance, token.balanceOf(address(treasury)));
         assertApproxEqual(targetTreasuryBalance, token.balanceOf(address(treasury)), 150);
         assertEq(positionManager.ownerOf(tokenId), liquidator);
     }
