@@ -12,7 +12,6 @@ import "./libraries/external/LiquidityAmounts.sol";
 import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
 import "./utils/DefaultAccessControl.sol";
-import "../lib/forge-std/src/console2.sol";
 
 contract Vault is DefaultAccessControl {
     error AllowList();
