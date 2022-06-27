@@ -16,6 +16,8 @@ import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./utils/Utilities.sol";
 
 contract ChainlinkOracleTest is Test, SetupContract, Utilities {
+    event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles);
+
     ChainlinkOracle oracle;
 
     function setUp() public {
@@ -36,7 +38,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
 
     // supportedTokens
 
-    function testSupportedTokens() public {
+    function testSupportedTokensSuccess() public {
         address[] memory supportedTokens = oracle.supportedTokens();
         for (uint256 i = 0; i < 3; ++i) {
             assertEq(supportedTokens[i], tokens[i]);
@@ -45,7 +47,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
 
     // addChainlinkOracles
 
-    function testAddChainlinkOracles() public {
+    function testAddChainlinkOraclesSuccess() public {
         address[] memory emptyTokens = new address[](0);
         address[] memory emptyOracles = new address[](0);
         ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles, address(this));
@@ -55,5 +57,15 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
         for (uint256 i = 0; i < 3; ++i) {
             assertTrue(currentOracle.hasOracle(tokens[i]));
         }
+    }
+
+    function testAddChainlinkOraclesEmit() public {
+        address[] memory emptyTokens = new address[](0);
+        address[] memory emptyOracles = new address[](0);
+        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles, address(this));
+
+        vm.expectEmit(false, true, false, true);
+        emit OraclesAdded(getNextUserAddress(), address(this), tokens, chainlinkOracles);
+        currentOracle.addChainlinkOracles(tokens, chainlinkOracles);
     }
 }
