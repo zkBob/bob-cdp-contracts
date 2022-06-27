@@ -322,11 +322,8 @@ contract Vault is DefaultAccessControl {
         );
         token.transferFrom(msg.sender, address(this), returnAmount);
 
-        uint256 daoReceiveAmount = debtFee[vaultId] + FullMath.mulDiv(
-            protocolGovernance.protocolParams().liquidationFee,
-            vaultAmount,
-            DENOMINATOR
-        );
+        uint256 daoReceiveAmount = debtFee[vaultId] +
+            FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFee, vaultAmount, DENOMINATOR);
         token.transfer(treasury, daoReceiveAmount);
         token.transfer(owner, returnAmount - daoReceiveAmount - overallDebt);
         token.burn(owner, debt[vaultId]);

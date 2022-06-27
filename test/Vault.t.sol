@@ -260,16 +260,16 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 300 * 10 ** 18);
+        vault.mintDebt(vaultId, 300 * 10**18);
         vm.warp(block.timestamp + 365 * 24 * 60 * 60); // 1 YEAR
         uint256 overallDebt = vault.getOverallDebt(vaultId);
-        assertEq(overallDebt, 303 * 10 ** 18); // +1%
+        assertEq(overallDebt, 303 * 10**18); // +1%
         // setting balance manually assuming that we'll swap tokens on DEX
-        deal(address(token), address(this), 303 * 10 ** 18);
+        deal(address(token), address(this), 303 * 10**18);
         vault.burnDebt(vaultId, overallDebt);
 
         assertEq(token.balanceOf(address(this)), 0);
-        assertEq(token.balanceOf(treasury), 3 * 10 ** 18);
+        assertEq(token.balanceOf(treasury), 3 * 10**18);
     }
 
     function testBurnDebtWhenPaused() public {
@@ -329,14 +329,14 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         console2.log(vault.calculateHealthFactor(vaultId));
-        vault.mintDebt(vaultId, 1100 * 10 ** 18);
+        vault.mintDebt(vaultId, 1100 * 10**18);
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
         console2.log(vault.calculateHealthFactor(vaultId));
 
         address liquidator = getNextUserAddress();
 
-        deal(address(token), liquidator, 2000 * 10 ** 18, true);
+        deal(address(token), liquidator, 2000 * 10**18, true);
 
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
@@ -344,7 +344,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vm.stopPrank();
 
         console2.log(token.balanceOf(address(this)));
-        uint256 targetTreasuryBalance = 1600 * 10 ** 18 * protocolGovernance.protocolParams().liquidationFee / 10 ** 9;
+        uint256 targetTreasuryBalance = (1600 * 10**18 * protocolGovernance.protocolParams().liquidationFee) / 10**9;
         console2.log(targetTreasuryBalance, token.balanceOf(address(treasury)));
         assertApproxEqual(targetTreasuryBalance, token.balanceOf(address(treasury)), 100);
         assertEq(positionManager.ownerOf(tokenId), liquidator);
@@ -508,18 +508,18 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 300 * 10 ** 18);
+        vault.mintDebt(vaultId, 300 * 10**18);
         uint256 overallDebt = vault.getOverallDebt(vaultId);
-        assertEq(overallDebt, 300 * 10 ** 18);
+        assertEq(overallDebt, 300 * 10**18);
     }
 
     function testOverallDebtSuccessWithFees() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 300 * 10 ** 18);
+        vault.mintDebt(vaultId, 300 * 10**18);
         vm.warp(block.timestamp + 365 * 24 * 60 * 60); // 1 YEAR
         uint256 overallDebt = vault.getOverallDebt(vaultId);
-        assertEq(overallDebt, 303 * 10 ** 18); // +1%
+        assertEq(overallDebt, 303 * 10**18); // +1%
     }
 }
