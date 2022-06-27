@@ -9,12 +9,12 @@ import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
 
 contract SetupContract is Test, ConfigContract {
     function deployChainlink() internal returns (ChainlinkOracle) {
-        ChainlinkOracle oracle = new ChainlinkOracle(tokens, chainlinkOracles, msg.sender);
+        ChainlinkOracle oracle = new ChainlinkOracle(tokens, chainlinkOracles, address(this));
         return oracle;
     }
 
     function deployProtocolGovernance() internal returns (ProtocolGovernance) {
-        ProtocolGovernance protocolGovernance = new ProtocolGovernance(msg.sender);
+        ProtocolGovernance protocolGovernance = new ProtocolGovernance(address(this));
         return protocolGovernance;
     }
 
