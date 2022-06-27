@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Test.sol";
 import "forge-std/Vm.sol";
+import "forge-std/console2.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../lib/forge-std/src/Test.sol";
 import "./ConfigContract.sol";
@@ -67,5 +68,21 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
         vm.expectEmit(false, true, false, true);
         emit OraclesAdded(getNextUserAddress(), address(this), tokens, chainlinkOracles);
         currentOracle.addChainlinkOracles(tokens, chainlinkOracles);
+    }
+
+    function testAddChainlinkOraclesWhenInvalidValue() public {
+        address[] memory currentTokens = new address[](1);
+        currentTokens[0] = wbtc;
+        address[] memory currentOracles = new address[](0);
+
+        vm.expectRevert(ChainlinkOracle.InvalidValue.selector);
+        currentOracle.addChainlinkOracles(currentTokens, currentOracles);
+    }
+
+    // price
+
+    function testPrice() public {
+        // todo: check and fix
+        console2.log(oracle.price(weth));
     }
 }
