@@ -5,7 +5,6 @@ import "@solmate/src/tokens/ERC20.sol";
 
 contract MUSD is ERC20 {
     error Forbidden();
-
     address public immutable governingVault;
 
     constructor(

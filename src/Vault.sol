@@ -12,6 +12,7 @@ import "./libraries/external/LiquidityAmounts.sol";
 import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
 import "./utils/DefaultAccessControl.sol";
+import "../lib/forge-std/src/console2.sol";
 
 contract Vault is DefaultAccessControl {
     error AllowList();
@@ -19,6 +20,7 @@ contract Vault is DefaultAccessControl {
     error CollateralUnderflow();
     error DebtOverflow();
     error InvalidPool();
+    error Paused();
     error PositionHealthy();
     error PositionUnhealthy();
     error TokenSet();
@@ -68,7 +70,7 @@ contract Vault is DefaultAccessControl {
     mapping(address => uint256) public maxCollateralSupply;
     mapping(uint256 => PositionInfo) private _positionInfo;
 
-    uint256 vaultCount = 0;
+    uint256 public vaultCount = 0;
 
     constructor(
         address admin,
@@ -124,7 +126,7 @@ contract Vault is DefaultAccessControl {
     }
 
     function getOverallDebt(uint256 vaultId) external view returns (uint256) {
-        return debt[vaultId] + debtFee[vaultId];
+        return debt[vaultId] + debtFee[vaultId] + _calculateDebtFees(vaultId);
     }
 
     // -------------------  EXTERNAL, MUTATING  -------------------
@@ -154,6 +156,7 @@ contract Vault is DefaultAccessControl {
     }
 
     function depositCollateral(uint256 vaultId, uint256 nft) external {
+        _checkIsPaused();
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
         }
@@ -213,7 +216,7 @@ contract Vault is DefaultAccessControl {
             position.sqrtRatioBX96,
             position.liquidity
         );
-        
+
         if (_calculatePosition(position, DENOMINATOR) < protocolGovernance.protocolParams().minSingleNftCapital) {
             revert CollateralUnderflow();
         }
@@ -234,6 +237,7 @@ contract Vault is DefaultAccessControl {
     }
 
     function withdrawCollateral(uint256 nft) external {
+        _checkIsPaused();
         PositionInfo memory position = _positionInfo[nft];
         _requireVaultOwner(position.vaultId);
         _updateDebtFees(position.vaultId);
@@ -246,7 +250,7 @@ contract Vault is DefaultAccessControl {
             revert PositionUnhealthy();
         }
 
-        positionManager.safeTransferFrom(address(this), msg.sender, nft);
+        positionManager.transferFrom(address(this), msg.sender, nft);
 
         uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(
             position.sqrtRatioAX96,
@@ -267,6 +271,7 @@ contract Vault is DefaultAccessControl {
     }
 
     function mintDebt(uint256 vaultId, uint256 amount) external {
+        _checkIsPaused();
         _requireVaultOwner(vaultId);
         _updateDebtFees(vaultId);
 
@@ -281,19 +286,18 @@ contract Vault is DefaultAccessControl {
     }
 
     function burnDebt(uint256 vaultId, uint256 amount) external {
+        _checkIsPaused();
         _requireVaultOwner(vaultId);
         _updateDebtFees(vaultId);
 
+        amount = (amount < (debtFee[vaultId] + debt[vaultId])) ? amount : (debtFee[vaultId] + debt[vaultId]);
+
         if (amount > debt[vaultId]) {
             uint256 burningFeeAmount = amount - debt[vaultId];
-            if (burningFeeAmount > debtFee[vaultId]) {
-                revert DebtOverflow();
-            } else {
-                token.mint(treasury, burningFeeAmount);
-                debtFee[vaultId] -= burningFeeAmount;
-                amount -= burningFeeAmount;
-                token.burn(msg.sender, burningFeeAmount);
-            }
+            token.mint(treasury, burningFeeAmount);
+            debtFee[vaultId] -= burningFeeAmount;
+            amount -= burningFeeAmount;
+            token.burn(msg.sender, burningFeeAmount);
         }
 
         token.burn(msg.sender, amount);
@@ -445,6 +449,27 @@ contract Vault is DefaultAccessControl {
         }
     }
 
+    function _checkIsPaused() internal view {
+        if (isPaused) {
+            revert Paused();
+        }
+    }
+
+    function _calculateDebtFees(uint256 vaultId) internal view returns (uint256 debtDelta) {
+        debtDelta = 0;
+        uint256 timeElapsed = block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId];
+        if (timeElapsed > 0) {
+            if (debt[vaultId] > 0) {
+                uint256 factor = FullMath.mulDiv(
+                    timeElapsed,
+                    protocolGovernance.protocolParams().stabilizationFee,
+                    YEAR
+                );
+                debtDelta = FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
+            }
+        }
+    }
+
     // -------------------  INTERNAL, MUTATING  -------------------
 
     function _closeVault(
@@ -473,7 +498,7 @@ contract Vault is DefaultAccessControl {
 
             delete _positionInfo[nfts[i]];
 
-            positionManager.safeTransferFrom(address(this), nftsRecipient, nfts[i]);
+            positionManager.transferFrom(address(this), nftsRecipient, nfts[i]);
         }
 
         _ownedVaults[owner].remove(vaultId);
@@ -486,10 +511,11 @@ contract Vault is DefaultAccessControl {
     }
 
     function _updateDebtFees(uint256 vaultId) internal {
-        uint256 timeElapsed = block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId];
-        if (timeElapsed > 0) {
-            uint256 factor = FullMath.mulDiv(timeElapsed, protocolGovernance.protocolParams().stabilizationFee, YEAR);
-            debtFee[vaultId] += FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
+        if (block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId] > 0) {
+            uint256 debtDelta = _calculateDebtFees(vaultId);
+            if (debtDelta > 0) {
+                debtFee[vaultId] += debtDelta;
+            }
             _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
         }
     }
