@@ -76,9 +76,7 @@ contract Utilities is Test, ConfigContract {
             sqrtPriceLimitX96: 0
         });
 
-        swapRouter.exactInputSingle(
-            params
-        );
+        swapRouter.exactInputSingle(params);
     }
 
     function openUniV3Position(
