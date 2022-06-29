@@ -84,6 +84,8 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
 
     function testPrice() public {
         assertApproxEqual(1500, oracle.price(weth) >> 96, 500);
+        assertApproxEqual(10**12, oracle.price(usdc) >> 96, 50);
+        assertApproxEqual(20000 * (10**10), oracle.price(wbtc) >> 96, 500);
     }
 
     function testPriceReturnsZeroForNonSetToken() public {

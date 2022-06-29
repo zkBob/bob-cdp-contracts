@@ -28,7 +28,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         oracle = new MockOracle();
 
-        oracle.setPrice(wbtc, uint256(20000 << 96));
+        oracle.setPrice(wbtc, uint256(20000 << 96) * uint256(10**10));
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
@@ -255,6 +255,24 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertEq(token.balanceOf(address(this)), 0);
     }
 
+    function testBurnMoreThanDebtSuccess() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 10);
+        vault.burnDebt(vaultId, 1000);
+        assertEq(token.balanceOf(address(this)), 0);
+    }
+
+    function testFailBurnMoreThanBalance() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1000);
+        vm.warp(block.timestamp + 365 * 24 * 60 * 60); // 1 YEAR
+        vault.burnDebt(vaultId, 1003);
+    }
+
     function testBurnDebtSuccessWithFees() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
@@ -331,6 +349,11 @@ contract VaultTest is Test, SetupContract, Utilities {
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
+        uint256 health = vault.calculateHealthFactor(vaultId);
+        uint256 debt = vault.debt(vaultId) + vault.debtFee(vaultId);
+
+        assertTrue(health < debt);
+
         address liquidator = getNextUserAddress();
 
         deal(address(token), liquidator, 2000 * 10**18, true);
@@ -348,6 +371,12 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testLiquidateWhenPositionHealthy() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+
+        uint256 health = vault.calculateHealthFactor(vaultId);
+        uint256 debt = vault.debt(vaultId) + vault.debtFee(vaultId);
+
+        assertTrue(debt <= health);
+
         vault.depositCollateral(vaultId, tokenId);
         vm.expectRevert(Vault.PositionHealthy.selector);
         vault.liquidate(vaultId);
