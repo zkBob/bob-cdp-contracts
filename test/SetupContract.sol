@@ -18,7 +18,7 @@ contract SetupContract is Test, ConfigContract {
         return protocolGovernance;
     }
 
-    function setPools(IProtocolGovernance pg) public {
+    function setPools(IProtocolGovernance governance) public {
         address[] memory pools = new address[](3);
 
         pools[0] = IUniswapV3Factory(UniV3Factory).getPool(wbtc, usdc, 3000);
@@ -26,14 +26,15 @@ contract SetupContract is Test, ConfigContract {
         pools[2] = IUniswapV3Factory(UniV3Factory).getPool(wbtc, weth, 3000);
 
         for (uint256 i = 0; i < 3; ++i) {
-            pg.setWhitelistedPool(pools[i]);
-            pg.setLiquidationThreshold(pools[i], 6e8); // 0.6 * DENOMINATOR == 60%
+            governance.setWhitelistedPool(pools[i]);
+            governance.setLiquidationThreshold(pools[i], 6e8); // 0.6 * DENOMINATOR == 60%
         }
     }
 
     function setApprovals() public {
         IERC20(wbtc).approve(UniV3PositionManager, type(uint256).max);
         IERC20(weth).approve(UniV3PositionManager, type(uint256).max);
+        IERC20(weth).approve(SwapRouter, type(uint256).max);
         IERC20(usdc).approve(UniV3PositionManager, type(uint256).max);
         IERC20(ape).approve(UniV3PositionManager, type(uint256).max);
     }

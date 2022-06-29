@@ -8,6 +8,7 @@ import "forge-std/console2.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "forge-std/Test.sol";
 import "../../src/interfaces/external/univ3/IUniswapV3Pool.sol";
+import "../../src/interfaces/external/univ3/ISwapRouter.sol";
 import "../../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 
@@ -60,6 +61,24 @@ contract Utilities is Test, ConfigContract {
         assembly {
             len := mload(add(arr, 0))
         }
+    }
+
+    function makeEthUsdcSwap() public {
+        ISwapRouter swapRouter = ISwapRouter(SwapRouter);
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: weth,
+            tokenOut: usdc,
+            fee: 3000,
+            recipient: address(this),
+            deadline: type(uint256).max,
+            amountIn: 10**18,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: 0
+        });
+
+        swapRouter.exactInputSingle(
+            params
+        );
     }
 
     function openUniV3Position(

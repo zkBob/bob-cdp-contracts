@@ -3,6 +3,7 @@ pragma solidity 0.8.13;
 abstract contract ConfigContract {
     address constant UniV3PositionManager = address(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
     address constant UniV3Factory = address(0x1F98431c8aD98523631AE4a59f267346ea31F984);
+    address constant SwapRouter = address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
 
     address constant wbtc = address(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);
     address constant usdc = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);

@@ -8,6 +8,7 @@ import "./utils/DefaultAccessControl.sol";
 
 contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl {
     error InvalidValue();
+    error InvalidPool();
     error ValueZero();
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -133,6 +134,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function revokeWhitelistedPool(address pool) external {
         _requireAdmin();
         _whitelistedPools.remove(pool);
+        liquidationThreshold[pool] = 0;
         emit WhitelistedPoolRevoked(tx.origin, msg.sender, pool);
     }
 
@@ -141,6 +143,9 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         _requireAdmin();
         if (pool == address(0)) {
             revert AddressZero();
+        }
+        if (!_whitelistedPools.contains(pool)) {
+            revert InvalidPool();
         }
         if (liquidationRatio == 0) {
             revert ValueZero();

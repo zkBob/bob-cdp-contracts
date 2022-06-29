@@ -91,6 +91,9 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.openVault();
         uint256 currentLen = getLength(vault.ownedVaultsByAddress(address(this)));
         assertEq(oldLen + 1, currentLen);
+        vault.openVault();
+        uint256 finalLen = getLength(vault.ownedVaultsByAddress(address(this)));
+        assertEq(oldLen + 2, finalLen);
     }
 
     function testOpenVaultWhenForbidden() public {
@@ -336,6 +339,105 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.mintDebt(vaultId, 1);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.withdrawCollateral(tokenId);
+    }
+
+    // health factor
+
+    function testHealthFactorSuccess() public {
+        uint256 vaultId = vault.openVault();
+        uint256 health = vault.calculateHealthFactor(vaultId);
+        assertEq(health, 0);
+    }
+
+    function testHealthFactorAfterDeposit() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 lowCapitalBound = 10**18 * 1100;
+        uint256 upCapitalBound = 10**18 * 1300; // health apparently ~1200USD
+        vault.depositCollateral(vaultId, tokenId);
+        uint256 health = vault.calculateHealthFactor(vaultId);
+        assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
+    }
+
+    function testHealthFactorAfterDepositWithdraw() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.withdrawCollateral(tokenId);
+        uint256 health = vault.calculateHealthFactor(vaultId);
+        assertEq(health, 0);
+    }
+
+    function testHealthFactorMultipleDeposits() public {
+        uint256 vaultId = vault.openVault();
+        uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 nftB = openUniV3Position(wbtc, weth, 10**8, 10**18 * 20, address(vault));
+        vault.depositCollateral(vaultId, nftA);
+        uint256 healthOneAsset = vault.calculateHealthFactor(vaultId);
+        vault.depositCollateral(vaultId, nftB);
+        uint256 healthTwoAssets = vault.calculateHealthFactor(vaultId);
+        vault.withdrawCollateral(nftB);
+        uint256 healthOneAssetFinal = vault.calculateHealthFactor(vaultId);
+
+        assertEq(healthOneAsset, healthOneAssetFinal);
+        assertTrue(healthOneAsset < healthTwoAssets);
+    }
+
+    function testHealthFactorAfterPriceChange() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+
+        uint256 healthPreAction = vault.calculateHealthFactor(vaultId);
+        oracle.setPrice(weth, 800 << 96);
+        uint256 healthLowPrice = vault.calculateHealthFactor(vaultId);
+        oracle.setPrice(weth, 2000 << 96);
+        uint256 healthHighPrice = vault.calculateHealthFactor(vaultId);
+
+        assertTrue(healthLowPrice < healthPreAction);
+        assertTrue(healthPreAction < healthHighPrice);
+    }
+
+    function testHealthFactorAfterPoolChange() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+
+        uint256 healthPreAction = vault.calculateHealthFactor(vaultId);
+        makeEthUsdcSwap();
+        uint256 healthPostAction = vault.calculateHealthFactor(vaultId);
+        assertTrue(healthPreAction != healthPostAction);
+        assertApproxEqual(healthPreAction, healthPostAction, 1);
+    }
+
+    function testHealthFactorAfterThresholdChange() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+
+        protocolGovernance.setLiquidationThreshold(pool, 1e8);
+        uint256 lowCapitalBound = 10**18 * 150;
+        uint256 upCapitalBound = 10**18 * 250; // health apparently ~200USD
+        uint256 health = vault.calculateHealthFactor(vaultId);
+        assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
+
+        protocolGovernance.revokeWhitelistedPool(pool);
+        uint256 healthNoAssets = vault.calculateHealthFactor(vaultId);
+        assertEq(healthNoAssets, 0);
+    }
+
+    function testHealthFactorFromRandomAddress() public {
+        uint256 vaultId = vault.openVault();
+        vm.prank(getNextUserAddress());
+        uint256 health = vault.calculateHealthFactor(vaultId);
+        assertEq(health, 0);
+    }
+
+    function testHealthFactorNonExistingVault() public {
+        uint256 nextId = vault.vaultCount();
+        uint256 health = vault.calculateHealthFactor(nextId);
+        assertEq(health, 0);
     }
 
     // liquidate
