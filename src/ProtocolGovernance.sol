@@ -161,22 +161,18 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     // --------------------------  EVENTS  --------------------------
 
-    event StabilizationFeeChanged(address indexed origin, address indexed sender, uint256 indexed stabilizationFee);
-    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 indexed liquidationFee);
-    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 indexed liquidationPremium);
-    event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 indexed maxDebtPerVault);
-    event MinSingleNftCapitalChanged(
-        address indexed origin,
-        address indexed sender,
-        uint256 indexed minSingleNftCapital
-    );
+    event StabilizationFeeChanged(address indexed origin, address indexed sender, uint256 stabilizationFee);
+    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFee);
+    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremium);
+    event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
+    event MinSingleNftCapitalChanged(address indexed origin, address indexed sender, uint256 minSingleNftCapital);
     event LiquidationThresholdSet(
         address indexed origin,
         address indexed sender,
-        address indexed pool,
+        address pool,
         uint256 liquidationRatio
     );
-    event WhitelistedPoolSet(address indexed origin, address indexed sender, address indexed pool);
-    event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address indexed pool);
+    event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
+    event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
     event TokenLimitSet(address indexed origin, address indexed sender, address token, uint256 stagedLimit);
 }
