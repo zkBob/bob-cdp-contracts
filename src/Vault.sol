@@ -19,6 +19,7 @@ contract Vault is DefaultAccessControl {
     error CollateralUnderflow();
     error DebtOverflow();
     error InvalidPool();
+    error InvalidValue();
     error Paused();
     error PositionHealthy();
     error PositionUnhealthy();
@@ -71,13 +72,17 @@ contract Vault is DefaultAccessControl {
 
     uint256 public vaultCount = 0;
 
+    uint256[] public stabilisationFeeUpdate;
+    uint256[] public stabilisationFeeUpdateTimestamp;
+
     constructor(
         address admin,
         INonfungiblePositionManager positionManager_,
         IUniswapV3Factory factory_,
         IProtocolGovernance protocolGovernance_,
         IOracle oracle_,
-        address treasury_
+        address treasury_,
+        uint256 stabilisationFee_
     ) DefaultAccessControl(admin) {
         if (
             address(positionManager_) == address(0) ||
@@ -94,6 +99,11 @@ contract Vault is DefaultAccessControl {
         protocolGovernance = protocolGovernance_;
         oracle = oracle_;
         treasury = treasury_;
+
+        // initial value
+
+        stabilisationFeeUpdate.push(stabilisationFee_);
+        stabilisationFeeUpdateTimestamp.push(block.timestamp);
     }
 
     // -------------------   PUBLIC, VIEW   -------------------
@@ -126,6 +136,10 @@ contract Vault is DefaultAccessControl {
 
     function getOverallDebt(uint256 vaultId) external view returns (uint256) {
         return debt[vaultId] + debtFee[vaultId] + _calculateDebtFees(vaultId);
+    }
+
+    function stabilisationFee() external view returns (uint256) {
+        return stabilisationFeeUpdate[stabilisationFeeUpdate.length - 1];
     }
 
     // -------------------  EXTERNAL, MUTATING  -------------------
@@ -384,6 +398,19 @@ contract Vault is DefaultAccessControl {
         }
     }
 
+    function updateStabilisationFee(uint256 stabilisationFee_) external {
+        _requireAdmin();
+        if (stabilisationFee_ > DENOMINATOR) {
+            revert InvalidValue();
+        }
+        if (block.timestamp > stabilisationFeeUpdateTimestamp[stabilisationFeeUpdateTimestamp.length - 1]) {
+            stabilisationFeeUpdate.push(stabilisationFee_);
+            stabilisationFeeUpdateTimestamp.push(block.timestamp);
+        } else {
+            stabilisationFeeUpdate[stabilisationFeeUpdate.length - 1] = stabilisationFee_;
+        }
+    }
+
     // -------------------  INTERNAL, VIEW  -----------------------
 
     function _calculateVaultAmount(uint256 vaultId) internal view returns (uint256) {
@@ -453,16 +480,26 @@ contract Vault is DefaultAccessControl {
 
     function _calculateDebtFees(uint256 vaultId) internal view returns (uint256 debtDelta) {
         debtDelta = 0;
-        uint256 timeElapsed = block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId];
-        if (timeElapsed > 0) {
-            if (debt[vaultId] > 0) {
-                uint256 factor = FullMath.mulDiv(
-                    timeElapsed,
-                    protocolGovernance.protocolParams().stabilizationFee,
-                    YEAR
-                );
-                debtDelta = FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
+        uint256 lastDebtFeeUpdateTimestamp = _lastDebtFeeUpdateTimestamp[vaultId];
+        uint256 timeElapsed = block.timestamp - lastDebtFeeUpdateTimestamp;
+        if (debt[vaultId] == 0 || timeElapsed == 0) {
+            return debtDelta;
+        }
+        uint256 timeUpperBound = block.timestamp;
+        for (uint256 i = stabilisationFeeUpdate.length; i > 0; --i) {
+            // avoiding overflow
+            uint256 timeLowerBound = stabilisationFeeUpdateTimestamp[i - 1] > lastDebtFeeUpdateTimestamp
+                ? stabilisationFeeUpdateTimestamp[i - 1]
+                : lastDebtFeeUpdateTimestamp;
+
+            if (timeLowerBound >= timeUpperBound) {
+                break;
             }
+
+            uint256 factor = FullMath.mulDiv(timeUpperBound - timeLowerBound, stabilisationFeeUpdate[i - 1], YEAR);
+            debtDelta += FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
+
+            timeUpperBound = stabilisationFeeUpdateTimestamp[i - 1];
         }
     }
 
