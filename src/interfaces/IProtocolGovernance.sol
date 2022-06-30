@@ -17,10 +17,6 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
 
     function liquidationThreshold(address pool) external view returns (uint256);
 
-    function isTokenCapitalLimited(address token) external view returns (bool);
-
-    function tokenCapitalLimit(address token) external view returns (uint256);
-
     function protocolParams() external view returns (ProtocolParams memory);
 
     function isPoolWhitelisted(address pool) external view returns (bool);
@@ -28,8 +24,6 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     function getTokenLimit(address token) external view returns (uint256);
 
     // -------------------  EXTERNAL, MUTATING  -------------------
-
-    function setParams(ProtocolParams calldata newParams) external;
 
     function changeStabilizationFee(uint256 stabilizationFee) external;
 

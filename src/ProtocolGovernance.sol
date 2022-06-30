@@ -26,13 +26,13 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     /// @inheritdoc IProtocolGovernance
     mapping(address => uint256) public liquidationThreshold;
 
-    /// @inheritdoc IProtocolGovernance
-    mapping(address => bool) public isTokenCapitalLimited;
+    mapping(address => bool) private _isTokenCapitalLimited;
 
-    /// @inheritdoc IProtocolGovernance
-    mapping(address => uint256) public tokenCapitalLimit;
+    mapping(address => uint256) private _tokenCapitalLimit;
 
-    constructor(address admin) DefaultAccessControl(admin) {}
+    constructor(address admin) DefaultAccessControl(admin) {
+        _protocolParams.maxDebtPerVault = type(uint256).max;
+    }
 
     // -------------------  EXTERNAL, VIEW  -------------------
 
@@ -48,10 +48,10 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     /// @inheritdoc IProtocolGovernance
     function getTokenLimit(address token) external view returns (uint256) {
-        if (!isTokenCapitalLimited[token]) {
+        if (!_isTokenCapitalLimited[token]) {
             return type(uint256).max;
         }
-        return tokenCapitalLimit[token];
+        return _tokenCapitalLimit[token];
     }
 
     function supportsInterface(bytes4 interfaceId)
@@ -64,14 +64,6 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     }
 
     // -------------------  EXTERNAL, MUTATING  -------------------
-
-    /// @inheritdoc IProtocolGovernance
-    function setParams(ProtocolParams calldata newParams) external {
-        _requireAdmin();
-        _validateGovernanceParams(newParams);
-        _protocolParams = newParams;
-        emit ParamsSet(tx.origin, msg.sender, newParams);
-    }
 
     /// @inheritdoc IProtocolGovernance
     function changeStabilizationFee(uint256 stabilizationFee) external {
@@ -147,9 +139,6 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         if (!_whitelistedPools.contains(pool)) {
             revert InvalidPool();
         }
-        if (liquidationRatio == 0) {
-            revert ValueZero();
-        }
         if (liquidationRatio > DENOMINATOR) {
             revert InvalidValue();
         }
@@ -165,43 +154,25 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
             revert AddressZero();
         }
 
-        isTokenCapitalLimited[token] = true;
-        tokenCapitalLimit[token] = newLimit;
+        _isTokenCapitalLimited[token] = true;
+        _tokenCapitalLimit[token] = newLimit;
         emit TokenLimitSet(tx.origin, msg.sender, token, newLimit);
-    }
-
-    // -------------------------  INTERNAL, VIEW  ------------------------------
-
-    function _validateGovernanceParams(ProtocolParams calldata newParams) private pure {
-        if (
-            (newParams.stabilizationFee > MAX_PERCENTAGE_RATE) ||
-            (newParams.liquidationFee > MAX_LIQUIDATION_FEE_RATE) ||
-            (newParams.liquidationPremium > MAX_LIQUIDATION_FEE_RATE) ||
-            (newParams.minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS))
-        ) {
-            revert InvalidValue();
-        }
     }
 
     // --------------------------  EVENTS  --------------------------
 
-    event ParamsSet(address indexed origin, address indexed sender, ProtocolParams params);
-    event StabilizationFeeChanged(address indexed origin, address indexed sender, uint256 indexed stabilizationFee);
-    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 indexed liquidationFee);
-    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 indexed liquidationPremium);
-    event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 indexed maxDebtPerVault);
-    event MinSingleNftCapitalChanged(
-        address indexed origin,
-        address indexed sender,
-        uint256 indexed minSingleNftCapital
-    );
+    event StabilizationFeeChanged(address indexed origin, address indexed sender, uint256 stabilizationFee);
+    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFee);
+    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremium);
+    event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
+    event MinSingleNftCapitalChanged(address indexed origin, address indexed sender, uint256 minSingleNftCapital);
     event LiquidationThresholdSet(
         address indexed origin,
         address indexed sender,
-        address indexed pool,
+        address pool,
         uint256 liquidationRatio
     );
-    event WhitelistedPoolSet(address indexed origin, address indexed sender, address indexed pool);
-    event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address indexed pool);
+    event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
+    event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
     event TokenLimitSet(address indexed origin, address indexed sender, address token, uint256 stagedLimit);
 }
