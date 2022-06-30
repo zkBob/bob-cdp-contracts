@@ -10,7 +10,6 @@ import "./utils/Utilities.sol";
 import "src/interfaces/IProtocolGovernance.sol";
 
 contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
-    event StabilizationFeeChanged(address indexed origin, address indexed sender, uint256 stabilizationFee);
     event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFee);
     event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremium);
     event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
@@ -33,7 +32,6 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
 
     function testDefaultProtocolParams() public {
         IProtocolGovernance.ProtocolParams memory params = protocolGovernance.protocolParams();
-        assertEq(params.stabilizationFee, 0);
         assertEq(params.liquidationFee, 0);
         assertEq(params.liquidationPremium, 0);
         assertEq(params.maxDebtPerVault, type(uint256).max);
@@ -41,13 +39,11 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
     }
 
     function testChangedProtocolParams() public {
-        protocolGovernance.changeStabilizationFee(5 * 10**7);
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);
         protocolGovernance.changeMaxDebtPerVault(10**24);
         protocolGovernance.changeMinSingleNftCapital(10**18);
         IProtocolGovernance.ProtocolParams memory newParams = protocolGovernance.protocolParams();
-        assertEq(newParams.stabilizationFee, 5 * 10**7);
         assertEq(newParams.liquidationFee, 3 * 10**7);
         assertEq(newParams.liquidationPremium, 3 * 10**7);
         assertEq(newParams.maxDebtPerVault, 10**24);
