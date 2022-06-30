@@ -165,8 +165,8 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
 
     function testLiquidationFeeEventEmitted() public {
         vm.expectEmit(false, true, true, false);
-        emit LiquidationFeeChanged(getNextUserAddress(), address(this), 10 ** 6);
-        protocolGovernance.changeLiquidationFee(10 ** 6);
+        emit LiquidationFeeChanged(getNextUserAddress(), address(this), 10**6);
+        protocolGovernance.changeLiquidationFee(10**6);
     }
 
     function testLiquidationPremiumSuccess() public {
@@ -189,8 +189,8 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
 
     function testLiquidationPremiumEventEmitted() public {
         vm.expectEmit(false, true, true, false);
-        emit LiquidationPremiumChanged(getNextUserAddress(), address(this), 10 ** 6);
-        protocolGovernance.changeLiquidationPremium(10 ** 6);
+        emit LiquidationPremiumChanged(getNextUserAddress(), address(this), 10**6);
+        protocolGovernance.changeLiquidationPremium(10**6);
     }
 
     function testMaxDebtPerVaultSuccess() public {
@@ -382,5 +382,4 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
         emit LiquidationThresholdSet(getNextUserAddress(), address(this), pool, 10**6);
         protocolGovernance.setLiquidationThreshold(pool, 10**6);
     }
-
 }
