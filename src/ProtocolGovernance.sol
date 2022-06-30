@@ -139,9 +139,6 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         if (!_whitelistedPools.contains(pool)) {
             revert InvalidPool();
         }
-        if (liquidationRatio == 0) {
-            revert ValueZero();
-        }
         if (liquidationRatio > DENOMINATOR) {
             revert InvalidValue();
         }
@@ -162,22 +159,8 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         emit TokenLimitSet(tx.origin, msg.sender, token, newLimit);
     }
 
-    // -------------------------  INTERNAL, VIEW  ------------------------------
-
-    function _validateGovernanceParams(ProtocolParams calldata newParams) private pure {
-        if (
-            (newParams.stabilizationFee > MAX_PERCENTAGE_RATE) ||
-            (newParams.liquidationFee > MAX_LIQUIDATION_FEE_RATE) ||
-            (newParams.liquidationPremium > MAX_LIQUIDATION_FEE_RATE) ||
-            (newParams.minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS))
-        ) {
-            revert InvalidValue();
-        }
-    }
-
     // --------------------------  EVENTS  --------------------------
 
-    event ParamsSet(address indexed origin, address indexed sender, ProtocolParams params);
     event StabilizationFeeChanged(address indexed origin, address indexed sender, uint256 indexed stabilizationFee);
     event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 indexed liquidationFee);
     event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 indexed liquidationPremium);
