@@ -23,6 +23,8 @@ contract VaultTest is Test, SetupContract, Utilities {
     INonfungiblePositionManager positionManager;
     address treasury;
 
+    uint256 YEAR = 365 * 24 * 60 * 60;
+
     function setUp() public {
         positionManager = INonfungiblePositionManager(UniV3PositionManager);
 
@@ -42,13 +44,13 @@ contract VaultTest is Test, SetupContract, Utilities {
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
             IOracle(oracle),
-            treasury
+            treasury,
+            10**7
         );
 
         token = new MUSD("Mellow USD", "MUSD", address(vault));
         vault.setToken(IMUSD(address(token)));
 
-        protocolGovernance.changeStabilizationFee(10**7);
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);
         protocolGovernance.changeMinSingleNftCapital(10**17);
@@ -272,7 +274,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000);
-        vm.warp(block.timestamp + 365 * 24 * 60 * 60); // 1 YEAR
+        vm.warp(block.timestamp + YEAR);
         vault.burnDebt(vaultId, 1003);
     }
 
@@ -281,7 +283,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 300 * 10**18);
-        vm.warp(block.timestamp + 365 * 24 * 60 * 60); // 1 YEAR
+        vm.warp(block.timestamp + YEAR);
         uint256 overallDebt = vault.getOverallDebt(vaultId);
         assertEq(overallDebt, 303 * 10**18); // +1%
         // setting balance manually assuming that we'll swap tokens on DEX
@@ -564,7 +566,8 @@ contract VaultTest is Test, SetupContract, Utilities {
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
             IOracle(oracle),
-            treasury
+            treasury,
+            10**7
         );
         address newAddress = getNextUserAddress();
         newVault.setToken(IMUSD(newAddress));
@@ -644,8 +647,40 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 300 * 10**18);
-        vm.warp(block.timestamp + 365 * 24 * 60 * 60); // 1 YEAR
+        vm.warp(block.timestamp + YEAR); // 1 YEAR
         uint256 overallDebt = vault.getOverallDebt(vaultId);
         assertEq(overallDebt, 303 * 10**18); // +1%
+    }
+
+    // updateStabilisationFee
+
+    function testUpdateStabilisationFeeSuccess() public {
+        vault.updateStabilisationFee(2 * 10**7);
+        assertEq(vault.stabilisationFee(), 2 * 10**7);
+    }
+
+    function testUpdateStabilisationFeeSuccessWithCalculations() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 300 * 10**18);
+        vm.warp(block.timestamp + YEAR);
+        uint256 overallDebt = vault.getOverallDebt(vaultId);
+        assertEq(overallDebt, 303 * 10**18); // +1%
+        vault.updateStabilisationFee(10 * 10**7);
+        vm.warp(block.timestamp + YEAR);
+        overallDebt = vault.getOverallDebt(vaultId);
+        assertEq(overallDebt, 333 * 10**18); // +1% per first year and +10% per second year
+    }
+
+    function testUpdateStabilisationFeeWhenNotAdmin() public {
+        vm.prank(getNextUserAddress());
+        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vault.updateStabilisationFee(10**7);
+    }
+
+    function testUpdateStabilisationFeeWithInvalidValue() public {
+        vm.expectRevert(Vault.InvalidValue.selector);
+        vault.updateStabilisationFee(10**12);
     }
 }
