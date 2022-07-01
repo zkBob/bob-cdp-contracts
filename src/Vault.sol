@@ -25,7 +25,6 @@ contract Vault is DefaultAccessControl {
     error PositionUnhealthy();
     error TokenSet();
     error UnpaidDebt();
-    error DebtLimitExceeded();
 
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -116,7 +115,7 @@ contract Vault is DefaultAccessControl {
             uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(
                 address(_positionInfo[nft].targetPool)
             );
-            result += _calculatePosition(_positionInfo[nft], liquidationThreshold);
+            result += _calculatePosition(nft, _positionInfo[nft], liquidationThreshold);
         }
         return result;
     }
@@ -235,7 +234,7 @@ contract Vault is DefaultAccessControl {
             position.liquidity
         );
 
-        if (_calculatePosition(position, DENOMINATOR) < protocolGovernance.protocolParams().minSingleNftCapital) {
+        if (_calculatePosition(nft, position, DENOMINATOR) < protocolGovernance.protocolParams().minSingleNftCapital) {
             revert CollateralUnderflow();
         }
 
@@ -263,7 +262,7 @@ contract Vault is DefaultAccessControl {
         _updateDebtFees(position.vaultId);
 
         uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(address(position.targetPool));
-        uint256 result = calculateHealthFactor(position.vaultId) - _calculatePosition(position, liquidationThreshold);
+        uint256 result = calculateHealthFactor(position.vaultId) - _calculatePosition(nft, position, liquidationThreshold);
 
         // checking that health factor is more or equal than 1
         if (result < debt[position.vaultId] + debtFee[position.vaultId]) {
@@ -301,11 +300,6 @@ contract Vault is DefaultAccessControl {
 
         if (healthFactor < debt[vaultId] + debtFee[vaultId] + amount) {
             revert PositionUnhealthy();
-        }
-
-        uint256 debtLimit = protocolGovernance.protocolParams().maxDebtPerVault;
-        if (debtLimit < debt[vaultId] + debtFee[vaultId] + amount) {
-            revert DebtLimitExceeded();
         }
 
         token.mint(msg.sender, amount);
@@ -357,7 +351,7 @@ contract Vault is DefaultAccessControl {
         uint256 daoReceiveAmount = debtFee[vaultId] +
             FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFee, vaultAmount, DENOMINATOR);
         token.transfer(treasury, daoReceiveAmount);
-        token.transfer(owner, returnAmount - daoReceiveAmount - overallDebt);
+        token.transfer(owner, returnAmount - daoReceiveAmount - debt[vaultId]);
         token.burn(owner, debt[vaultId]);
 
         _closeVault(vaultId, owner, msg.sender);
@@ -451,12 +445,114 @@ contract Vault is DefaultAccessControl {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
             uint256 nft = _vaultNfts[vaultId].at(i);
-            result += _calculatePosition(_positionInfo[nft], DENOMINATOR);
+            result += _calculatePosition(nft, _positionInfo[nft], DENOMINATOR);
         }
         return result;
     }
 
-    function _calculatePosition(PositionInfo memory position, uint256 liquidationThreshold)
+    function _getFeeGrowthInside(
+        IUniswapV3Pool pool,
+        int24 tickLower,
+        int24 tickUpper,
+        int24 tickCurrent,
+        uint256 feeGrowthGlobal0X128,
+        uint256 feeGrowthGlobal1X128
+    ) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
+        unchecked {
+            (, , uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128, , , , ) = pool.ticks(
+                tickLower
+            );
+            (, , uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128, , , , ) = pool.ticks(
+                tickUpper
+            );
+
+            // calculate fee growth below
+            uint256 feeGrowthBelow0X128;
+            uint256 feeGrowthBelow1X128;
+            if (tickCurrent >= tickLower) {
+                feeGrowthBelow0X128 = lowerFeeGrowthOutside0X128;
+                feeGrowthBelow1X128 = lowerFeeGrowthOutside1X128;
+            } else {
+                feeGrowthBelow0X128 = feeGrowthGlobal0X128 - lowerFeeGrowthOutside0X128;
+                feeGrowthBelow1X128 = feeGrowthGlobal1X128 - lowerFeeGrowthOutside1X128;
+            }
+
+            // calculate fee growth above
+            uint256 feeGrowthAbove0X128;
+            uint256 feeGrowthAbove1X128;
+            if (tickCurrent < tickUpper) {
+                feeGrowthAbove0X128 = upperFeeGrowthOutside0X128;
+                feeGrowthAbove1X128 = upperFeeGrowthOutside1X128;
+            } else {
+                feeGrowthAbove0X128 = feeGrowthGlobal0X128 - upperFeeGrowthOutside0X128;
+                feeGrowthAbove1X128 = feeGrowthGlobal1X128 - upperFeeGrowthOutside1X128;
+            }
+
+            feeGrowthInside0X128 = feeGrowthGlobal0X128 - feeGrowthBelow0X128 - feeGrowthAbove0X128;
+            feeGrowthInside1X128 = feeGrowthGlobal1X128 - feeGrowthBelow1X128 - feeGrowthAbove1X128;
+        }
+    }
+
+    function _calculateFees(
+        IUniswapV3Pool pool,
+        uint256 uniV3Nft
+    )
+        internal
+        view
+        returns (
+            uint128 tokensOwed0,
+            uint128 tokensOwed1
+        )
+    {
+        uint256 feeGrowthInside0LastX128;
+        uint256 feeGrowthInside1LastX128;
+        uint128 liquidity;
+        int24 tickLower;
+        int24 tickUpper;
+        (
+            ,
+            ,
+            ,
+            ,
+            ,
+            tickLower,
+            tickUpper,
+            liquidity,
+            feeGrowthInside0LastX128,
+            feeGrowthInside1LastX128,
+            tokensOwed0,
+            tokensOwed1
+        ) = positionManager.positions(uniV3Nft);
+
+        if (liquidity == 0) {
+            return (tokensOwed0, tokensOwed1);
+        }
+
+        uint256 feeGrowthGlobal0X128 = pool.feeGrowthGlobal0X128();
+        uint256 feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
+        (, int24 tick, , , , , ) = pool.slot0();
+
+        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(
+            pool,
+            tickLower,
+            tickUpper,
+            tick,
+            feeGrowthGlobal0X128,
+            feeGrowthGlobal1X128
+        );
+
+        uint256 feeGrowthInside0DeltaX128;
+        uint256 feeGrowthInside1DeltaX128;
+        unchecked {
+            feeGrowthInside0DeltaX128 = feeGrowthInside0X128 - feeGrowthInside0LastX128;
+            feeGrowthInside1DeltaX128 = feeGrowthInside1X128 - feeGrowthInside1LastX128;
+        }
+
+        tokensOwed0 += uint128(FullMath.mulDiv(feeGrowthInside0DeltaX128, liquidity, Q128));
+        tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1DeltaX128, liquidity, Q128));
+    }
+
+    function _calculatePosition(uint256 nft, PositionInfo memory position, uint256 liquidationThreshold)
         internal
         view
         returns (uint256)
@@ -471,21 +567,9 @@ contract Vault is DefaultAccessControl {
             position.liquidity
         );
 
-        (, uint256 feeGrowthInside0LastX128, uint256 feeGrowthInside1LastX128, , ) = position.targetPool.positions(
-            position.positionKey
-        );
-
-        tokenAmounts[0] +=
-            position.tokensOwed0 +
-            uint128(
-                FullMath.mulDiv(feeGrowthInside0LastX128 - position.feeGrowthInside0LastX128, position.liquidity, Q128)
-            );
-
-        tokenAmounts[1] +=
-            position.tokensOwed1 +
-            uint128(
-                FullMath.mulDiv(feeGrowthInside1LastX128 - position.feeGrowthInside1LastX128, position.liquidity, Q128)
-            );
+        (uint256 tokensOwed0, uint256 tokensOwed1) = _calculateFees(position.targetPool, nft);
+        tokenAmounts[0] += tokensOwed0;
+        tokenAmounts[1] += tokensOwed1;
 
         uint256[] memory pricesX96 = new uint256[](2);
         pricesX96[0] = oracle.price(position.token0);
