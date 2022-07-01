@@ -25,6 +25,7 @@ contract Vault is DefaultAccessControl {
     error PositionUnhealthy();
     error TokenSet();
     error UnpaidDebt();
+    error DebtLimitExceeded();
 
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
