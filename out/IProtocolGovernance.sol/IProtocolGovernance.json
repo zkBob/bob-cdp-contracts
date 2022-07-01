@@ -130,19 +130,6 @@
     {
       "inputs": [
         {
-          "internalType": "uint256",
-          "name": "stabilizationFee",
-          "type": "uint256"
-        }
-      ],
-      "name": "changeStabilizationFee",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "bytes32",
           "name": "role",
           "type": "bytes32"
@@ -324,25 +311,6 @@
       "inputs": [
         {
           "internalType": "address",
-          "name": "token",
-          "type": "address"
-        }
-      ],
-      "name": "isTokenCapitalLimited",
-      "outputs": [
-        {
-          "internalType": "bool",
-          "name": "",
-          "type": "bool"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
           "name": "pool",
           "type": "address"
         }
@@ -364,11 +332,6 @@
       "outputs": [
         {
           "components": [
-            {
-              "internalType": "uint256",
-              "name": "stabilizationFee",
-              "type": "uint256"
-            },
             {
               "internalType": "uint256",
               "name": "liquidationFee",
@@ -468,46 +431,6 @@
     {
       "inputs": [
         {
-          "components": [
-            {
-              "internalType": "uint256",
-              "name": "stabilizationFee",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "liquidationFee",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "liquidationPremium",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "maxDebtPerVault",
-              "type": "uint256"
-            },
-            {
-              "internalType": "uint256",
-              "name": "minSingleNftCapital",
-              "type": "uint256"
-            }
-          ],
-          "internalType": "struct IProtocolGovernance.ProtocolParams",
-          "name": "newParams",
-          "type": "tuple"
-        }
-      ],
-      "name": "setParams",
-      "outputs": [],
-      "stateMutability": "nonpayable",
-      "type": "function"
-    },
-    {
-      "inputs": [
-        {
           "internalType": "address",
           "name": "token",
           "type": "address"
@@ -554,25 +477,6 @@
       ],
       "stateMutability": "view",
       "type": "function"
-    },
-    {
-      "inputs": [
-        {
-          "internalType": "address",
-          "name": "token",
-          "type": "address"
-        }
-      ],
-      "name": "tokenCapitalLimit",
-      "outputs": [
-        {
-          "internalType": "uint256",
-          "name": "",
-          "type": "uint256"
-        }
-      ],
-      "stateMutability": "view",
-      "type": "function"
     }
   ],
   "bytecode": {
@@ -590,7 +494,6 @@
     "changeLiquidationPremium(uint256)": "4b85917f",
     "changeMaxDebtPerVault(uint256)": "ad88de45",
     "changeMinSingleNftCapital(uint256)": "72260957",
-    "changeStabilizationFee(uint256)": "749f60f3",
     "getRoleAdmin(bytes32)": "248a9ca3",
     "getRoleMember(bytes32,uint256)": "9010d07c",
     "getRoleMemberCount(bytes32)": "ca15c873",
@@ -600,22 +503,19 @@
     "isAdmin(address)": "24d7806c",
     "isOperator(address)": "6d70f7ae",
     "isPoolWhitelisted(address)": "2b26a982",
-    "isTokenCapitalLimited(address)": "9945435b",
     "liquidationThreshold(address)": "b1732b25",
     "protocolParams()": "93aab9d5",
     "renounceRole(bytes32,address)": "36568abe",
     "revokeRole(bytes32,address)": "d547741f",
     "revokeWhitelistedPool(address)": "92c796eb",
     "setLiquidationThreshold(address,uint256)": "0e30428d",
-    "setParams((uint256,uint256,uint256,uint256,uint256))": "2ee16e34",
     "setTokenLimit(address,uint256)": "bc017637",
     "setWhitelistedPool(address)": "1c0a5914",
-    "supportsInterface(bytes4)": "01ffc9a7",
-    "tokenCapitalLimit(address)": "45b49467"
+    "supportsInterface(bytes4)": "01ffc9a7"
   },
   "ast": {
     "absolutePath": "src/interfaces/IProtocolGovernance.sol",
-    "id": 25322,
+    "id": 25625,
     "exportedSymbols": {
       "IAccessControl": [
         19442
@@ -624,22 +524,22 @@
         19467
       ],
       "IDefaultAccessControl": [
-        25962
+        26362
       ],
       "IERC165": [
         19970
       ],
       "IProtocolGovernance": [
-        25321
+        25624
       ]
     },
     "nodeType": "SourceUnit",
-    "src": "39:1732:24",
+    "src": "39:3363:23",
     "nodes": [
       {
-        "id": 25207,
+        "id": 25525,
         "nodeType": "PragmaDirective",
-        "src": "39:24:24",
+        "src": "39:24:23",
         "literals": [
           "solidity",
           "^",
@@ -648,76 +548,49 @@
         ]
       },
       {
-        "id": 25208,
+        "id": 25526,
         "nodeType": "ImportDirective",
-        "src": "65:43:24",
+        "src": "65:43:23",
         "absolutePath": "src/interfaces/utils/IDefaultAccessControl.sol",
         "file": "./utils/IDefaultAccessControl.sol",
         "nameLocation": "-1:-1:-1",
-        "scope": 25322,
-        "sourceUnit": 25963,
+        "scope": 25625,
+        "sourceUnit": 26363,
         "symbolAliases": [],
         "unitAlias": ""
       },
       {
-        "id": 25209,
+        "id": 25527,
         "nodeType": "ImportDirective",
-        "src": "109:65:24",
+        "src": "109:65:23",
         "absolutePath": "lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol",
         "file": "@openzeppelin/contracts/utils/introspection/IERC165.sol",
         "nameLocation": "-1:-1:-1",
-        "scope": 25322,
+        "scope": 25625,
         "sourceUnit": 19971,
         "symbolAliases": [],
         "unitAlias": ""
       },
       {
-        "id": 25321,
+        "id": 25624,
         "nodeType": "ContractDefinition",
-        "src": "176:1594:24",
+        "src": "176:3225:23",
         "nodes": [
           {
-            "id": 25224,
+            "id": 25540,
             "nodeType": "StructDefinition",
-            "src": "246:201:24",
+            "src": "630:167:23",
             "canonicalName": "IProtocolGovernance.ProtocolParams",
             "members": [
               {
                 "constant": false,
-                "id": 25215,
-                "mutability": "mutable",
-                "name": "stabilizationFee",
-                "nameLocation": "286:16:24",
-                "nodeType": "VariableDeclaration",
-                "scope": 25224,
-                "src": "278:24:24",
-                "stateVariable": false,
-                "storageLocation": "default",
-                "typeDescriptions": {
-                  "typeIdentifier": "t_uint256",
-                  "typeString": "uint256"
-                },
-                "typeName": {
-                  "id": 25214,
-                  "name": "uint256",
-                  "nodeType": "ElementaryTypeName",
-                  "src": "278:7:24",
-                  "typeDescriptions": {
-                    "typeIdentifier": "t_uint256",
-                    "typeString": "uint256"
-                  }
-                },
-                "visibility": "internal"
-              },
-              {
-                "constant": false,
-                "id": 25217,
+                "id": 25533,
                 "mutability": "mutable",
                 "name": "liquidationFee",
-                "nameLocation": "320:14:24",
+                "nameLocation": "670:14:23",
                 "nodeType": "VariableDeclaration",
-                "scope": 25224,
-                "src": "312:22:24",
+                "scope": 25540,
+                "src": "662:22:23",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -725,10 +598,10 @@
                   "typeString": "uint256"
                 },
                 "typeName": {
-                  "id": 25216,
+                  "id": 25532,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "312:7:24",
+                  "src": "662:7:23",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -738,13 +611,13 @@
               },
               {
                 "constant": false,
-                "id": 25219,
+                "id": 25535,
                 "mutability": "mutable",
                 "name": "liquidationPremium",
-                "nameLocation": "352:18:24",
+                "nameLocation": "702:18:23",
                 "nodeType": "VariableDeclaration",
-                "scope": 25224,
-                "src": "344:26:24",
+                "scope": 25540,
+                "src": "694:26:23",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -752,10 +625,10 @@
                   "typeString": "uint256"
                 },
                 "typeName": {
-                  "id": 25218,
+                  "id": 25534,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "344:7:24",
+                  "src": "694:7:23",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -765,13 +638,13 @@
               },
               {
                 "constant": false,
-                "id": 25221,
+                "id": 25537,
                 "mutability": "mutable",
                 "name": "maxDebtPerVault",
-                "nameLocation": "388:15:24",
+                "nameLocation": "738:15:23",
                 "nodeType": "VariableDeclaration",
-                "scope": 25224,
-                "src": "380:23:24",
+                "scope": 25540,
+                "src": "730:23:23",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -779,10 +652,10 @@
                   "typeString": "uint256"
                 },
                 "typeName": {
-                  "id": 25220,
+                  "id": 25536,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "380:7:24",
+                  "src": "730:7:23",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -792,13 +665,13 @@
               },
               {
                 "constant": false,
-                "id": 25223,
+                "id": 25539,
                 "mutability": "mutable",
                 "name": "minSingleNftCapital",
-                "nameLocation": "421:19:24",
+                "nameLocation": "771:19:23",
                 "nodeType": "VariableDeclaration",
-                "scope": 25224,
-                "src": "413:27:24",
+                "scope": 25540,
+                "src": "763:27:23",
                 "stateVariable": false,
                 "storageLocation": "default",
                 "typeDescriptions": {
@@ -806,10 +679,10 @@
                   "typeString": "uint256"
                 },
                 "typeName": {
-                  "id": 25222,
+                  "id": 25538,
                   "name": "uint256",
                   "nodeType": "ElementaryTypeName",
-                  "src": "413:7:24",
+                  "src": "763:7:23",
                   "typeDescriptions": {
                     "typeIdentifier": "t_uint256",
                     "typeString": "uint256"
@@ -819,33 +692,39 @@
               }
             ],
             "name": "ProtocolParams",
-            "nameLocation": "253:14:24",
-            "scope": 25321,
+            "nameLocation": "637:14:23",
+            "scope": 25624,
             "visibility": "public"
           },
           {
-            "id": 25231,
+            "id": 25548,
             "nodeType": "FunctionDefinition",
-            "src": "518:76:24",
+            "src": "1014:76:23",
+            "documentation": {
+              "id": 25541,
+              "nodeType": "StructuredDocumentation",
+              "src": "868:141:23",
+              "text": "@notice Liquidation threshold for certain pool.\n @param pool The given address of pool\n @return Liquidation threshold value"
+            },
             "functionSelector": "b1732b25",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "liquidationThreshold",
-            "nameLocation": "527:20:24",
+            "nameLocation": "1023:20:23",
             "parameters": {
-              "id": 25227,
+              "id": 25544,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25226,
+                  "id": 25543,
                   "mutability": "mutable",
                   "name": "pool",
-                  "nameLocation": "556:4:24",
+                  "nameLocation": "1052:4:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25231,
-                  "src": "548:12:24",
+                  "scope": 25548,
+                  "src": "1044:12:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -853,10 +732,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 25225,
+                    "id": 25542,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "548:7:24",
+                    "src": "1044:7:23",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -866,21 +745,21 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "547:14:24"
+              "src": "1043:14:23"
             },
             "returnParameters": {
-              "id": 25230,
+              "id": 25547,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25229,
+                  "id": 25546,
                   "mutability": "mutable",
                   "name": "",
                   "nameLocation": "-1:-1:-1",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25231,
-                  "src": "585:7:24",
+                  "scope": 25548,
+                  "src": "1081:7:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -888,10 +767,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 25228,
+                    "id": 25545,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "585:7:24",
+                    "src": "1081:7:23",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -900,266 +779,110 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "584:9:24"
+              "src": "1080:9:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "view",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25238,
+            "id": 25555,
             "nodeType": "FunctionDefinition",
-            "src": "600:75:24",
-            "functionSelector": "9945435b",
-            "implemented": false,
-            "kind": "function",
-            "modifiers": [],
-            "name": "isTokenCapitalLimited",
-            "nameLocation": "609:21:24",
-            "parameters": {
-              "id": 25234,
-              "nodeType": "ParameterList",
-              "parameters": [
-                {
-                  "constant": false,
-                  "id": 25233,
-                  "mutability": "mutable",
-                  "name": "token",
-                  "nameLocation": "639:5:24",
-                  "nodeType": "VariableDeclaration",
-                  "scope": 25238,
-                  "src": "631:13:24",
-                  "stateVariable": false,
-                  "storageLocation": "default",
-                  "typeDescriptions": {
-                    "typeIdentifier": "t_address",
-                    "typeString": "address"
-                  },
-                  "typeName": {
-                    "id": 25232,
-                    "name": "address",
-                    "nodeType": "ElementaryTypeName",
-                    "src": "631:7:24",
-                    "stateMutability": "nonpayable",
-                    "typeDescriptions": {
-                      "typeIdentifier": "t_address",
-                      "typeString": "address"
-                    }
-                  },
-                  "visibility": "internal"
-                }
-              ],
-              "src": "630:15:24"
+            "src": "1175:72:23",
+            "documentation": {
+              "id": 25549,
+              "nodeType": "StructuredDocumentation",
+              "src": "1096:74:23",
+              "text": "@notice Global protocol params.\n @return Protocol params struct"
             },
-            "returnParameters": {
-              "id": 25237,
-              "nodeType": "ParameterList",
-              "parameters": [
-                {
-                  "constant": false,
-                  "id": 25236,
-                  "mutability": "mutable",
-                  "name": "",
-                  "nameLocation": "-1:-1:-1",
-                  "nodeType": "VariableDeclaration",
-                  "scope": 25238,
-                  "src": "669:4:24",
-                  "stateVariable": false,
-                  "storageLocation": "default",
-                  "typeDescriptions": {
-                    "typeIdentifier": "t_bool",
-                    "typeString": "bool"
-                  },
-                  "typeName": {
-                    "id": 25235,
-                    "name": "bool",
-                    "nodeType": "ElementaryTypeName",
-                    "src": "669:4:24",
-                    "typeDescriptions": {
-                      "typeIdentifier": "t_bool",
-                      "typeString": "bool"
-                    }
-                  },
-                  "visibility": "internal"
-                }
-              ],
-              "src": "668:6:24"
-            },
-            "scope": 25321,
-            "stateMutability": "view",
-            "virtual": false,
-            "visibility": "external"
-          },
-          {
-            "id": 25245,
-            "nodeType": "FunctionDefinition",
-            "src": "681:74:24",
-            "functionSelector": "45b49467",
-            "implemented": false,
-            "kind": "function",
-            "modifiers": [],
-            "name": "tokenCapitalLimit",
-            "nameLocation": "690:17:24",
-            "parameters": {
-              "id": 25241,
-              "nodeType": "ParameterList",
-              "parameters": [
-                {
-                  "constant": false,
-                  "id": 25240,
-                  "mutability": "mutable",
-                  "name": "token",
-                  "nameLocation": "716:5:24",
-                  "nodeType": "VariableDeclaration",
-                  "scope": 25245,
-                  "src": "708:13:24",
-                  "stateVariable": false,
-                  "storageLocation": "default",
-                  "typeDescriptions": {
-                    "typeIdentifier": "t_address",
-                    "typeString": "address"
-                  },
-                  "typeName": {
-                    "id": 25239,
-                    "name": "address",
-                    "nodeType": "ElementaryTypeName",
-                    "src": "708:7:24",
-                    "stateMutability": "nonpayable",
-                    "typeDescriptions": {
-                      "typeIdentifier": "t_address",
-                      "typeString": "address"
-                    }
-                  },
-                  "visibility": "internal"
-                }
-              ],
-              "src": "707:15:24"
-            },
-            "returnParameters": {
-              "id": 25244,
-              "nodeType": "ParameterList",
-              "parameters": [
-                {
-                  "constant": false,
-                  "id": 25243,
-                  "mutability": "mutable",
-                  "name": "",
-                  "nameLocation": "-1:-1:-1",
-                  "nodeType": "VariableDeclaration",
-                  "scope": 25245,
-                  "src": "746:7:24",
-                  "stateVariable": false,
-                  "storageLocation": "default",
-                  "typeDescriptions": {
-                    "typeIdentifier": "t_uint256",
-                    "typeString": "uint256"
-                  },
-                  "typeName": {
-                    "id": 25242,
-                    "name": "uint256",
-                    "nodeType": "ElementaryTypeName",
-                    "src": "746:7:24",
-                    "typeDescriptions": {
-                      "typeIdentifier": "t_uint256",
-                      "typeString": "uint256"
-                    }
-                  },
-                  "visibility": "internal"
-                }
-              ],
-              "src": "745:9:24"
-            },
-            "scope": 25321,
-            "stateMutability": "view",
-            "virtual": false,
-            "visibility": "external"
-          },
-          {
-            "id": 25251,
-            "nodeType": "FunctionDefinition",
-            "src": "761:72:24",
             "functionSelector": "93aab9d5",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "protocolParams",
-            "nameLocation": "770:14:24",
+            "nameLocation": "1184:14:23",
             "parameters": {
-              "id": 25246,
+              "id": 25550,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "784:2:24"
+              "src": "1198:2:23"
             },
             "returnParameters": {
-              "id": 25250,
+              "id": 25554,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25249,
+                  "id": 25553,
                   "mutability": "mutable",
                   "name": "",
                   "nameLocation": "-1:-1:-1",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25251,
-                  "src": "810:21:24",
+                  "scope": 25555,
+                  "src": "1224:21:23",
                   "stateVariable": false,
                   "storageLocation": "memory",
                   "typeDescriptions": {
-                    "typeIdentifier": "t_struct$_ProtocolParams_$25224_memory_ptr",
+                    "typeIdentifier": "t_struct$_ProtocolParams_$25540_memory_ptr",
                     "typeString": "struct IProtocolGovernance.ProtocolParams"
                   },
                   "typeName": {
-                    "id": 25248,
+                    "id": 25552,
                     "nodeType": "UserDefinedTypeName",
                     "pathNode": {
-                      "id": 25247,
+                      "id": 25551,
                       "name": "ProtocolParams",
                       "nodeType": "IdentifierPath",
-                      "referencedDeclaration": 25224,
-                      "src": "810:14:24"
+                      "referencedDeclaration": 25540,
+                      "src": "1224:14:23"
                     },
-                    "referencedDeclaration": 25224,
-                    "src": "810:14:24",
+                    "referencedDeclaration": 25540,
+                    "src": "1224:14:23",
                     "typeDescriptions": {
-                      "typeIdentifier": "t_struct$_ProtocolParams_$25224_storage_ptr",
+                      "typeIdentifier": "t_struct$_ProtocolParams_$25540_storage_ptr",
                       "typeString": "struct IProtocolGovernance.ProtocolParams"
                     }
                   },
                   "visibility": "internal"
                 }
               ],
-              "src": "809:23:24"
+              "src": "1223:23:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "view",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25258,
+            "id": 25563,
             "nodeType": "FunctionDefinition",
-            "src": "839:70:24",
+            "src": "1421:70:23",
+            "documentation": {
+              "id": 25556,
+              "nodeType": "StructuredDocumentation",
+              "src": "1253:163:23",
+              "text": "@notice Check if pool is in the whitelist or not.\n @param pool The given address of pool\n @return True if pool is whitelisted, else returns false"
+            },
             "functionSelector": "2b26a982",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "isPoolWhitelisted",
-            "nameLocation": "848:17:24",
+            "nameLocation": "1430:17:23",
             "parameters": {
-              "id": 25254,
+              "id": 25559,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25253,
+                  "id": 25558,
                   "mutability": "mutable",
                   "name": "pool",
-                  "nameLocation": "874:4:24",
+                  "nameLocation": "1456:4:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25258,
-                  "src": "866:12:24",
+                  "scope": 25563,
+                  "src": "1448:12:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1167,10 +890,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 25252,
+                    "id": 25557,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "866:7:24",
+                    "src": "1448:7:23",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -1180,21 +903,21 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "865:14:24"
+              "src": "1447:14:23"
             },
             "returnParameters": {
-              "id": 25257,
+              "id": 25562,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25256,
+                  "id": 25561,
                   "mutability": "mutable",
                   "name": "",
                   "nameLocation": "-1:-1:-1",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25258,
-                  "src": "903:4:24",
+                  "scope": 25563,
+                  "src": "1485:4:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1202,10 +925,10 @@
                     "typeString": "bool"
                   },
                   "typeName": {
-                    "id": 25255,
+                    "id": 25560,
                     "name": "bool",
                     "nodeType": "ElementaryTypeName",
-                    "src": "903:4:24",
+                    "src": "1485:4:23",
                     "typeDescriptions": {
                       "typeIdentifier": "t_bool",
                       "typeString": "bool"
@@ -1214,36 +937,42 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "902:6:24"
+              "src": "1484:6:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "view",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25265,
+            "id": 25571,
             "nodeType": "FunctionDefinition",
-            "src": "915:70:24",
+            "src": "1675:70:23",
+            "documentation": {
+              "id": 25564,
+              "nodeType": "StructuredDocumentation",
+              "src": "1497:173:23",
+              "text": "@notice Token capital limit for each token address.\n @param token The given address of token\n @return Token capital limit if limit is set, else uint256.max"
+            },
             "functionSelector": "5a860c87",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "getTokenLimit",
-            "nameLocation": "924:13:24",
+            "nameLocation": "1684:13:23",
             "parameters": {
-              "id": 25261,
+              "id": 25567,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25260,
+                  "id": 25566,
                   "mutability": "mutable",
                   "name": "token",
-                  "nameLocation": "946:5:24",
+                  "nameLocation": "1706:5:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25265,
-                  "src": "938:13:24",
+                  "scope": 25571,
+                  "src": "1698:13:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1251,10 +980,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 25259,
+                    "id": 25565,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "938:7:24",
+                    "src": "1698:7:23",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -1264,21 +993,21 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "937:15:24"
+              "src": "1697:15:23"
             },
             "returnParameters": {
-              "id": 25264,
+              "id": 25570,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25263,
+                  "id": 25569,
                   "mutability": "mutable",
                   "name": "",
                   "nameLocation": "-1:-1:-1",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25265,
-                  "src": "976:7:24",
+                  "scope": 25571,
+                  "src": "1736:7:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1286,10 +1015,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 25262,
+                    "id": 25568,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "976:7:24",
+                    "src": "1736:7:23",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1298,153 +1027,42 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "975:9:24"
+              "src": "1735:9:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "view",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25271,
+            "id": 25577,
             "nodeType": "FunctionDefinition",
-            "src": "1060:63:24",
-            "functionSelector": "2ee16e34",
-            "implemented": false,
-            "kind": "function",
-            "modifiers": [],
-            "name": "setParams",
-            "nameLocation": "1069:9:24",
-            "parameters": {
-              "id": 25269,
-              "nodeType": "ParameterList",
-              "parameters": [
-                {
-                  "constant": false,
-                  "id": 25268,
-                  "mutability": "mutable",
-                  "name": "newParams",
-                  "nameLocation": "1103:9:24",
-                  "nodeType": "VariableDeclaration",
-                  "scope": 25271,
-                  "src": "1079:33:24",
-                  "stateVariable": false,
-                  "storageLocation": "calldata",
-                  "typeDescriptions": {
-                    "typeIdentifier": "t_struct$_ProtocolParams_$25224_calldata_ptr",
-                    "typeString": "struct IProtocolGovernance.ProtocolParams"
-                  },
-                  "typeName": {
-                    "id": 25267,
-                    "nodeType": "UserDefinedTypeName",
-                    "pathNode": {
-                      "id": 25266,
-                      "name": "ProtocolParams",
-                      "nodeType": "IdentifierPath",
-                      "referencedDeclaration": 25224,
-                      "src": "1079:14:24"
-                    },
-                    "referencedDeclaration": 25224,
-                    "src": "1079:14:24",
-                    "typeDescriptions": {
-                      "typeIdentifier": "t_struct$_ProtocolParams_$25224_storage_ptr",
-                      "typeString": "struct IProtocolGovernance.ProtocolParams"
-                    }
-                  },
-                  "visibility": "internal"
-                }
-              ],
-              "src": "1078:35:24"
+            "src": "1931:63:23",
+            "documentation": {
+              "id": 25572,
+              "nodeType": "StructuredDocumentation",
+              "src": "1820:106:23",
+              "text": "@notice Change liquidation fee to a given value.\n @param liquidationFee The new liquidation fee"
             },
-            "returnParameters": {
-              "id": 25270,
-              "nodeType": "ParameterList",
-              "parameters": [],
-              "src": "1122:0:24"
-            },
-            "scope": 25321,
-            "stateMutability": "nonpayable",
-            "virtual": false,
-            "visibility": "external"
-          },
-          {
-            "id": 25276,
-            "nodeType": "FunctionDefinition",
-            "src": "1129:67:24",
-            "functionSelector": "749f60f3",
-            "implemented": false,
-            "kind": "function",
-            "modifiers": [],
-            "name": "changeStabilizationFee",
-            "nameLocation": "1138:22:24",
-            "parameters": {
-              "id": 25274,
-              "nodeType": "ParameterList",
-              "parameters": [
-                {
-                  "constant": false,
-                  "id": 25273,
-                  "mutability": "mutable",
-                  "name": "stabilizationFee",
-                  "nameLocation": "1169:16:24",
-                  "nodeType": "VariableDeclaration",
-                  "scope": 25276,
-                  "src": "1161:24:24",
-                  "stateVariable": false,
-                  "storageLocation": "default",
-                  "typeDescriptions": {
-                    "typeIdentifier": "t_uint256",
-                    "typeString": "uint256"
-                  },
-                  "typeName": {
-                    "id": 25272,
-                    "name": "uint256",
-                    "nodeType": "ElementaryTypeName",
-                    "src": "1161:7:24",
-                    "typeDescriptions": {
-                      "typeIdentifier": "t_uint256",
-                      "typeString": "uint256"
-                    }
-                  },
-                  "visibility": "internal"
-                }
-              ],
-              "src": "1160:26:24"
-            },
-            "returnParameters": {
-              "id": 25275,
-              "nodeType": "ParameterList",
-              "parameters": [],
-              "src": "1195:0:24"
-            },
-            "scope": 25321,
-            "stateMutability": "nonpayable",
-            "virtual": false,
-            "visibility": "external"
-          },
-          {
-            "id": 25281,
-            "nodeType": "FunctionDefinition",
-            "src": "1202:63:24",
             "functionSelector": "4d6bbf10",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "changeLiquidationFee",
-            "nameLocation": "1211:20:24",
+            "nameLocation": "1940:20:23",
             "parameters": {
-              "id": 25279,
+              "id": 25575,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25278,
+                  "id": 25574,
                   "mutability": "mutable",
                   "name": "liquidationFee",
-                  "nameLocation": "1240:14:24",
+                  "nameLocation": "1969:14:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25281,
-                  "src": "1232:22:24",
+                  "scope": 25577,
+                  "src": "1961:22:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1452,10 +1070,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 25277,
+                    "id": 25573,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1232:7:24",
+                    "src": "1961:7:23",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1464,42 +1082,48 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "1231:24:24"
+              "src": "1960:24:23"
             },
             "returnParameters": {
-              "id": 25280,
+              "id": 25576,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "1264:0:24"
+              "src": "1993:0:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "nonpayable",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25286,
+            "id": 25583,
             "nodeType": "FunctionDefinition",
-            "src": "1271:71:24",
+            "src": "2123:71:23",
+            "documentation": {
+              "id": 25578,
+              "nodeType": "StructuredDocumentation",
+              "src": "2000:118:23",
+              "text": "@notice Change liquidation premium to a given value.\n @param liquidationPremium The new liquidation premium"
+            },
             "functionSelector": "4b85917f",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "changeLiquidationPremium",
-            "nameLocation": "1280:24:24",
+            "nameLocation": "2132:24:23",
             "parameters": {
-              "id": 25284,
+              "id": 25581,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25283,
+                  "id": 25580,
                   "mutability": "mutable",
                   "name": "liquidationPremium",
-                  "nameLocation": "1313:18:24",
+                  "nameLocation": "2165:18:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25286,
-                  "src": "1305:26:24",
+                  "scope": 25583,
+                  "src": "2157:26:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1507,10 +1131,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 25282,
+                    "id": 25579,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1305:7:24",
+                    "src": "2157:7:23",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1519,42 +1143,48 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "1304:28:24"
+              "src": "2156:28:23"
             },
             "returnParameters": {
-              "id": 25285,
+              "id": 25582,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "1341:0:24"
+              "src": "2193:0:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "nonpayable",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25291,
+            "id": 25589,
             "nodeType": "FunctionDefinition",
-            "src": "1348:65:24",
+            "src": "2327:65:23",
+            "documentation": {
+              "id": 25584,
+              "nodeType": "StructuredDocumentation",
+              "src": "2200:122:23",
+              "text": "@notice Change max debt per vault to a given value.\n @param maxDebtPerVault The new max possible debt per vault"
+            },
             "functionSelector": "ad88de45",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "changeMaxDebtPerVault",
-            "nameLocation": "1357:21:24",
+            "nameLocation": "2336:21:23",
             "parameters": {
-              "id": 25289,
+              "id": 25587,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25288,
+                  "id": 25586,
                   "mutability": "mutable",
                   "name": "maxDebtPerVault",
-                  "nameLocation": "1387:15:24",
+                  "nameLocation": "2366:15:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25291,
-                  "src": "1379:23:24",
+                  "scope": 25589,
+                  "src": "2358:23:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1562,10 +1192,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 25287,
+                    "id": 25585,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1379:7:24",
+                    "src": "2358:7:23",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1574,42 +1204,48 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "1378:25:24"
+              "src": "2357:25:23"
             },
             "returnParameters": {
-              "id": 25290,
+              "id": 25588,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "1412:0:24"
+              "src": "2391:0:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "nonpayable",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25296,
+            "id": 25595,
             "nodeType": "FunctionDefinition",
-            "src": "1419:73:24",
+            "src": "2530:73:23",
+            "documentation": {
+              "id": 25590,
+              "nodeType": "StructuredDocumentation",
+              "src": "2398:127:23",
+              "text": "@notice Change min single nft capital to a given value.\n @param minSingleNftCapital The new min possible nft capital"
+            },
             "functionSelector": "72260957",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "changeMinSingleNftCapital",
-            "nameLocation": "1428:25:24",
+            "nameLocation": "2539:25:23",
             "parameters": {
-              "id": 25294,
+              "id": 25593,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25293,
+                  "id": 25592,
                   "mutability": "mutable",
                   "name": "minSingleNftCapital",
-                  "nameLocation": "1462:19:24",
+                  "nameLocation": "2573:19:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25296,
-                  "src": "1454:27:24",
+                  "scope": 25595,
+                  "src": "2565:27:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1617,10 +1253,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 25292,
+                    "id": 25591,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1454:7:24",
+                    "src": "2565:7:23",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1629,42 +1265,48 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "1453:29:24"
+              "src": "2564:29:23"
             },
             "returnParameters": {
-              "id": 25295,
+              "id": 25594,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "1491:0:24"
+              "src": "2602:0:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "nonpayable",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25301,
+            "id": 25601,
             "nodeType": "FunctionDefinition",
-            "src": "1498:51:24",
+            "src": "2712:51:23",
+            "documentation": {
+              "id": 25596,
+              "nodeType": "StructuredDocumentation",
+              "src": "2609:98:23",
+              "text": "@notice Add new pool to the whitelist.\n @param pool Address of the new whitelisted pool"
+            },
             "functionSelector": "1c0a5914",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "setWhitelistedPool",
-            "nameLocation": "1507:18:24",
+            "nameLocation": "2721:18:23",
             "parameters": {
-              "id": 25299,
+              "id": 25599,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25298,
+                  "id": 25598,
                   "mutability": "mutable",
                   "name": "pool",
-                  "nameLocation": "1534:4:24",
+                  "nameLocation": "2748:4:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25301,
-                  "src": "1526:12:24",
+                  "scope": 25601,
+                  "src": "2740:12:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1672,10 +1314,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 25297,
+                    "id": 25597,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1526:7:24",
+                    "src": "2740:7:23",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -1685,42 +1327,48 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "1525:14:24"
+              "src": "2739:14:23"
             },
             "returnParameters": {
-              "id": 25300,
+              "id": 25600,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "1548:0:24"
+              "src": "2762:0:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "nonpayable",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25306,
+            "id": 25607,
             "nodeType": "FunctionDefinition",
-            "src": "1555:54:24",
+            "src": "2877:54:23",
+            "documentation": {
+              "id": 25602,
+              "nodeType": "StructuredDocumentation",
+              "src": "2769:103:23",
+              "text": "@notice Delete pool from the whitelist.\n @param pool Address of the deleted whitelisted pool"
+            },
             "functionSelector": "92c796eb",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "revokeWhitelistedPool",
-            "nameLocation": "1564:21:24",
+            "nameLocation": "2886:21:23",
             "parameters": {
-              "id": 25304,
+              "id": 25605,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25303,
+                  "id": 25604,
                   "mutability": "mutable",
                   "name": "pool",
-                  "nameLocation": "1594:4:24",
+                  "nameLocation": "2916:4:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25306,
-                  "src": "1586:12:24",
+                  "scope": 25607,
+                  "src": "2908:12:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1728,10 +1376,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 25302,
+                    "id": 25603,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1586:7:24",
+                    "src": "2908:7:23",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -1741,42 +1389,48 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "1585:14:24"
+              "src": "2907:14:23"
             },
             "returnParameters": {
-              "id": 25305,
+              "id": 25606,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "1608:0:24"
+              "src": "2930:0:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "nonpayable",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25313,
+            "id": 25615,
             "nodeType": "FunctionDefinition",
-            "src": "1615:82:24",
+            "src": "3095:82:23",
+            "documentation": {
+              "id": 25608,
+              "nodeType": "StructuredDocumentation",
+              "src": "2937:153:23",
+              "text": "@notice Set liquidation threshold for a given pool.\n @param pool Address of the pool\n @param liquidationRatio The new liquidation ratio"
+            },
             "functionSelector": "0e30428d",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "setLiquidationThreshold",
-            "nameLocation": "1624:23:24",
+            "nameLocation": "3104:23:23",
             "parameters": {
-              "id": 25311,
+              "id": 25613,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25308,
+                  "id": 25610,
                   "mutability": "mutable",
                   "name": "pool",
-                  "nameLocation": "1656:4:24",
+                  "nameLocation": "3136:4:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25313,
-                  "src": "1648:12:24",
+                  "scope": 25615,
+                  "src": "3128:12:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1784,10 +1438,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 25307,
+                    "id": 25609,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1648:7:24",
+                    "src": "3128:7:23",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -1798,13 +1452,13 @@
                 },
                 {
                   "constant": false,
-                  "id": 25310,
+                  "id": 25612,
                   "mutability": "mutable",
                   "name": "liquidationRatio",
-                  "nameLocation": "1670:16:24",
+                  "nameLocation": "3150:16:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25313,
-                  "src": "1662:24:24",
+                  "scope": 25615,
+                  "src": "3142:24:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1812,10 +1466,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 25309,
+                    "id": 25611,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1662:7:24",
+                    "src": "3142:7:23",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1824,42 +1478,48 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "1647:40:24"
+              "src": "3127:40:23"
             },
             "returnParameters": {
-              "id": 25312,
+              "id": 25614,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "1696:0:24"
+              "src": "3176:0:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "nonpayable",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25320,
+            "id": 25623,
             "nodeType": "FunctionDefinition",
-            "src": "1703:65:24",
+            "src": "3334:65:23",
+            "documentation": {
+              "id": 25616,
+              "nodeType": "StructuredDocumentation",
+              "src": "3183:146:23",
+              "text": "@notice Set new capital limit for a given token.\n @param token Address of the token\n @param newLimit The new token capital limit"
+            },
             "functionSelector": "bc017637",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "setTokenLimit",
-            "nameLocation": "1712:13:24",
+            "nameLocation": "3343:13:23",
             "parameters": {
-              "id": 25318,
+              "id": 25621,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25315,
+                  "id": 25618,
                   "mutability": "mutable",
                   "name": "token",
-                  "nameLocation": "1734:5:24",
+                  "nameLocation": "3365:5:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25320,
-                  "src": "1726:13:24",
+                  "scope": 25623,
+                  "src": "3357:13:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1867,10 +1527,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 25314,
+                    "id": 25617,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1726:7:24",
+                    "src": "3357:7:23",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -1881,13 +1541,13 @@
                 },
                 {
                   "constant": false,
-                  "id": 25317,
+                  "id": 25620,
                   "mutability": "mutable",
                   "name": "newLimit",
-                  "nameLocation": "1749:8:24",
+                  "nameLocation": "3380:8:23",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25320,
-                  "src": "1741:16:24",
+                  "scope": 25623,
+                  "src": "3372:16:23",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -1895,10 +1555,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 25316,
+                    "id": 25619,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "1741:7:24",
+                    "src": "3372:7:23",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -1907,15 +1567,15 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "1725:33:24"
+              "src": "3356:33:23"
             },
             "returnParameters": {
-              "id": 25319,
+              "id": 25622,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "1767:0:24"
+              "src": "3398:0:23"
             },
-            "scope": 25321,
+            "scope": 25624,
             "stateMutability": "nonpayable",
             "virtual": false,
             "visibility": "external"
@@ -1925,27 +1585,27 @@
         "baseContracts": [
           {
             "baseName": {
-              "id": 25210,
+              "id": 25528,
               "name": "IDefaultAccessControl",
               "nodeType": "IdentifierPath",
-              "referencedDeclaration": 25962,
-              "src": "209:21:24"
+              "referencedDeclaration": 26362,
+              "src": "209:21:23"
             },
-            "id": 25211,
+            "id": 25529,
             "nodeType": "InheritanceSpecifier",
-            "src": "209:21:24"
+            "src": "209:21:23"
           },
           {
             "baseName": {
-              "id": 25212,
+              "id": 25530,
               "name": "IERC165",
               "nodeType": "IdentifierPath",
               "referencedDeclaration": 19970,
-              "src": "232:7:24"
+              "src": "232:7:23"
             },
-            "id": 25213,
+            "id": 25531,
             "nodeType": "InheritanceSpecifier",
-            "src": "232:7:24"
+            "src": "232:7:23"
           }
         ],
         "canonicalName": "IProtocolGovernance",
@@ -1953,19 +1613,19 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "linearizedBaseContracts": [
-          25321,
+          25624,
           19970,
-          25962,
+          26362,
           19467,
           19442
         ],
         "name": "IProtocolGovernance",
-        "nameLocation": "186:19:24",
-        "scope": 25322,
+        "nameLocation": "186:19:23",
+        "scope": 25625,
         "usedErrors": []
       }
     ],
     "license": "UNLICENSED"
   },
-  "id": 24
+  "id": 23
 }

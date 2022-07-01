@@ -773,47 +773,9 @@
         }
       }
     },
-    "src/Contract.sol": {
-      "lastModificationDate": 1656503980393,
-      "contentHash": "0a4db02f64172ef6ba21d89f49444a92",
-      "sourceName": "src/Contract.sol",
-      "solcConfig": {
-        "settings": {
-          "optimizer": {
-            "enabled": true,
-            "runs": 200
-          },
-          "metadata": {
-            "bytecodeHash": "ipfs"
-          },
-          "outputSelection": {
-            "*": {
-              "": [
-                "ast"
-              ],
-              "*": [
-                "abi",
-                "evm.bytecode",
-                "evm.deployedBytecode",
-                "evm.methodIdentifiers"
-              ]
-            }
-          },
-          "evmVersion": "london",
-          "libraries": {}
-        }
-      },
-      "imports": [],
-      "versionRequirement": "^0.8.13",
-      "artifacts": {
-        "Contract": {
-          "0.8.13+commit.abaa5c0e.Darwin.appleclang": "Contract.sol/Contract.json"
-        }
-      }
-    },
     "src/MUSD.sol": {
-      "lastModificationDate": 1656503980393,
-      "contentHash": "443522043f0ff730cfd93c981b1ff29a",
+      "lastModificationDate": 1656686600505,
+      "contentHash": "4da4619c3b1cfcadaf05aa08c2ed46be",
       "sourceName": "src/MUSD.sol",
       "solcConfig": {
         "settings": {
@@ -852,8 +814,8 @@
       }
     },
     "src/ProtocolGovernance.sol": {
-      "lastModificationDate": 1656600360020,
-      "contentHash": "50befa4d308034c4c108854499f5c3dc",
+      "lastModificationDate": 1656693550663,
+      "contentHash": "4c916a4938b07dc259af681f15047fc7",
       "sourceName": "src/ProtocolGovernance.sol",
       "solcConfig": {
         "settings": {
@@ -903,8 +865,8 @@
       }
     },
     "src/Vault.sol": {
-      "lastModificationDate": 1656503980394,
-      "contentHash": "beb79cddf724179537cdfa126340ba01",
+      "lastModificationDate": 1656686607766,
+      "contentHash": "fc5798afab6e4cb9d78e96f06a7f6840",
       "sourceName": "src/Vault.sol",
       "solcConfig": {
         "settings": {
@@ -970,8 +932,8 @@
       }
     },
     "src/interfaces/IMUSD.sol": {
-      "lastModificationDate": 1656503980394,
-      "contentHash": "5154f522a3cac80f5a7a6f618c08fca3",
+      "lastModificationDate": 1656686600506,
+      "contentHash": "fe314d393e769f64174312a329764669",
       "sourceName": "src/interfaces/IMUSD.sol",
       "solcConfig": {
         "settings": {
@@ -1010,8 +972,8 @@
       }
     },
     "src/interfaces/IProtocolGovernance.sol": {
-      "lastModificationDate": 1656503980394,
-      "contentHash": "44a1f49b817d1f0709f5c720bdbe3e88",
+      "lastModificationDate": 1656690610239,
+      "contentHash": "7a3670d1c8f8919f0ae376f0902657e8",
       "sourceName": "src/interfaces/IProtocolGovernance.sol",
       "solcConfig": {
         "settings": {
@@ -1676,8 +1638,8 @@
       }
     },
     "src/oracles/ChainlinkOracle.sol": {
-      "lastModificationDate": 1656600360020,
-      "contentHash": "d9655cd5b3ad241484f35b8ad141a976",
+      "lastModificationDate": 1656686607767,
+      "contentHash": "0c924583d8d155bf427c0eb14179abf7",
       "sourceName": "src/oracles/ChainlinkOracle.sol",
       "solcConfig": {
         "settings": {
@@ -1727,6 +1689,242 @@
       "artifacts": {
         "ChainlinkOracle": {
           "0.8.13+commit.abaa5c0e.Darwin.appleclang": "ChainlinkOracle.sol/ChainlinkOracle.json"
+        }
+      }
+    },
+    "src/script/AbstractDeployment.sol": {
+      "lastModificationDate": 1656686607767,
+      "contentHash": "ba4d44fe24cf1546dd410940dfe6b21e",
+      "sourceName": "src/script/AbstractDeployment.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs"
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "london",
+          "libraries": {}
+        }
+      },
+      "imports": [
+        "lib/forge-std/src/Script.sol",
+        "lib/forge-std/src/Vm.sol",
+        "lib/forge-std/src/console.sol",
+        "lib/forge-std/src/console2.sol",
+        "lib/openzeppelin-contracts/contracts/access/AccessControl.sol",
+        "lib/openzeppelin-contracts/contracts/access/AccessControlEnumerable.sol",
+        "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol",
+        "lib/openzeppelin-contracts/contracts/access/IAccessControlEnumerable.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol",
+        "lib/openzeppelin-contracts/contracts/utils/Context.sol",
+        "lib/openzeppelin-contracts/contracts/utils/Strings.sol",
+        "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol",
+        "lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol",
+        "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol",
+        "lib/solmate/src/tokens/ERC20.sol",
+        "src/MUSD.sol",
+        "src/ProtocolGovernance.sol",
+        "src/Vault.sol",
+        "src/interfaces/IMUSD.sol",
+        "src/interfaces/IProtocolGovernance.sol",
+        "src/interfaces/external/chainlink/IAggregatorV3.sol",
+        "src/interfaces/external/univ3/INonfungiblePositionManager.sol",
+        "src/interfaces/external/univ3/IPeripheryImmutableState.sol",
+        "src/interfaces/external/univ3/IUniswapV3Factory.sol",
+        "src/interfaces/external/univ3/IUniswapV3Pool.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolActions.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolDerivedState.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolImmutables.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolState.sol",
+        "src/interfaces/oracles/IOracle.sol",
+        "src/interfaces/utils/IDefaultAccessControl.sol",
+        "src/libraries/external/FixedPoint96.sol",
+        "src/libraries/external/FullMath.sol",
+        "src/libraries/external/LiquidityAmounts.sol",
+        "src/libraries/external/TickMath.sol",
+        "src/oracles/ChainlinkOracle.sol",
+        "src/utils/DefaultAccessControl.sol"
+      ],
+      "versionRequirement": "^0.8.13",
+      "artifacts": {
+        "AbstractDeployment": {
+          "0.8.13+commit.abaa5c0e.Darwin.appleclang": "AbstractDeployment.sol/AbstractDeployment.json"
+        }
+      }
+    },
+    "src/script/MainnetDeployment.s.sol": {
+      "lastModificationDate": 1656686607768,
+      "contentHash": "550ec0e8e3b03473ccef6b0dbc3c29f5",
+      "sourceName": "src/script/MainnetDeployment.s.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs"
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "london",
+          "libraries": {}
+        }
+      },
+      "imports": [
+        "lib/forge-std/src/Script.sol",
+        "lib/forge-std/src/Vm.sol",
+        "lib/forge-std/src/console.sol",
+        "lib/forge-std/src/console2.sol",
+        "lib/openzeppelin-contracts/contracts/access/AccessControl.sol",
+        "lib/openzeppelin-contracts/contracts/access/AccessControlEnumerable.sol",
+        "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol",
+        "lib/openzeppelin-contracts/contracts/access/IAccessControlEnumerable.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol",
+        "lib/openzeppelin-contracts/contracts/utils/Context.sol",
+        "lib/openzeppelin-contracts/contracts/utils/Strings.sol",
+        "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol",
+        "lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol",
+        "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol",
+        "lib/solmate/src/tokens/ERC20.sol",
+        "src/MUSD.sol",
+        "src/ProtocolGovernance.sol",
+        "src/Vault.sol",
+        "src/interfaces/IMUSD.sol",
+        "src/interfaces/IProtocolGovernance.sol",
+        "src/interfaces/external/chainlink/IAggregatorV3.sol",
+        "src/interfaces/external/univ3/INonfungiblePositionManager.sol",
+        "src/interfaces/external/univ3/IPeripheryImmutableState.sol",
+        "src/interfaces/external/univ3/IUniswapV3Factory.sol",
+        "src/interfaces/external/univ3/IUniswapV3Pool.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolActions.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolDerivedState.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolImmutables.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolState.sol",
+        "src/interfaces/oracles/IOracle.sol",
+        "src/interfaces/utils/IDefaultAccessControl.sol",
+        "src/libraries/external/FixedPoint96.sol",
+        "src/libraries/external/FullMath.sol",
+        "src/libraries/external/LiquidityAmounts.sol",
+        "src/libraries/external/TickMath.sol",
+        "src/oracles/ChainlinkOracle.sol",
+        "src/script/AbstractDeployment.sol",
+        "src/utils/DefaultAccessControl.sol"
+      ],
+      "versionRequirement": "^0.8.13",
+      "artifacts": {
+        "MainnetDeployment": {
+          "0.8.13+commit.abaa5c0e.Darwin.appleclang": "MainnetDeployment.s.sol/MainnetDeployment.json"
+        }
+      }
+    },
+    "src/script/RinkebyDeployment.s.sol": {
+      "lastModificationDate": 1656686607768,
+      "contentHash": "4f56ce960ac2ead8ca18aaca9070d2dc",
+      "sourceName": "src/script/RinkebyDeployment.s.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs"
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "london",
+          "libraries": {}
+        }
+      },
+      "imports": [
+        "lib/forge-std/src/Script.sol",
+        "lib/forge-std/src/Vm.sol",
+        "lib/forge-std/src/console.sol",
+        "lib/forge-std/src/console2.sol",
+        "lib/openzeppelin-contracts/contracts/access/AccessControl.sol",
+        "lib/openzeppelin-contracts/contracts/access/AccessControlEnumerable.sol",
+        "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol",
+        "lib/openzeppelin-contracts/contracts/access/IAccessControlEnumerable.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol",
+        "lib/openzeppelin-contracts/contracts/utils/Context.sol",
+        "lib/openzeppelin-contracts/contracts/utils/Strings.sol",
+        "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol",
+        "lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol",
+        "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol",
+        "lib/solmate/src/tokens/ERC20.sol",
+        "src/MUSD.sol",
+        "src/ProtocolGovernance.sol",
+        "src/Vault.sol",
+        "src/interfaces/IMUSD.sol",
+        "src/interfaces/IProtocolGovernance.sol",
+        "src/interfaces/external/chainlink/IAggregatorV3.sol",
+        "src/interfaces/external/univ3/INonfungiblePositionManager.sol",
+        "src/interfaces/external/univ3/IPeripheryImmutableState.sol",
+        "src/interfaces/external/univ3/IUniswapV3Factory.sol",
+        "src/interfaces/external/univ3/IUniswapV3Pool.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolActions.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolDerivedState.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolImmutables.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolState.sol",
+        "src/interfaces/oracles/IOracle.sol",
+        "src/interfaces/utils/IDefaultAccessControl.sol",
+        "src/libraries/external/FixedPoint96.sol",
+        "src/libraries/external/FullMath.sol",
+        "src/libraries/external/LiquidityAmounts.sol",
+        "src/libraries/external/TickMath.sol",
+        "src/oracles/ChainlinkOracle.sol",
+        "src/script/AbstractDeployment.sol",
+        "src/utils/DefaultAccessControl.sol"
+      ],
+      "versionRequirement": "^0.8.13",
+      "artifacts": {
+        "RinkebyDeployment": {
+          "0.8.13+commit.abaa5c0e.Darwin.appleclang": "RinkebyDeployment.s.sol/RinkebyDeployment.json"
         }
       }
     },
@@ -1988,6 +2186,83 @@
         }
       }
     },
+    "test/ProtocolGovernance.t.sol": {
+      "lastModificationDate": 1656686607768,
+      "contentHash": "d1f0f10e303421857ea364a895110c2e",
+      "sourceName": "test/ProtocolGovernance.t.sol",
+      "solcConfig": {
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "metadata": {
+            "bytecodeHash": "ipfs"
+          },
+          "outputSelection": {
+            "*": {
+              "": [
+                "ast"
+              ],
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers"
+              ]
+            }
+          },
+          "evmVersion": "london",
+          "libraries": {}
+        }
+      },
+      "imports": [
+        "lib/forge-std/src/Script.sol",
+        "lib/forge-std/src/Test.sol",
+        "lib/forge-std/src/Vm.sol",
+        "lib/forge-std/src/console.sol",
+        "lib/forge-std/src/console2.sol",
+        "lib/openzeppelin-contracts/contracts/access/AccessControl.sol",
+        "lib/openzeppelin-contracts/contracts/access/AccessControlEnumerable.sol",
+        "lib/openzeppelin-contracts/contracts/access/IAccessControl.sol",
+        "lib/openzeppelin-contracts/contracts/access/IAccessControlEnumerable.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC20/extensions/IERC20Metadata.sol",
+        "lib/openzeppelin-contracts/contracts/token/ERC721/IERC721.sol",
+        "lib/openzeppelin-contracts/contracts/utils/Context.sol",
+        "lib/openzeppelin-contracts/contracts/utils/Strings.sol",
+        "lib/openzeppelin-contracts/contracts/utils/introspection/ERC165.sol",
+        "lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol",
+        "lib/openzeppelin-contracts/contracts/utils/structs/EnumerableSet.sol",
+        "lib/solmate/lib/ds-test/src/test.sol",
+        "src/ProtocolGovernance.sol",
+        "src/interfaces/IProtocolGovernance.sol",
+        "src/interfaces/external/chainlink/IAggregatorV3.sol",
+        "src/interfaces/external/univ3/INonfungiblePositionManager.sol",
+        "src/interfaces/external/univ3/IPeripheryImmutableState.sol",
+        "src/interfaces/external/univ3/ISwapRouter.sol",
+        "src/interfaces/external/univ3/IUniswapV3Factory.sol",
+        "src/interfaces/external/univ3/IUniswapV3Pool.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolActions.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolDerivedState.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolImmutables.sol",
+        "src/interfaces/external/univ3/pool/IUniswapV3PoolState.sol",
+        "src/interfaces/oracles/IOracle.sol",
+        "src/interfaces/utils/IDefaultAccessControl.sol",
+        "src/libraries/external/FullMath.sol",
+        "src/oracles/ChainlinkOracle.sol",
+        "src/utils/DefaultAccessControl.sol",
+        "test/ConfigContract.sol",
+        "test/SetupContract.sol",
+        "test/utils/Utilities.sol"
+      ],
+      "versionRequirement": "^0.8.13",
+      "artifacts": {
+        "ProtocolGovernanceTest": {
+          "0.8.13+commit.abaa5c0e.Darwin.appleclang": "ProtocolGovernance.t.sol/ProtocolGovernanceTest.json"
+        }
+      }
+    },
     "test/SetupContract.sol": {
       "lastModificationDate": 1656600360021,
       "contentHash": "59d79ba8f58781c4d773c2c04ddec0b1",
@@ -2060,8 +2335,8 @@
       }
     },
     "test/Vault.t.sol": {
-      "lastModificationDate": 1656600360022,
-      "contentHash": "615ca55d8514b893886d62bb57458b3f",
+      "lastModificationDate": 1656686607769,
+      "contentHash": "e4abb81af659d4561a61be0a6ceda302",
       "sourceName": "test/Vault.t.sol",
       "solcConfig": {
         "settings": {

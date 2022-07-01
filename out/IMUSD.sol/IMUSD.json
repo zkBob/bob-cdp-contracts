@@ -242,22 +242,22 @@
   },
   "ast": {
     "absolutePath": "src/interfaces/IMUSD.sol",
-    "id": 25206,
+    "id": 25524,
     "exportedSymbols": {
       "IERC20": [
         19545
       ],
       "IMUSD": [
-        25205
+        25523
       ]
     },
     "nodeType": "SourceUnit",
-    "src": "0:228:23",
+    "src": "0:614:22",
     "nodes": [
       {
-        "id": 25187,
+        "id": 25503,
         "nodeType": "PragmaDirective",
-        "src": "0:23:23",
+        "src": "0:23:22",
         "literals": [
           "solidity",
           "0.8",
@@ -265,45 +265,51 @@
         ]
       },
       {
-        "id": 25188,
+        "id": 25504,
         "nodeType": "ImportDirective",
-        "src": "25:56:23",
+        "src": "25:56:22",
         "absolutePath": "lib/openzeppelin-contracts/contracts/token/ERC20/IERC20.sol",
         "file": "@openzeppelin/contracts/token/ERC20/IERC20.sol",
         "nameLocation": "-1:-1:-1",
-        "scope": 25206,
+        "scope": 25524,
         "sourceUnit": 19546,
         "symbolAliases": [],
         "unitAlias": ""
       },
       {
-        "id": 25205,
+        "id": 25523,
         "nodeType": "ContractDefinition",
-        "src": "83:144:23",
+        "src": "83:530:22",
         "nodes": [
           {
-            "id": 25197,
+            "id": 25514,
             "nodeType": "FunctionDefinition",
-            "src": "115:51:23",
+            "src": "343:51:22",
+            "documentation": {
+              "id": 25507,
+              "nodeType": "StructuredDocumentation",
+              "src": "184:154:22",
+              "text": "@notice Mint an amount of MUSD for a specified address.\n @param to Address of the receiver of MUSD\n @param amount Amount of MUSD to mint"
+            },
             "functionSelector": "40c10f19",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "mint",
-            "nameLocation": "124:4:23",
+            "nameLocation": "352:4:22",
             "parameters": {
-              "id": 25195,
+              "id": 25512,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25192,
+                  "id": 25509,
                   "mutability": "mutable",
                   "name": "to",
-                  "nameLocation": "137:2:23",
+                  "nameLocation": "365:2:22",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25197,
-                  "src": "129:10:23",
+                  "scope": 25514,
+                  "src": "357:10:22",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -311,10 +317,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 25191,
+                    "id": 25508,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "129:7:23",
+                    "src": "357:7:22",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -325,13 +331,13 @@
                 },
                 {
                   "constant": false,
-                  "id": 25194,
+                  "id": 25511,
                   "mutability": "mutable",
                   "name": "amount",
-                  "nameLocation": "149:6:23",
+                  "nameLocation": "377:6:22",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25197,
-                  "src": "141:14:23",
+                  "scope": 25514,
+                  "src": "369:14:22",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -339,10 +345,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 25193,
+                    "id": 25510,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "141:7:23",
+                    "src": "369:7:22",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -351,42 +357,48 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "128:28:23"
+              "src": "356:28:22"
             },
             "returnParameters": {
-              "id": 25196,
+              "id": 25513,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "165:0:23"
+              "src": "393:0:22"
             },
-            "scope": 25205,
+            "scope": 25523,
             "stateMutability": "nonpayable",
             "virtual": false,
             "visibility": "external"
           },
           {
-            "id": 25204,
+            "id": 25522,
             "nodeType": "FunctionDefinition",
-            "src": "172:53:23",
+            "src": "558:53:22",
+            "documentation": {
+              "id": 25515,
+              "nodeType": "StructuredDocumentation",
+              "src": "400:153:22",
+              "text": "@notice Burn an amount of MUSD of a specified address.\n @param from Address of the holder of MUSD\n @param amount Amount of MUSD to burn"
+            },
             "functionSelector": "9dc29fac",
             "implemented": false,
             "kind": "function",
             "modifiers": [],
             "name": "burn",
-            "nameLocation": "181:4:23",
+            "nameLocation": "567:4:22",
             "parameters": {
-              "id": 25202,
+              "id": 25520,
               "nodeType": "ParameterList",
               "parameters": [
                 {
                   "constant": false,
-                  "id": 25199,
+                  "id": 25517,
                   "mutability": "mutable",
                   "name": "from",
-                  "nameLocation": "194:4:23",
+                  "nameLocation": "580:4:22",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25204,
-                  "src": "186:12:23",
+                  "scope": 25522,
+                  "src": "572:12:22",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -394,10 +406,10 @@
                     "typeString": "address"
                   },
                   "typeName": {
-                    "id": 25198,
+                    "id": 25516,
                     "name": "address",
                     "nodeType": "ElementaryTypeName",
-                    "src": "186:7:23",
+                    "src": "572:7:22",
                     "stateMutability": "nonpayable",
                     "typeDescriptions": {
                       "typeIdentifier": "t_address",
@@ -408,13 +420,13 @@
                 },
                 {
                   "constant": false,
-                  "id": 25201,
+                  "id": 25519,
                   "mutability": "mutable",
                   "name": "amount",
-                  "nameLocation": "208:6:23",
+                  "nameLocation": "594:6:22",
                   "nodeType": "VariableDeclaration",
-                  "scope": 25204,
-                  "src": "200:14:23",
+                  "scope": 25522,
+                  "src": "586:14:22",
                   "stateVariable": false,
                   "storageLocation": "default",
                   "typeDescriptions": {
@@ -422,10 +434,10 @@
                     "typeString": "uint256"
                   },
                   "typeName": {
-                    "id": 25200,
+                    "id": 25518,
                     "name": "uint256",
                     "nodeType": "ElementaryTypeName",
-                    "src": "200:7:23",
+                    "src": "586:7:22",
                     "typeDescriptions": {
                       "typeIdentifier": "t_uint256",
                       "typeString": "uint256"
@@ -434,15 +446,15 @@
                   "visibility": "internal"
                 }
               ],
-              "src": "185:30:23"
+              "src": "571:30:22"
             },
             "returnParameters": {
-              "id": 25203,
+              "id": 25521,
               "nodeType": "ParameterList",
               "parameters": [],
-              "src": "224:0:23"
+              "src": "610:0:22"
             },
-            "scope": 25205,
+            "scope": 25523,
             "stateMutability": "nonpayable",
             "virtual": false,
             "visibility": "external"
@@ -452,15 +464,15 @@
         "baseContracts": [
           {
             "baseName": {
-              "id": 25189,
+              "id": 25505,
               "name": "IERC20",
               "nodeType": "IdentifierPath",
               "referencedDeclaration": 19545,
-              "src": "102:6:23"
+              "src": "102:6:22"
             },
-            "id": 25190,
+            "id": 25506,
             "nodeType": "InheritanceSpecifier",
-            "src": "102:6:23"
+            "src": "102:6:22"
           }
         ],
         "canonicalName": "IMUSD",
@@ -468,15 +480,15 @@
         "contractKind": "interface",
         "fullyImplemented": false,
         "linearizedBaseContracts": [
-          25205,
+          25523,
           19545
         ],
         "name": "IMUSD",
-        "nameLocation": "93:5:23",
-        "scope": 25206,
+        "nameLocation": "93:5:22",
+        "scope": 25524,
         "usedErrors": []
       }
     ]
   },
-  "id": 23
+  "id": 22
 }
