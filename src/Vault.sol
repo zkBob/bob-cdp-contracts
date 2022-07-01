@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: BSL-1.1
 pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
