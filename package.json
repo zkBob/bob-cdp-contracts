@@ -14,6 +14,10 @@
     "prettier": "prettier --write **.sol",
     "prettier:check": "prettier --check **.sol",
     "test": "forge test -vvvv --fork-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --fork-block-number 15035420",
-    "test:better": "forge test -vvvv --fork-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --fork-block-number 15035420 --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2)"
+    "test:better": "forge test -vvvv --fork-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --fork-block-number 15035420 --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2)",
+    "size": "forge build --sizes --force --via-ir",
+    "compile": "forge build",
+    "deploy:mainnet": "forge script src/script/MainnetDeployment.s.sol:MainnetDeployment --rpc-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --broadcast --verify --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv",
+    "deploy:rinkeby": "forge script src/script/RinkebyDeployment.s.sol:RinkebyDeployment --rpc-url $(grep RINKEBY_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --broadcast --verify --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv"
   }
 }

@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: BSL-1.1
 pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
@@ -25,6 +25,7 @@ contract Vault is DefaultAccessControl {
     error PositionUnhealthy();
     error TokenSet();
     error UnpaidDebt();
+    error DebtLimitExceeded();
 
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -154,6 +155,8 @@ contract Vault is DefaultAccessControl {
         vaultOwner[vaultCount] = msg.sender;
         _lastDebtFeeUpdateTimestamp[vaultCount] = block.timestamp;
 
+        emit VaultOpened(tx.origin, msg.sender, vaultCount);
+
         return vaultCount;
     }
 
@@ -166,6 +169,8 @@ contract Vault is DefaultAccessControl {
         }
 
         _closeVault(vaultId, msg.sender, msg.sender);
+
+        emit VaultClosed(tx.origin, msg.sender, vaultId);
     }
 
     function depositCollateral(uint256 vaultId, uint256 nft) external {
@@ -247,6 +252,8 @@ contract Vault is DefaultAccessControl {
         }
 
         _vaultNfts[vaultId].add(nft);
+
+        emit CollateralDeposited(tx.origin, msg.sender, vaultId, nft);
     }
 
     function withdrawCollateral(uint256 nft) external {
@@ -281,6 +288,8 @@ contract Vault is DefaultAccessControl {
 
         _vaultNfts[position.vaultId].remove(nft);
         delete _positionInfo[nft];
+
+        emit CollateralWithdrew(tx.origin, msg.sender, position.vaultId, nft);
     }
 
     function mintDebt(uint256 vaultId, uint256 amount) external {
@@ -294,8 +303,15 @@ contract Vault is DefaultAccessControl {
             revert PositionUnhealthy();
         }
 
+        uint256 debtLimit = protocolGovernance.protocolParams().maxDebtPerVault;
+        if (debtLimit < debt[vaultId] + debtFee[vaultId] + amount) {
+            revert DebtLimitExceeded();
+        }
+
         token.mint(msg.sender, amount);
         debt[vaultId] += amount;
+
+        emit DebtMinted(tx.origin, msg.sender, vaultId, amount);
     }
 
     function burnDebt(uint256 vaultId, uint256 amount) external {
@@ -315,6 +331,8 @@ contract Vault is DefaultAccessControl {
 
         token.burn(msg.sender, amount);
         debt[vaultId] -= amount;
+
+        emit DebtBurned(tx.origin, msg.sender, vaultId, amount);
     }
 
     function liquidate(uint256 vaultId) external {
@@ -343,6 +361,8 @@ contract Vault is DefaultAccessControl {
         token.burn(owner, debt[vaultId]);
 
         _closeVault(vaultId, owner, msg.sender);
+
+        emit VaultLiquidated(tx.origin, msg.sender, vaultId);
     }
 
     function setOracle(IOracle oracle_) external {
@@ -351,6 +371,8 @@ contract Vault is DefaultAccessControl {
             revert AddressZero();
         }
         oracle = oracle_;
+
+        emit OracleUpdated(tx.origin, msg.sender, address(oracle));
     }
 
     function setToken(IMUSD token_) external {
@@ -362,26 +384,36 @@ contract Vault is DefaultAccessControl {
             revert TokenSet();
         }
         token = token_;
+
+        emit TokenUpdated(tx.origin, msg.sender, address(token));
     }
 
     function pause() external {
         _requireAtLeastOperator();
         isPaused = true;
+
+        emit SystemPaused(tx.origin, msg.sender);
     }
 
     function unpause() external {
         _requireAdmin();
         isPaused = false;
+
+        emit SystemUnpaused(tx.origin, msg.sender);
     }
 
     function makePrivate() external {
         _requireAdmin();
         isPrivate = true;
+
+        emit SystemPrivate(tx.origin, msg.sender);
     }
 
     function makePublic() external {
         _requireAdmin();
         isPrivate = false;
+
+        emit SystemPublic(tx.origin, msg.sender);
     }
 
     function addDepositorsToAllowlist(address[] calldata depositors) external {
@@ -409,6 +441,8 @@ contract Vault is DefaultAccessControl {
         } else {
             stabilisationFeeUpdate[stabilisationFeeUpdate.length - 1] = stabilisationFee_;
         }
+
+        emit StabilisationFeeUpdated(tx.origin, msg.sender, stabilisationFee_);
     }
 
     // -------------------  INTERNAL, VIEW  -----------------------
@@ -552,4 +586,24 @@ contract Vault is DefaultAccessControl {
             _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
         }
     }
+
+    event VaultOpened(address indexed origin, address indexed sender, uint256 vaultId);
+    event VaultLiquidated(address indexed origin, address indexed sender, uint256 vaultId);
+    event VaultClosed(address indexed origin, address indexed sender, uint256 vaultId);
+
+    event CollateralDeposited(address indexed origin, address indexed sender, uint256 vaultId, uint256 tokenId);
+    event CollateralWithdrew(address indexed origin, address indexed sender, uint256 vaultId, uint256 tokenId);
+
+    event DebtMinted(address indexed origin, address indexed sender, uint256 vaultId, uint256 amount);
+    event DebtBurned(address indexed origin, address indexed sender, uint256 vaultId, uint256 amount);
+
+    event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
+    event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
+    event TokenUpdated(address indexed origin, address indexed sender, address tokenAddress);
+
+    event SystemPaused(address indexed origin, address indexed sender);
+    event SystemUnpaused(address indexed origin, address indexed sender);
+
+    event SystemPrivate(address indexed origin, address indexed sender);
+    event SystemPublic(address indexed origin, address indexed sender);
 }

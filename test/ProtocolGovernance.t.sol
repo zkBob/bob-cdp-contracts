@@ -101,8 +101,7 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
     // supportsInterface
 
     function testSupportsInterfaceId() public {
-        bytes4 interfaceId = 0xc25a553e;
-        assertTrue(protocolGovernance.supportsInterface(interfaceId));
+        assertTrue(protocolGovernance.supportsInterface(type(IProtocolGovernance).interfaceId));
     }
 
     function testNotSupportsInterfaceId() public {

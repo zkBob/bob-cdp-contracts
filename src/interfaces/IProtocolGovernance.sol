@@ -6,7 +6,6 @@ import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     struct ProtocolParams {
-        uint256 stabilizationFee;
         uint256 liquidationFee;
         uint256 liquidationPremium;
         uint256 maxDebtPerVault;
@@ -24,8 +23,6 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     function getTokenLimit(address token) external view returns (uint256);
 
     // -------------------  EXTERNAL, MUTATING  -------------------
-
-    function changeStabilizationFee(uint256 stabilizationFee) external;
 
     function changeLiquidationFee(uint256 liquidationFee) external;
 
