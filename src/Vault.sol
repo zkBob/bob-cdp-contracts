@@ -262,7 +262,8 @@ contract Vault is DefaultAccessControl {
         _updateDebtFees(position.vaultId);
 
         uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(address(position.targetPool));
-        uint256 result = calculateHealthFactor(position.vaultId) - _calculatePosition(nft, position, liquidationThreshold);
+        uint256 result = calculateHealthFactor(position.vaultId) -
+            _calculatePosition(nft, position, liquidationThreshold);
 
         // checking that health factor is more or equal than 1
         if (result < debt[position.vaultId] + debtFee[position.vaultId]) {
@@ -493,16 +494,10 @@ contract Vault is DefaultAccessControl {
         }
     }
 
-    function _calculateFees(
-        IUniswapV3Pool pool,
-        uint256 uniV3Nft
-    )
+    function _calculateFees(IUniswapV3Pool pool, uint256 uniV3Nft)
         internal
         view
-        returns (
-            uint128 tokensOwed0,
-            uint128 tokensOwed1
-        )
+        returns (uint128 tokensOwed0, uint128 tokensOwed1)
     {
         uint256 feeGrowthInside0LastX128;
         uint256 feeGrowthInside1LastX128;
@@ -552,11 +547,11 @@ contract Vault is DefaultAccessControl {
         tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1DeltaX128, liquidity, Q128));
     }
 
-    function _calculatePosition(uint256 nft, PositionInfo memory position, uint256 liquidationThreshold)
-        internal
-        view
-        returns (uint256)
-    {
+    function _calculatePosition(
+        uint256 nft,
+        PositionInfo memory position,
+        uint256 liquidationThreshold
+    ) internal view returns (uint256) {
         uint256[] memory tokenAmounts = new uint256[](2);
         (uint160 sqrtRatioX96, , , , , , ) = position.targetPool.slot0();
 
