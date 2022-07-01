@@ -1,0 +1,171 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "price",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "priceX96",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x",
+    "sourceMap": "",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x",
+    "sourceMap": "",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "price(address)": "aea91078"
+  },
+  "ast": {
+    "absolutePath": "src/interfaces/oracles/IOracle.sol",
+    "id": 25941,
+    "exportedSymbols": {
+      "IOracle": [
+        25940
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "32:253:34",
+    "nodes": [
+      {
+        "id": 25931,
+        "nodeType": "PragmaDirective",
+        "src": "32:23:34",
+        "literals": [
+          "solidity",
+          "0.8",
+          ".13"
+        ]
+      },
+      {
+        "id": 25940,
+        "nodeType": "ContractDefinition",
+        "src": "57:227:34",
+        "nodes": [
+          {
+            "id": 25939,
+            "nodeType": "FunctionDefinition",
+            "src": "211:71:34",
+            "documentation": {
+              "id": 25932,
+              "nodeType": "StructuredDocumentation",
+              "src": "81:125:34",
+              "text": "@notice Oracle price for token.\n @param token Reference to token\n @return priceX96 Price that satisfy token"
+            },
+            "functionSelector": "aea91078",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "price",
+            "nameLocation": "220:5:34",
+            "parameters": {
+              "id": 25935,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25934,
+                  "mutability": "mutable",
+                  "name": "token",
+                  "nameLocation": "234:5:34",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25939,
+                  "src": "226:13:34",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 25933,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "226:7:34",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "225:15:34"
+            },
+            "returnParameters": {
+              "id": 25938,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25937,
+                  "mutability": "mutable",
+                  "name": "priceX96",
+                  "nameLocation": "272:8:34",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25939,
+                  "src": "264:16:34",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 25936,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "264:7:34",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "263:18:34"
+            },
+            "scope": 25940,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "IOracle",
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "fullyImplemented": false,
+        "linearizedBaseContracts": [
+          25940
+        ],
+        "name": "IOracle",
+        "nameLocation": "67:7:34",
+        "scope": 25941,
+        "usedErrors": []
+      }
+    ],
+    "license": "MIT"
+  },
+  "id": 34
+}
