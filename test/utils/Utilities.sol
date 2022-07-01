@@ -63,20 +63,22 @@ contract Utilities is Test, ConfigContract {
         }
     }
 
-    function makeEthUsdcSwap() public {
+    function makeSwap(address token0, address token1, uint256 amount) public returns (uint256 amountOut) {
         ISwapRouter swapRouter = ISwapRouter(SwapRouter);
+        deal(token0, address(this), amount);
+
         ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
-            tokenIn: weth,
-            tokenOut: usdc,
+            tokenIn: token0,
+            tokenOut: token1,
             fee: 3000,
             recipient: address(this),
             deadline: type(uint256).max,
-            amountIn: 10**18,
+            amountIn: amount,
             amountOutMinimum: 0,
             sqrtPriceLimitX96: 0
         });
 
-        swapRouter.exactInputSingle(params);
+        return swapRouter.exactInputSingle(params);
     }
 
     function openUniV3Position(

@@ -83,6 +83,195 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.addDepositorsToAllowlist(depositors);
     }
 
+    // integration scenarios
+
+    function testMultipleDepositAndWithdrawsSuccessSingleVault() public {
+
+        uint256 vaultId = vault.openVault();
+        uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault)); // 2000 USD
+        uint256 nftB = openUniV3Position(wbtc, usdc, 5 * 10**8, 100000 * 10**6, address(vault)); // 200000 USD
+        uint256 nftC = openUniV3Position(wbtc, weth, 10**8 / 20000, 10**18 / 1000, address(vault)); // 2 USD
+
+        protocolGovernance.changeMinSingleNftCapital(18 * 10**17);
+
+        vault.depositCollateral(vaultId, nftA);
+        vault.mintDebt(vaultId, 1000 * 10**18);
+
+        vault.depositCollateral(vaultId, nftB);
+        vault.mintDebt(vaultId, 50000 * 10**18);
+
+        vault.depositCollateral(vaultId, nftC);
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
+        vault.withdrawCollateral(nftB);
+
+        vault.withdrawCollateral(nftC);
+
+        positionManager.approve(address(vault), nftC);
+        vault.depositCollateral(vaultId, nftC);
+
+        vault.burnDebt(vaultId, 51000 * 10**18);
+        vault.withdrawCollateral(nftB);
+        vault.withdrawCollateral(nftA);
+
+        protocolGovernance.changeMinSingleNftCapital(18 * 10**20);
+        vault.mintDebt(vaultId, 10);
+
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
+        vault.withdrawCollateral(nftC);
+
+        vault.burnDebt(vaultId, 10);
+        vault.withdrawCollateral(nftC);
+
+        positionManager.approve(address(vault), nftC);
+        vm.expectRevert(Vault.CollateralUnderflow.selector);
+        vault.depositCollateral(vaultId, nftC);
+    }
+
+    function testFailStealNft() public {
+        uint256 vaultId = vault.openVault();
+        uint256 nft = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, nft);
+        vault.mintDebt(vaultId, 100 * 10**18);
+
+        positionManager.transferFrom(address(vault), address(this), nft);
+    }
+
+    function testSeveralVaultsPerAddress() public {
+        uint256 vaultA = vault.openVault();
+        uint256 vaultB = vault.openVault();
+
+        uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 nftB = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+
+        vault.depositCollateral(vaultA, nftA);
+        vault.depositCollateral(vaultB, nftB);
+
+        vault.mintDebt(vaultA, 1000 * 10**18);
+        vault.mintDebt(vaultB, 1 * 10**18);
+
+        //bankrupt first vault
+
+        oracle.setPrice(weth, 200 << 96);
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
+        vault.mintDebt(vaultA, 1 * 10**18);
+
+        address liquidator = getNextUserAddress();
+
+        deal(address(token), liquidator, 10000 * 10**18, true);
+        vm.startPrank(liquidator);
+
+        token.approve(address(vault), type(uint256).max);
+        vault.liquidate(vaultA);
+
+        //second vault is okay at the moment
+
+        token.approve(address(vault), type(uint256).max);
+        vm.expectRevert(Vault.PositionHealthy.selector);
+        vault.liquidate(vaultB);
+        vm.stopPrank();
+
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
+        vault.withdrawCollateral(nftB);
+
+        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vault.closeVault(vaultA);
+        vm.expectRevert(Vault.UnpaidDebt.selector);
+        vault.closeVault(vaultB);
+    }
+
+    function testReasonablePoolFeesCalculating() public {
+
+        uint256 vaultId = vault.openVault();
+        uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, nftA);
+
+        uint256 healthBeforeSwaps = vault.calculateHealthFactor(vaultId);
+        vault.mintDebt(vaultId, healthBeforeSwaps - 1);
+
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
+        vault.mintDebt(vaultId, 100);
+
+        oracle.setPrice(weth, uint256(1000 << 96) * 999999 / 1000000); //small price change to make position slightly lower than health threshold
+        uint256 healthAfterPriceChanged = vault.calculateHealthFactor(vaultId);
+        uint256 debt = vault.debt(vaultId);
+
+        assertTrue(healthAfterPriceChanged <= debt);
+
+        uint256 amountOut = makeSwap(weth, usdc, 10**22); //have to get a lot of fees
+        makeSwap(usdc, weth, amountOut);
+
+        uint256 healthAfterSwaps = vault.calculateHealthFactor(vaultId);
+        assertTrue(healthBeforeSwaps * 100001 <= healthAfterSwaps * 100000);
+        assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 2); //difference < 0.2% though
+
+        address liquidator = getNextUserAddress();
+        deal(address(token), liquidator, 10000 * 10**18, true);
+        vm.startPrank(liquidator);
+        token.approve(address(vault), type(uint256).max);
+        vm.expectRevert(Vault.PositionHealthy.selector);
+        vault.liquidate(vaultId); //hence not liquidated
+        vm.stopPrank();
+    }
+
+    function testTokenGotScammedHenceLiquidated() public { //usdc playing a role of scammed token here
+        uint256 vaultId = vault.openVault();
+
+        protocolGovernance.setTokenLimit(usdc, 100000 * 10**6); //100000 USD
+        
+        uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
+        uint256 nftB = openUniV3Position(wbtc, weth, 10**8 / 2, 10**18 * 20, address(vault)); //20000 USD
+
+        vault.depositCollateral(vaultId, nftA);
+        vault.depositCollateral(vaultId, nftB);
+        vault.mintDebt(vaultId, 20000 * (10**18));
+
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        protocolGovernance.revokeWhitelistedPool(pool);
+
+        address liquidator = getNextUserAddress();
+        deal(address(token), liquidator, 100000 * 10**18, true);
+        vm.startPrank(liquidator);
+        token.approve(address(vault), type(uint256).max);
+        vault.liquidate(vaultId);
+        vm.stopPrank();
+    }
+
+    function LiquidationThresholdChangedHenceLiquidated() public {
+        uint256 vaultId = vault.openVault();
+
+        uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
+        vault.depositCollateral(vaultId, nftA);
+        vault.mintDebt(vaultId, 10000 * (10**18));
+
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+
+        protocolGovernance.setLiquidationThreshold(pool, 2 * 10**8);
+        vault.burnDebt(vaultId, 5000 * (10**18)); //repaid debt partially and anyway liquidated
+
+        address liquidator = getNextUserAddress();
+        deal(address(token), liquidator, 100000 * 10**18, true);
+        vm.startPrank(liquidator);
+        token.approve(address(vault), type(uint256).max);
+        vault.liquidate(vaultId);
+        vm.stopPrank();
+    }
+
+    function testTokenLimitDecreased() public {
+        uint256 vaultId = vault.openVault();
+        uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
+
+        vault.depositCollateral(vaultId, nftA);  
+        vault.mintDebt(vaultId, 1000 * (10**18));  //1000 USD minted
+
+        protocolGovernance.setTokenLimit(usdc, 100 * (10**6)); // 100 USD limit set
+        vault.mintDebt(vaultId, 1000 * (10**18));  //can mint more anyway
+
+        uint256 nftB = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
+        vm.expectRevert(abi.encodeWithSelector(Vault.CollateralTokenOverflow.selector, usdc));
+        vault.depositCollateral(vaultId, nftB);  
+
+    }
+
     // addDepositorsToAllowlist
 
     function testAddDepositorsToAllowlistSuccess() public {
@@ -145,6 +334,24 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256[] memory vaultNfts = vault.vaultNftsById(vaultId);
         assertEq(getLength(vaultNfts), 1);
         assertEq(vaultNfts[0], tokenId);
+    }
+
+    function testFailDepositCollateralNotApproved() public {
+        uint256 vaultId = vault.openVault();
+
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+
+        vault.depositCollateral(vaultId, tokenId);
+        vault.withdrawCollateral(tokenId);
+        vault.depositCollateral(vaultId, tokenId); //not approved
+    }
+
+    function testFailTryDepositTwice() public {
+        uint256 vaultId = vault.openVault();
+
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.depositCollateral(vaultId, tokenId);
     }
 
     function testDepositCollateralWhenForbidden() public {
@@ -233,6 +440,14 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertEq(getLength(vault.ownedVaultsByAddress(address(this))), 0);
         assertEq(positionManager.ownerOf(tokenId), address(this));
     }
+
+    function testClosedVaultNotAcceptingAnything() public {
+        uint256 vaultId = vault.openVault();
+        vault.closeVault(vaultId);
+
+        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vault.depositCollateral(vaultId, 123);
+    } 
 
     function testCloseWithUnpaidDebt() public {
         uint256 vaultId = vault.openVault();
@@ -482,7 +697,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
 
         uint256 healthPreAction = vault.calculateHealthFactor(vaultId);
-        makeEthUsdcSwap();
+        makeSwap(weth, usdc, 10**18);
         uint256 healthPostAction = vault.calculateHealthFactor(vaultId);
         assertTrue(healthPreAction != healthPostAction);
         assertApproxEqual(healthPreAction, healthPostAction, 1);
@@ -533,19 +748,37 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 debt = vault.debt(vaultId) + vault.debtFee(vaultId);
 
         assertTrue(health < debt);
+        vm.warp(block.timestamp + 3600);
 
         address liquidator = getNextUserAddress();
+        assertEq(token.balanceOf(address(this)), 1100 * 10**18);
 
         deal(address(token), liquidator, 2000 * 10**18, true);
+        uint256 oldLiquidatorBalance = token.balanceOf(liquidator);
+        uint256 debtToBeRepaid = vault.debt(vaultId);
 
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
         vault.liquidate(vaultId);
         vm.stopPrank();
 
+        uint256 liquidatorSpent = oldLiquidatorBalance - token.balanceOf(liquidator);
+
         uint256 targetTreasuryBalance = (1600 * 10**18 * protocolGovernance.protocolParams().liquidationFee) / 10**9;
-        assertApproxEqual(targetTreasuryBalance, token.balanceOf(address(treasury)), 150);
+        uint256 treasuryGot = token.balanceOf(address(treasury));
+
+        assertApproxEqual(targetTreasuryBalance, treasuryGot, 150);
         assertEq(positionManager.ownerOf(tokenId), liquidator);
+
+        uint256 lowerBoundRemaning = 100 * 10**18;
+        uint256 gotBack = token.balanceOf(address(this));
+
+        assertTrue(lowerBoundRemaning <= gotBack);
+        assertEq(gotBack + debtToBeRepaid + treasuryGot, liquidatorSpent);
+
+        assertEq(vault.debt(vaultId), 0);
+        assertEq(vault.debtFee(vaultId), 0);
+
     }
 
     function testLiquidateWhenPositionHealthy() public {
