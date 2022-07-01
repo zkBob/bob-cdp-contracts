@@ -66,16 +66,6 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     // -------------------  EXTERNAL, MUTATING  -------------------
 
     /// @inheritdoc IProtocolGovernance
-    function changeStabilizationFee(uint256 stabilizationFee) external {
-        _requireAdmin();
-        if (stabilizationFee > MAX_PERCENTAGE_RATE) {
-            revert InvalidValue();
-        }
-        _protocolParams.stabilizationFee = stabilizationFee;
-        emit StabilizationFeeChanged(tx.origin, msg.sender, stabilizationFee);
-    }
-
-    /// @inheritdoc IProtocolGovernance
     function changeLiquidationFee(uint256 liquidationFee) external {
         _requireAdmin();
         if (liquidationFee > MAX_LIQUIDATION_FEE_RATE) {
@@ -161,7 +151,6 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     // --------------------------  EVENTS  --------------------------
 
-    event StabilizationFeeChanged(address indexed origin, address indexed sender, uint256 stabilizationFee);
     event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFee);
     event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremium);
     event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
