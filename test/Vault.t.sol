@@ -86,7 +86,6 @@ contract VaultTest is Test, SetupContract, Utilities {
     // integration scenarios
 
     function testMultipleDepositAndWithdrawsSuccessSingleVault() public {
-
         uint256 vaultId = vault.openVault();
         uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault)); // 2000 USD
         uint256 nftB = openUniV3Position(wbtc, usdc, 5 * 10**8, 100000 * 10**6, address(vault)); // 200000 USD
@@ -180,7 +179,6 @@ contract VaultTest is Test, SetupContract, Utilities {
     }
 
     function testReasonablePoolFeesCalculating() public {
-
         uint256 vaultId = vault.openVault();
         uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, nftA);
@@ -191,7 +189,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, 100);
 
-        oracle.setPrice(weth, uint256(1000 << 96) * 999999 / 1000000); //small price change to make position slightly lower than health threshold
+        oracle.setPrice(weth, (uint256(1000 << 96) * 999999) / 1000000); //small price change to make position slightly lower than health threshold
         uint256 healthAfterPriceChanged = vault.calculateHealthFactor(vaultId);
         uint256 debt = vault.debt(vaultId);
 
@@ -213,11 +211,12 @@ contract VaultTest is Test, SetupContract, Utilities {
         vm.stopPrank();
     }
 
-    function testTokenGotScammedHenceLiquidated() public { //usdc playing a role of scammed token here
+    function testTokenGotScammedHenceLiquidated() public {
+        //usdc playing a role of scammed token here
         uint256 vaultId = vault.openVault();
 
         protocolGovernance.setTokenLimit(usdc, 100000 * 10**6); //100000 USD
-        
+
         uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
         uint256 nftB = openUniV3Position(wbtc, weth, 10**8 / 2, 10**18 * 20, address(vault)); //20000 USD
 
@@ -260,16 +259,15 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
 
-        vault.depositCollateral(vaultId, nftA);  
-        vault.mintDebt(vaultId, 1000 * (10**18));  //1000 USD minted
+        vault.depositCollateral(vaultId, nftA);
+        vault.mintDebt(vaultId, 1000 * (10**18)); //1000 USD minted
 
         protocolGovernance.setTokenLimit(usdc, 100 * (10**6)); // 100 USD limit set
-        vault.mintDebt(vaultId, 1000 * (10**18));  //can mint more anyway
+        vault.mintDebt(vaultId, 1000 * (10**18)); //can mint more anyway
 
         uint256 nftB = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
         vm.expectRevert(abi.encodeWithSelector(Vault.CollateralTokenOverflow.selector, usdc));
-        vault.depositCollateral(vaultId, nftB);  
-
+        vault.depositCollateral(vaultId, nftB);
     }
 
     // addDepositorsToAllowlist
@@ -447,7 +445,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         vm.expectRevert(DefaultAccessControl.Forbidden.selector);
         vault.depositCollateral(vaultId, 123);
-    } 
+    }
 
     function testCloseWithUnpaidDebt() public {
         uint256 vaultId = vault.openVault();
@@ -778,7 +776,6 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         assertEq(vault.debt(vaultId), 0);
         assertEq(vault.debtFee(vaultId), 0);
-
     }
 
     function testLiquidateWhenPositionHealthy() public {

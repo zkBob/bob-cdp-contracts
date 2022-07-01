@@ -63,7 +63,11 @@ contract Utilities is Test, ConfigContract {
         }
     }
 
-    function makeSwap(address token0, address token1, uint256 amount) public returns (uint256 amountOut) {
+    function makeSwap(
+        address token0,
+        address token1,
+        uint256 amount
+    ) public returns (uint256 amountOut) {
         ISwapRouter swapRouter = ISwapRouter(SwapRouter);
         deal(token0, address(this), amount);
 
