@@ -25,6 +25,7 @@ contract Vault is DefaultAccessControl {
     error PositionUnhealthy();
     error TokenSet();
     error UnpaidDebt();
+    error DebtLimitExceeded();
 
     using EnumerableSet for EnumerableSet.AddressSet;
     using EnumerableSet for EnumerableSet.UintSet;
@@ -300,6 +301,11 @@ contract Vault is DefaultAccessControl {
 
         if (healthFactor < debt[vaultId] + debtFee[vaultId] + amount) {
             revert PositionUnhealthy();
+        }
+
+        uint256 debtLimit = protocolGovernance.protocolParams().maxDebtPerVault;
+        if (debtLimit < debt[vaultId] + debtFee[vaultId] + amount) {
+            revert DebtLimitExceeded();
         }
 
         token.mint(msg.sender, amount);

@@ -292,6 +292,17 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.mintDebt(vaultId, type(uint256).max);
     }
 
+    function testMintDebtWhenDebtLimitExceeded() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+
+        protocolGovernance.changeMaxDebtPerVault(10**18);
+
+        vm.expectRevert(Vault.DebtLimitExceeded.selector);
+        vault.mintDebt(vaultId, 10**19);
+    }
+
     function testMintDebtEmit() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
