@@ -14,17 +14,35 @@ import "./libraries/external/TickMath.sol";
 import "./utils/DefaultAccessControl.sol";
 
 contract Vault is DefaultAccessControl {
+    /// @notice Thrown when a value is not valid.
     error AllowList();
+
     error CollateralTokenOverflow(address token);
     error CollateralUnderflow();
     error DebtOverflow();
+
+    /// @notice Thrown when a pool address is not valid.
     error InvalidPool();
+
+    /// @notice Thrown when a value is not valid.
     error InvalidValue();
+
+    /// @notice Thrown when system is paused.
     error Paused();
+
+    /// @notice Thrown when position is healthy.
     error PositionHealthy();
+
+    /// @notice Thrown when position is unhealthy.
     error PositionUnhealthy();
+
+    /// @notice Thrown when token capital limit has been set.
     error TokenSet();
+
+    /// @notice Thrown when debt has not been paid.
     error UnpaidDebt();
+
+    /// @notice Thrown when debt limit has been exceeded.
     error DebtLimitExceeded();
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -35,6 +53,20 @@ contract Vault is DefaultAccessControl {
     uint256 public constant Q128 = 2**128;
     uint256 public constant Q96 = 2**96;
 
+    /// @notice Collateral position information.
+    /// @param token0 First token in UniswapV3 position
+    /// @param token1 Second token in UniswapV3 position
+    /// @param fee Fee of Uniswap position
+    /// @param positionKey Key of a specific position in UniswapV3 pool
+    /// @param liquidity Overall liquidity in UniswapV3 position
+    /// @param feeGrowthInside0LastX128 Fee growth of token0 inside the tick range as of the last mint/burn in UniswapV3 position
+    /// @param feeGrowthInside1LastX128 Fee growth of token1 inside the tick range as of the last mint/burn in UniswapV3 position
+    /// @param tokensOwed0 The computed amount of token0 owed to the position as of the last mint/burn
+    /// @param tokensOwed1 The computed amount of token1 owed to the position as of the last mint/burn
+    /// @param sqrtRatioAX96 UniswapV3 sqrtPriceA * 2**96
+    /// @param sqrtRatioBX96 UniswapV3 sqrtPriceB * 2**96
+    /// @param targetPool Address of UniswapV3 pool, which contains collateral position
+    /// @param vaultId Id of Mellow Vault, which takes control over collateral nft
     struct PositionInfo {
         address token0;
         address token1;
@@ -51,29 +83,57 @@ contract Vault is DefaultAccessControl {
         uint256 vaultId;
     }
 
+    /// @notice UniswapV3 position manager (remains constant after contract creation).
     INonfungiblePositionManager public immutable positionManager;
+
+    /// @notice UniswapV3 factory (remains constant after contract creation).
     IUniswapV3Factory public immutable factory;
+
+    /// @notice Protocol governance, which controls this specific Vault (remains constant after contract creation).
     IProtocolGovernance public immutable protocolGovernance;
+
+    /// @notice Oracle for price estimation.
     IOracle public oracle;
+
+    /// @notice Mellow Stable Token.
     IMUSD public token;
+
+    /// @notice Vault fees treasury address (remains constant after contract creation).
     address public immutable treasury;
 
+    /// @notice State variable, which shows if Vault is paused or not.
     bool public isPaused = false;
+
+    /// @notice State variable, which shows if Vault is private or not.
     bool public isPrivate = true;
 
     EnumerableSet.AddressSet private _depositorsAllowlist;
     mapping(address => EnumerableSet.UintSet) private _ownedVaults;
     mapping(uint256 => EnumerableSet.UintSet) private _vaultNfts;
+
+    /// @notice Mapping, returning vault owner by vault id.
     mapping(uint256 => address) public vaultOwner;
+
+    /// @notice Mapping, returning debt by vault id.
     mapping(uint256 => uint256) public debt;
+
+    /// @notice Mapping, returning debt fee by vault id.
     mapping(uint256 => uint256) public debtFee;
+
     mapping(uint256 => uint256) private _lastDebtFeeUpdateTimestamp;
+
+    /// @notice Mapping, returning max collateral supply by token address.
     mapping(address => uint256) public maxCollateralSupply;
+
     mapping(uint256 => PositionInfo) private _positionInfo;
 
+    /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault).
     uint256 public vaultCount = 0;
 
+    /// @notice Array, contatining stabilisation fee updates history.
     uint256[] public stabilisationFeeUpdate;
+
+    /// @notice Array, contatining stabilisation fee update timestamps history.
     uint256[] public stabilisationFeeUpdateTimestamp;
 
     constructor(
