@@ -615,8 +615,8 @@ contract Vault is DefaultAccessControl {
                 break;
             }
 
-            uint256 factor = FullMath.mulDiv(timeUpperBound - timeLowerBound, stabilisationFeeUpdate[i - 1], YEAR);
-            debtDelta += FullMath.mulDiv(debt[vaultId], factor, DENOMINATOR);
+            uint256 baseForFees = FullMath.mulDiv(debt[vaultId], stabilisationFeeUpdate[i - 1], DENOMINATOR);
+            debtDelta += FullMath.mulDiv(baseForFees, timeUpperBound - timeLowerBound, YEAR);
 
             timeUpperBound = stabilisationFeeUpdateTimestamp[i - 1];
         }
