@@ -1,0 +1,118 @@
+{
+  "abi": [
+    {
+      "inputs": [],
+      "name": "decimals",
+      "outputs": [
+        {
+          "internalType": "uint8",
+          "name": "",
+          "type": "uint8"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x60806040526000805460ff19166008179055348015601c57600080fd5b5060858061002b6000396000f3fe6080604052348015600f57600080fd5b506004361060285760003560e01c8063313ce56714602d575b600080fd5b60005460399060ff1681565b60405160ff909116815260200160405180910390f3fea26469706673582212207b67a3450a4d52954bd9a492039bbe86302a4967450c5d6fa083198bf56bd5e364736f6c634300080d0033",
+    "sourceMap": "25:63:52:-:0;;;60:25;;;-1:-1:-1;;60:25:52;84:1;60:25;;;25:63;;;;;;;;;;;;;;;;",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x6080604052348015600f57600080fd5b506004361060285760003560e01c8063313ce56714602d575b600080fd5b60005460399060ff1681565b60405160ff909116815260200160405180910390f3fea26469706673582212207b67a3450a4d52954bd9a492039bbe86302a4967450c5d6fa083198bf56bd5e364736f6c634300080d0033",
+    "sourceMap": "25:63:52:-:0;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;60:25;;;;;;;;;;;;186:4:55;174:17;;;156:36;;144:2;129:18;60:25:52;;;;;;",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "decimals()": "313ce567"
+  },
+  "ast": {
+    "absolutePath": "test/mocks/MockChainlinkOracle.sol",
+    "id": 38573,
+    "exportedSymbols": {
+      "MockChainlinkOracle": [
+        38572
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "0:89:52",
+    "nodes": [
+      {
+        "id": 38568,
+        "nodeType": "PragmaDirective",
+        "src": "0:23:52",
+        "literals": [
+          "solidity",
+          "0.8",
+          ".13"
+        ]
+      },
+      {
+        "id": 38572,
+        "nodeType": "ContractDefinition",
+        "src": "25:63:52",
+        "nodes": [
+          {
+            "id": 38571,
+            "nodeType": "VariableDeclaration",
+            "src": "60:25:52",
+            "constant": false,
+            "functionSelector": "313ce567",
+            "mutability": "mutable",
+            "name": "decimals",
+            "nameLocation": "73:8:52",
+            "scope": 38572,
+            "stateVariable": true,
+            "storageLocation": "default",
+            "typeDescriptions": {
+              "typeIdentifier": "t_uint8",
+              "typeString": "uint8"
+            },
+            "typeName": {
+              "id": 38569,
+              "name": "uint8",
+              "nodeType": "ElementaryTypeName",
+              "src": "60:5:52",
+              "typeDescriptions": {
+                "typeIdentifier": "t_uint8",
+                "typeString": "uint8"
+              }
+            },
+            "value": {
+              "hexValue": "38",
+              "id": 38570,
+              "isConstant": false,
+              "isLValue": false,
+              "isPure": true,
+              "kind": "number",
+              "lValueRequested": false,
+              "nodeType": "Literal",
+              "src": "84:1:52",
+              "typeDescriptions": {
+                "typeIdentifier": "t_rational_8_by_1",
+                "typeString": "int_const 8"
+              },
+              "value": "8"
+            },
+            "visibility": "public"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [],
+        "canonicalName": "MockChainlinkOracle",
+        "contractDependencies": [],
+        "contractKind": "contract",
+        "fullyImplemented": true,
+        "linearizedBaseContracts": [
+          38572
+        ],
+        "name": "MockChainlinkOracle",
+        "nameLocation": "34:19:52",
+        "scope": 38573,
+        "usedErrors": []
+      }
+    ]
+  },
+  "id": 52
+}

@@ -1,0 +1,770 @@
+{
+  "abi": [
+    {
+      "inputs": [
+        {
+          "internalType": "int24",
+          "name": "tickLower",
+          "type": "int24"
+        },
+        {
+          "internalType": "int24",
+          "name": "tickUpper",
+          "type": "int24"
+        },
+        {
+          "internalType": "uint128",
+          "name": "amount",
+          "type": "uint128"
+        }
+      ],
+      "name": "burn",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount1",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "internalType": "int24",
+          "name": "tickLower",
+          "type": "int24"
+        },
+        {
+          "internalType": "int24",
+          "name": "tickUpper",
+          "type": "int24"
+        },
+        {
+          "internalType": "uint128",
+          "name": "amount0Requested",
+          "type": "uint128"
+        },
+        {
+          "internalType": "uint128",
+          "name": "amount1Requested",
+          "type": "uint128"
+        }
+      ],
+      "name": "collect",
+      "outputs": [
+        {
+          "internalType": "uint128",
+          "name": "amount0",
+          "type": "uint128"
+        },
+        {
+          "internalType": "uint128",
+          "name": "amount1",
+          "type": "uint128"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "factory",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "fee",
+      "outputs": [
+        {
+          "internalType": "uint24",
+          "name": "",
+          "type": "uint24"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "feeGrowthGlobal0X128",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "feeGrowthGlobal1X128",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount1",
+          "type": "uint256"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "flash",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint16",
+          "name": "observationCardinalityNext",
+          "type": "uint16"
+        }
+      ],
+      "name": "increaseObservationCardinalityNext",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint160",
+          "name": "sqrtPriceX96",
+          "type": "uint160"
+        }
+      ],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "liquidity",
+      "outputs": [
+        {
+          "internalType": "uint128",
+          "name": "",
+          "type": "uint128"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "maxLiquidityPerTick",
+      "outputs": [
+        {
+          "internalType": "uint128",
+          "name": "",
+          "type": "uint128"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "internalType": "int24",
+          "name": "tickLower",
+          "type": "int24"
+        },
+        {
+          "internalType": "int24",
+          "name": "tickUpper",
+          "type": "int24"
+        },
+        {
+          "internalType": "uint128",
+          "name": "amount",
+          "type": "uint128"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "mint",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "amount0",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "amount1",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "index",
+          "type": "uint256"
+        }
+      ],
+      "name": "observations",
+      "outputs": [
+        {
+          "internalType": "uint32",
+          "name": "blockTimestamp",
+          "type": "uint32"
+        },
+        {
+          "internalType": "int56",
+          "name": "tickCumulative",
+          "type": "int56"
+        },
+        {
+          "internalType": "uint160",
+          "name": "secondsPerLiquidityCumulativeX128",
+          "type": "uint160"
+        },
+        {
+          "internalType": "bool",
+          "name": "initialized",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint32[]",
+          "name": "secondsAgos",
+          "type": "uint32[]"
+        }
+      ],
+      "name": "observe",
+      "outputs": [
+        {
+          "internalType": "int56[]",
+          "name": "tickCumulatives",
+          "type": "int56[]"
+        },
+        {
+          "internalType": "uint160[]",
+          "name": "secondsPerLiquidityCumulativeX128s",
+          "type": "uint160[]"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "key",
+          "type": "bytes32"
+        }
+      ],
+      "name": "positions",
+      "outputs": [
+        {
+          "internalType": "uint128",
+          "name": "_liquidity",
+          "type": "uint128"
+        },
+        {
+          "internalType": "uint256",
+          "name": "feeGrowthInside0LastX128",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "feeGrowthInside1LastX128",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint128",
+          "name": "tokensOwed0",
+          "type": "uint128"
+        },
+        {
+          "internalType": "uint128",
+          "name": "tokensOwed1",
+          "type": "uint128"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "protocolPerformanceFees",
+      "outputs": [
+        {
+          "internalType": "uint128",
+          "name": "token0",
+          "type": "uint128"
+        },
+        {
+          "internalType": "uint128",
+          "name": "token1",
+          "type": "uint128"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "slot0",
+      "outputs": [
+        {
+          "internalType": "uint160",
+          "name": "sqrtPriceX96",
+          "type": "uint160"
+        },
+        {
+          "internalType": "int24",
+          "name": "tick",
+          "type": "int24"
+        },
+        {
+          "internalType": "uint16",
+          "name": "observationIndex",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint16",
+          "name": "observationCardinality",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint16",
+          "name": "observationCardinalityNext",
+          "type": "uint16"
+        },
+        {
+          "internalType": "uint8",
+          "name": "feeProtocol",
+          "type": "uint8"
+        },
+        {
+          "internalType": "bool",
+          "name": "unlocked",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "recipient",
+          "type": "address"
+        },
+        {
+          "internalType": "bool",
+          "name": "zeroForOne",
+          "type": "bool"
+        },
+        {
+          "internalType": "int256",
+          "name": "amountSpecified",
+          "type": "int256"
+        },
+        {
+          "internalType": "uint160",
+          "name": "sqrtPriceLimitX96",
+          "type": "uint160"
+        },
+        {
+          "internalType": "bytes",
+          "name": "data",
+          "type": "bytes"
+        }
+      ],
+      "name": "swap",
+      "outputs": [
+        {
+          "internalType": "int256",
+          "name": "amount0",
+          "type": "int256"
+        },
+        {
+          "internalType": "int256",
+          "name": "amount1",
+          "type": "int256"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "int16",
+          "name": "wordPosition",
+          "type": "int16"
+        }
+      ],
+      "name": "tickBitmap",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "tickSpacing",
+      "outputs": [
+        {
+          "internalType": "int24",
+          "name": "",
+          "type": "int24"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "int24",
+          "name": "tick",
+          "type": "int24"
+        }
+      ],
+      "name": "ticks",
+      "outputs": [
+        {
+          "internalType": "uint128",
+          "name": "liquidityGross",
+          "type": "uint128"
+        },
+        {
+          "internalType": "int128",
+          "name": "liquidityNet",
+          "type": "int128"
+        },
+        {
+          "internalType": "uint256",
+          "name": "feeGrowthOutside0X128",
+          "type": "uint256"
+        },
+        {
+          "internalType": "uint256",
+          "name": "feeGrowthOutside1X128",
+          "type": "uint256"
+        },
+        {
+          "internalType": "int56",
+          "name": "tickCumulativeOutside",
+          "type": "int56"
+        },
+        {
+          "internalType": "uint160",
+          "name": "secondsPerLiquidityOutsideX128",
+          "type": "uint160"
+        },
+        {
+          "internalType": "uint32",
+          "name": "secondsOutside",
+          "type": "uint32"
+        },
+        {
+          "internalType": "bool",
+          "name": "initialized",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "token0",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "token1",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x",
+    "sourceMap": "",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x",
+    "sourceMap": "",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "burn(int24,int24,uint128)": "a34123a7",
+    "collect(address,int24,int24,uint128,uint128)": "4f1eb3d8",
+    "factory()": "c45a0155",
+    "fee()": "ddca3f43",
+    "feeGrowthGlobal0X128()": "f3058399",
+    "feeGrowthGlobal1X128()": "46141319",
+    "flash(address,uint256,uint256,bytes)": "490e6cbc",
+    "increaseObservationCardinalityNext(uint16)": "32148f67",
+    "initialize(uint160)": "f637731d",
+    "liquidity()": "1a686502",
+    "maxLiquidityPerTick()": "70cf754a",
+    "mint(address,int24,int24,uint128,bytes)": "3c8a7d8d",
+    "observations(uint256)": "252c09d7",
+    "observe(uint32[])": "883bdbfd",
+    "positions(bytes32)": "514ea4bf",
+    "protocolPerformanceFees()": "1ce9d079",
+    "slot0()": "3850c7bd",
+    "swap(address,bool,int256,uint160,bytes)": "128acb08",
+    "tickBitmap(int16)": "5339c296",
+    "tickSpacing()": "d0c93a7c",
+    "ticks(int24)": "f30dba93",
+    "token0()": "0dfe1681",
+    "token1()": "d21220a7"
+  },
+  "ast": {
+    "absolutePath": "src/interfaces/external/univ3/IUniswapV3Pool.sol",
+    "id": 26359,
+    "exportedSymbols": {
+      "IUniswapV3Pool": [
+        26358
+      ],
+      "IUniswapV3PoolActions": [
+        26454
+      ],
+      "IUniswapV3PoolDerivedState": [
+        26471
+      ],
+      "IUniswapV3PoolImmutables": [
+        26511
+      ],
+      "IUniswapV3PoolState": [
+        26619
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "45:616:29",
+    "nodes": [
+      {
+        "id": 26344,
+        "nodeType": "PragmaDirective",
+        "src": "45:24:29",
+        "literals": [
+          "solidity",
+          ">=",
+          "0.5",
+          ".0"
+        ]
+      },
+      {
+        "id": 26345,
+        "nodeType": "ImportDirective",
+        "src": "71:42:29",
+        "absolutePath": "src/interfaces/external/univ3/pool/IUniswapV3PoolActions.sol",
+        "file": "./pool/IUniswapV3PoolActions.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 26359,
+        "sourceUnit": 26455,
+        "symbolAliases": [],
+        "unitAlias": ""
+      },
+      {
+        "id": 26346,
+        "nodeType": "ImportDirective",
+        "src": "114:45:29",
+        "absolutePath": "src/interfaces/external/univ3/pool/IUniswapV3PoolImmutables.sol",
+        "file": "./pool/IUniswapV3PoolImmutables.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 26359,
+        "sourceUnit": 26512,
+        "symbolAliases": [],
+        "unitAlias": ""
+      },
+      {
+        "id": 26347,
+        "nodeType": "ImportDirective",
+        "src": "160:40:29",
+        "absolutePath": "src/interfaces/external/univ3/pool/IUniswapV3PoolState.sol",
+        "file": "./pool/IUniswapV3PoolState.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 26359,
+        "sourceUnit": 26620,
+        "symbolAliases": [],
+        "unitAlias": ""
+      },
+      {
+        "id": 26348,
+        "nodeType": "ImportDirective",
+        "src": "201:47:29",
+        "absolutePath": "src/interfaces/external/univ3/pool/IUniswapV3PoolDerivedState.sol",
+        "file": "./pool/IUniswapV3PoolDerivedState.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 26359,
+        "sourceUnit": 26472,
+        "symbolAliases": [],
+        "unitAlias": ""
+      },
+      {
+        "id": 26358,
+        "nodeType": "ContractDefinition",
+        "src": "515:145:29",
+        "abstract": false,
+        "baseContracts": [
+          {
+            "baseName": {
+              "id": 26350,
+              "name": "IUniswapV3PoolImmutables",
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 26511,
+              "src": "547:24:29"
+            },
+            "id": 26351,
+            "nodeType": "InheritanceSpecifier",
+            "src": "547:24:29"
+          },
+          {
+            "baseName": {
+              "id": 26352,
+              "name": "IUniswapV3PoolState",
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 26619,
+              "src": "577:19:29"
+            },
+            "id": 26353,
+            "nodeType": "InheritanceSpecifier",
+            "src": "577:19:29"
+          },
+          {
+            "baseName": {
+              "id": 26354,
+              "name": "IUniswapV3PoolDerivedState",
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 26471,
+              "src": "602:26:29"
+            },
+            "id": 26355,
+            "nodeType": "InheritanceSpecifier",
+            "src": "602:26:29"
+          },
+          {
+            "baseName": {
+              "id": 26356,
+              "name": "IUniswapV3PoolActions",
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 26454,
+              "src": "634:21:29"
+            },
+            "id": 26357,
+            "nodeType": "InheritanceSpecifier",
+            "src": "634:21:29"
+          }
+        ],
+        "canonicalName": "IUniswapV3Pool",
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "documentation": {
+          "id": 26349,
+          "nodeType": "StructuredDocumentation",
+          "src": "250:265:29",
+          "text": "@title The interface for a Uniswap V3 Pool\n @notice A Uniswap pool facilitates swapping and automated market making between any two assets that strictly conform\n to the ERC20 specification\n @dev The pool interface is broken up into many smaller pieces"
+        },
+        "fullyImplemented": false,
+        "linearizedBaseContracts": [
+          26358,
+          26454,
+          26471,
+          26619,
+          26511
+        ],
+        "name": "IUniswapV3Pool",
+        "nameLocation": "525:14:29",
+        "scope": 26359,
+        "usedErrors": []
+      }
+    ],
+    "license": "GPL-2.0-or-later"
+  },
+  "id": 29
+}

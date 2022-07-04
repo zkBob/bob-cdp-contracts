@@ -1,0 +1,1631 @@
+{
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "role",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "previousAdminRole",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "newAdminRole",
+          "type": "bytes32"
+        }
+      ],
+      "name": "RoleAdminChanged",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "role",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        }
+      ],
+      "name": "RoleGranted",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "bytes32",
+          "name": "role",
+          "type": "bytes32"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "sender",
+          "type": "address"
+        }
+      ],
+      "name": "RoleRevoked",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "liquidationFee",
+          "type": "uint256"
+        }
+      ],
+      "name": "changeLiquidationFee",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "liquidationPremium",
+          "type": "uint256"
+        }
+      ],
+      "name": "changeLiquidationPremium",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "maxDebtPerVault",
+          "type": "uint256"
+        }
+      ],
+      "name": "changeMaxDebtPerVault",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "minSingleNftCapital",
+          "type": "uint256"
+        }
+      ],
+      "name": "changeMinSingleNftCapital",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "role",
+          "type": "bytes32"
+        }
+      ],
+      "name": "getRoleAdmin",
+      "outputs": [
+        {
+          "internalType": "bytes32",
+          "name": "",
+          "type": "bytes32"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "role",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "uint256",
+          "name": "index",
+          "type": "uint256"
+        }
+      ],
+      "name": "getRoleMember",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "role",
+          "type": "bytes32"
+        }
+      ],
+      "name": "getRoleMemberCount",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        }
+      ],
+      "name": "getTokenLimit",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "role",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "grantRole",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "role",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "hasRole",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "who",
+          "type": "address"
+        }
+      ],
+      "name": "isAdmin",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "who",
+          "type": "address"
+        }
+      ],
+      "name": "isOperator",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "pool",
+          "type": "address"
+        }
+      ],
+      "name": "isPoolWhitelisted",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "pool",
+          "type": "address"
+        }
+      ],
+      "name": "liquidationThreshold",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "protocolParams",
+      "outputs": [
+        {
+          "components": [
+            {
+              "internalType": "uint256",
+              "name": "liquidationFee",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "liquidationPremium",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "maxDebtPerVault",
+              "type": "uint256"
+            },
+            {
+              "internalType": "uint256",
+              "name": "minSingleNftCapital",
+              "type": "uint256"
+            }
+          ],
+          "internalType": "struct IProtocolGovernance.ProtocolParams",
+          "name": "",
+          "type": "tuple"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "role",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "renounceRole",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "role",
+          "type": "bytes32"
+        },
+        {
+          "internalType": "address",
+          "name": "account",
+          "type": "address"
+        }
+      ],
+      "name": "revokeRole",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "pool",
+          "type": "address"
+        }
+      ],
+      "name": "revokeWhitelistedPool",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "pool",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "liquidationRatio",
+          "type": "uint256"
+        }
+      ],
+      "name": "setLiquidationThreshold",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "token",
+          "type": "address"
+        },
+        {
+          "internalType": "uint256",
+          "name": "newLimit",
+          "type": "uint256"
+        }
+      ],
+      "name": "setTokenLimit",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "address",
+          "name": "pool",
+          "type": "address"
+        }
+      ],
+      "name": "setWhitelistedPool",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes4",
+          "name": "interfaceId",
+          "type": "bytes4"
+        }
+      ],
+      "name": "supportsInterface",
+      "outputs": [
+        {
+          "internalType": "bool",
+          "name": "",
+          "type": "bool"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "bytecode": {
+    "object": "0x",
+    "sourceMap": "",
+    "linkReferences": {}
+  },
+  "deployedBytecode": {
+    "object": "0x",
+    "sourceMap": "",
+    "linkReferences": {}
+  },
+  "methodIdentifiers": {
+    "changeLiquidationFee(uint256)": "4d6bbf10",
+    "changeLiquidationPremium(uint256)": "4b85917f",
+    "changeMaxDebtPerVault(uint256)": "ad88de45",
+    "changeMinSingleNftCapital(uint256)": "72260957",
+    "getRoleAdmin(bytes32)": "248a9ca3",
+    "getRoleMember(bytes32,uint256)": "9010d07c",
+    "getRoleMemberCount(bytes32)": "ca15c873",
+    "getTokenLimit(address)": "5a860c87",
+    "grantRole(bytes32,address)": "2f2ff15d",
+    "hasRole(bytes32,address)": "91d14854",
+    "isAdmin(address)": "24d7806c",
+    "isOperator(address)": "6d70f7ae",
+    "isPoolWhitelisted(address)": "2b26a982",
+    "liquidationThreshold(address)": "b1732b25",
+    "protocolParams()": "93aab9d5",
+    "renounceRole(bytes32,address)": "36568abe",
+    "revokeRole(bytes32,address)": "d547741f",
+    "revokeWhitelistedPool(address)": "92c796eb",
+    "setLiquidationThreshold(address,uint256)": "0e30428d",
+    "setTokenLimit(address,uint256)": "bc017637",
+    "setWhitelistedPool(address)": "1c0a5914",
+    "supportsInterface(bytes4)": "01ffc9a7"
+  },
+  "ast": {
+    "absolutePath": "src/interfaces/IProtocolGovernance.sol",
+    "id": 25915,
+    "exportedSymbols": {
+      "IAccessControl": [
+        19442
+      ],
+      "IAccessControlEnumerable": [
+        19467
+      ],
+      "IDefaultAccessControl": [
+        26652
+      ],
+      "IERC165": [
+        19970
+      ],
+      "IProtocolGovernance": [
+        25914
+      ]
+    },
+    "nodeType": "SourceUnit",
+    "src": "39:3363:23",
+    "nodes": [
+      {
+        "id": 25815,
+        "nodeType": "PragmaDirective",
+        "src": "39:24:23",
+        "literals": [
+          "solidity",
+          "^",
+          "0.8",
+          ".13"
+        ]
+      },
+      {
+        "id": 25816,
+        "nodeType": "ImportDirective",
+        "src": "65:43:23",
+        "absolutePath": "src/interfaces/utils/IDefaultAccessControl.sol",
+        "file": "./utils/IDefaultAccessControl.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 25915,
+        "sourceUnit": 26653,
+        "symbolAliases": [],
+        "unitAlias": ""
+      },
+      {
+        "id": 25817,
+        "nodeType": "ImportDirective",
+        "src": "109:65:23",
+        "absolutePath": "lib/openzeppelin-contracts/contracts/utils/introspection/IERC165.sol",
+        "file": "@openzeppelin/contracts/utils/introspection/IERC165.sol",
+        "nameLocation": "-1:-1:-1",
+        "scope": 25915,
+        "sourceUnit": 19971,
+        "symbolAliases": [],
+        "unitAlias": ""
+      },
+      {
+        "id": 25914,
+        "nodeType": "ContractDefinition",
+        "src": "176:3225:23",
+        "nodes": [
+          {
+            "id": 25830,
+            "nodeType": "StructDefinition",
+            "src": "630:167:23",
+            "canonicalName": "IProtocolGovernance.ProtocolParams",
+            "members": [
+              {
+                "constant": false,
+                "id": 25823,
+                "mutability": "mutable",
+                "name": "liquidationFee",
+                "nameLocation": "670:14:23",
+                "nodeType": "VariableDeclaration",
+                "scope": 25830,
+                "src": "662:22:23",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint256",
+                  "typeString": "uint256"
+                },
+                "typeName": {
+                  "id": 25822,
+                  "name": "uint256",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "662:7:23",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 25825,
+                "mutability": "mutable",
+                "name": "liquidationPremium",
+                "nameLocation": "702:18:23",
+                "nodeType": "VariableDeclaration",
+                "scope": 25830,
+                "src": "694:26:23",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint256",
+                  "typeString": "uint256"
+                },
+                "typeName": {
+                  "id": 25824,
+                  "name": "uint256",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "694:7:23",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 25827,
+                "mutability": "mutable",
+                "name": "maxDebtPerVault",
+                "nameLocation": "738:15:23",
+                "nodeType": "VariableDeclaration",
+                "scope": 25830,
+                "src": "730:23:23",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint256",
+                  "typeString": "uint256"
+                },
+                "typeName": {
+                  "id": 25826,
+                  "name": "uint256",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "730:7:23",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                },
+                "visibility": "internal"
+              },
+              {
+                "constant": false,
+                "id": 25829,
+                "mutability": "mutable",
+                "name": "minSingleNftCapital",
+                "nameLocation": "771:19:23",
+                "nodeType": "VariableDeclaration",
+                "scope": 25830,
+                "src": "763:27:23",
+                "stateVariable": false,
+                "storageLocation": "default",
+                "typeDescriptions": {
+                  "typeIdentifier": "t_uint256",
+                  "typeString": "uint256"
+                },
+                "typeName": {
+                  "id": 25828,
+                  "name": "uint256",
+                  "nodeType": "ElementaryTypeName",
+                  "src": "763:7:23",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  }
+                },
+                "visibility": "internal"
+              }
+            ],
+            "name": "ProtocolParams",
+            "nameLocation": "637:14:23",
+            "scope": 25914,
+            "visibility": "public"
+          },
+          {
+            "id": 25838,
+            "nodeType": "FunctionDefinition",
+            "src": "1014:76:23",
+            "documentation": {
+              "id": 25831,
+              "nodeType": "StructuredDocumentation",
+              "src": "868:141:23",
+              "text": "@notice Liquidation threshold for certain pool.\n @param pool The given address of pool\n @return Liquidation threshold value"
+            },
+            "functionSelector": "b1732b25",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "liquidationThreshold",
+            "nameLocation": "1023:20:23",
+            "parameters": {
+              "id": 25834,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25833,
+                  "mutability": "mutable",
+                  "name": "pool",
+                  "nameLocation": "1052:4:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25838,
+                  "src": "1044:12:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 25832,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1044:7:23",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1043:14:23"
+            },
+            "returnParameters": {
+              "id": 25837,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25836,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25838,
+                  "src": "1081:7:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 25835,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1081:7:23",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1080:9:23"
+            },
+            "scope": 25914,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25845,
+            "nodeType": "FunctionDefinition",
+            "src": "1175:72:23",
+            "documentation": {
+              "id": 25839,
+              "nodeType": "StructuredDocumentation",
+              "src": "1096:74:23",
+              "text": "@notice Global protocol params.\n @return Protocol params struct"
+            },
+            "functionSelector": "93aab9d5",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "protocolParams",
+            "nameLocation": "1184:14:23",
+            "parameters": {
+              "id": 25840,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "1198:2:23"
+            },
+            "returnParameters": {
+              "id": 25844,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25843,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25845,
+                  "src": "1224:21:23",
+                  "stateVariable": false,
+                  "storageLocation": "memory",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_struct$_ProtocolParams_$25830_memory_ptr",
+                    "typeString": "struct IProtocolGovernance.ProtocolParams"
+                  },
+                  "typeName": {
+                    "id": 25842,
+                    "nodeType": "UserDefinedTypeName",
+                    "pathNode": {
+                      "id": 25841,
+                      "name": "ProtocolParams",
+                      "nodeType": "IdentifierPath",
+                      "referencedDeclaration": 25830,
+                      "src": "1224:14:23"
+                    },
+                    "referencedDeclaration": 25830,
+                    "src": "1224:14:23",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_struct$_ProtocolParams_$25830_storage_ptr",
+                      "typeString": "struct IProtocolGovernance.ProtocolParams"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1223:23:23"
+            },
+            "scope": 25914,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25853,
+            "nodeType": "FunctionDefinition",
+            "src": "1421:70:23",
+            "documentation": {
+              "id": 25846,
+              "nodeType": "StructuredDocumentation",
+              "src": "1253:163:23",
+              "text": "@notice Check if pool is in the whitelist or not.\n @param pool The given address of pool\n @return True if pool is whitelisted, else returns false"
+            },
+            "functionSelector": "2b26a982",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "isPoolWhitelisted",
+            "nameLocation": "1430:17:23",
+            "parameters": {
+              "id": 25849,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25848,
+                  "mutability": "mutable",
+                  "name": "pool",
+                  "nameLocation": "1456:4:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25853,
+                  "src": "1448:12:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 25847,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1448:7:23",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1447:14:23"
+            },
+            "returnParameters": {
+              "id": 25852,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25851,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25853,
+                  "src": "1485:4:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_bool",
+                    "typeString": "bool"
+                  },
+                  "typeName": {
+                    "id": 25850,
+                    "name": "bool",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1485:4:23",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_bool",
+                      "typeString": "bool"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1484:6:23"
+            },
+            "scope": 25914,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25861,
+            "nodeType": "FunctionDefinition",
+            "src": "1675:70:23",
+            "documentation": {
+              "id": 25854,
+              "nodeType": "StructuredDocumentation",
+              "src": "1497:173:23",
+              "text": "@notice Token capital limit for each token address.\n @param token The given address of token\n @return Token capital limit if limit is set, else uint256.max"
+            },
+            "functionSelector": "5a860c87",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "getTokenLimit",
+            "nameLocation": "1684:13:23",
+            "parameters": {
+              "id": 25857,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25856,
+                  "mutability": "mutable",
+                  "name": "token",
+                  "nameLocation": "1706:5:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25861,
+                  "src": "1698:13:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 25855,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1698:7:23",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1697:15:23"
+            },
+            "returnParameters": {
+              "id": 25860,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25859,
+                  "mutability": "mutable",
+                  "name": "",
+                  "nameLocation": "-1:-1:-1",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25861,
+                  "src": "1736:7:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 25858,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1736:7:23",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1735:9:23"
+            },
+            "scope": 25914,
+            "stateMutability": "view",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25867,
+            "nodeType": "FunctionDefinition",
+            "src": "1931:63:23",
+            "documentation": {
+              "id": 25862,
+              "nodeType": "StructuredDocumentation",
+              "src": "1820:106:23",
+              "text": "@notice Change liquidation fee to a given value.\n @param liquidationFee The new liquidation fee"
+            },
+            "functionSelector": "4d6bbf10",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "changeLiquidationFee",
+            "nameLocation": "1940:20:23",
+            "parameters": {
+              "id": 25865,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25864,
+                  "mutability": "mutable",
+                  "name": "liquidationFee",
+                  "nameLocation": "1969:14:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25867,
+                  "src": "1961:22:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 25863,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "1961:7:23",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "1960:24:23"
+            },
+            "returnParameters": {
+              "id": 25866,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "1993:0:23"
+            },
+            "scope": 25914,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25873,
+            "nodeType": "FunctionDefinition",
+            "src": "2123:71:23",
+            "documentation": {
+              "id": 25868,
+              "nodeType": "StructuredDocumentation",
+              "src": "2000:118:23",
+              "text": "@notice Change liquidation premium to a given value.\n @param liquidationPremium The new liquidation premium"
+            },
+            "functionSelector": "4b85917f",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "changeLiquidationPremium",
+            "nameLocation": "2132:24:23",
+            "parameters": {
+              "id": 25871,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25870,
+                  "mutability": "mutable",
+                  "name": "liquidationPremium",
+                  "nameLocation": "2165:18:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25873,
+                  "src": "2157:26:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 25869,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2157:7:23",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2156:28:23"
+            },
+            "returnParameters": {
+              "id": 25872,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2193:0:23"
+            },
+            "scope": 25914,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25879,
+            "nodeType": "FunctionDefinition",
+            "src": "2327:65:23",
+            "documentation": {
+              "id": 25874,
+              "nodeType": "StructuredDocumentation",
+              "src": "2200:122:23",
+              "text": "@notice Change max debt per vault to a given value.\n @param maxDebtPerVault The new max possible debt per vault"
+            },
+            "functionSelector": "ad88de45",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "changeMaxDebtPerVault",
+            "nameLocation": "2336:21:23",
+            "parameters": {
+              "id": 25877,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25876,
+                  "mutability": "mutable",
+                  "name": "maxDebtPerVault",
+                  "nameLocation": "2366:15:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25879,
+                  "src": "2358:23:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 25875,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2358:7:23",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2357:25:23"
+            },
+            "returnParameters": {
+              "id": 25878,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2391:0:23"
+            },
+            "scope": 25914,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25885,
+            "nodeType": "FunctionDefinition",
+            "src": "2530:73:23",
+            "documentation": {
+              "id": 25880,
+              "nodeType": "StructuredDocumentation",
+              "src": "2398:127:23",
+              "text": "@notice Change min single nft capital to a given value.\n @param minSingleNftCapital The new min possible nft capital"
+            },
+            "functionSelector": "72260957",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "changeMinSingleNftCapital",
+            "nameLocation": "2539:25:23",
+            "parameters": {
+              "id": 25883,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25882,
+                  "mutability": "mutable",
+                  "name": "minSingleNftCapital",
+                  "nameLocation": "2573:19:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25885,
+                  "src": "2565:27:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 25881,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2565:7:23",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2564:29:23"
+            },
+            "returnParameters": {
+              "id": 25884,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2602:0:23"
+            },
+            "scope": 25914,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25891,
+            "nodeType": "FunctionDefinition",
+            "src": "2712:51:23",
+            "documentation": {
+              "id": 25886,
+              "nodeType": "StructuredDocumentation",
+              "src": "2609:98:23",
+              "text": "@notice Add new pool to the whitelist.\n @param pool Address of the new whitelisted pool"
+            },
+            "functionSelector": "1c0a5914",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "setWhitelistedPool",
+            "nameLocation": "2721:18:23",
+            "parameters": {
+              "id": 25889,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25888,
+                  "mutability": "mutable",
+                  "name": "pool",
+                  "nameLocation": "2748:4:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25891,
+                  "src": "2740:12:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 25887,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2740:7:23",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2739:14:23"
+            },
+            "returnParameters": {
+              "id": 25890,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2762:0:23"
+            },
+            "scope": 25914,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25897,
+            "nodeType": "FunctionDefinition",
+            "src": "2877:54:23",
+            "documentation": {
+              "id": 25892,
+              "nodeType": "StructuredDocumentation",
+              "src": "2769:103:23",
+              "text": "@notice Delete pool from the whitelist.\n @param pool Address of the deleted whitelisted pool"
+            },
+            "functionSelector": "92c796eb",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "revokeWhitelistedPool",
+            "nameLocation": "2886:21:23",
+            "parameters": {
+              "id": 25895,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25894,
+                  "mutability": "mutable",
+                  "name": "pool",
+                  "nameLocation": "2916:4:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25897,
+                  "src": "2908:12:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 25893,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "2908:7:23",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "2907:14:23"
+            },
+            "returnParameters": {
+              "id": 25896,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "2930:0:23"
+            },
+            "scope": 25914,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25905,
+            "nodeType": "FunctionDefinition",
+            "src": "3095:82:23",
+            "documentation": {
+              "id": 25898,
+              "nodeType": "StructuredDocumentation",
+              "src": "2937:153:23",
+              "text": "@notice Set liquidation threshold for a given pool.\n @param pool Address of the pool\n @param liquidationRatio The new liquidation ratio"
+            },
+            "functionSelector": "0e30428d",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "setLiquidationThreshold",
+            "nameLocation": "3104:23:23",
+            "parameters": {
+              "id": 25903,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25900,
+                  "mutability": "mutable",
+                  "name": "pool",
+                  "nameLocation": "3136:4:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25905,
+                  "src": "3128:12:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 25899,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "3128:7:23",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 25902,
+                  "mutability": "mutable",
+                  "name": "liquidationRatio",
+                  "nameLocation": "3150:16:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25905,
+                  "src": "3142:24:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 25901,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "3142:7:23",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3127:40:23"
+            },
+            "returnParameters": {
+              "id": 25904,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "3176:0:23"
+            },
+            "scope": 25914,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          },
+          {
+            "id": 25913,
+            "nodeType": "FunctionDefinition",
+            "src": "3334:65:23",
+            "documentation": {
+              "id": 25906,
+              "nodeType": "StructuredDocumentation",
+              "src": "3183:146:23",
+              "text": "@notice Set new capital limit for a given token.\n @param token Address of the token\n @param newLimit The new token capital limit"
+            },
+            "functionSelector": "bc017637",
+            "implemented": false,
+            "kind": "function",
+            "modifiers": [],
+            "name": "setTokenLimit",
+            "nameLocation": "3343:13:23",
+            "parameters": {
+              "id": 25911,
+              "nodeType": "ParameterList",
+              "parameters": [
+                {
+                  "constant": false,
+                  "id": 25908,
+                  "mutability": "mutable",
+                  "name": "token",
+                  "nameLocation": "3365:5:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25913,
+                  "src": "3357:13:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_address",
+                    "typeString": "address"
+                  },
+                  "typeName": {
+                    "id": 25907,
+                    "name": "address",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "3357:7:23",
+                    "stateMutability": "nonpayable",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_address",
+                      "typeString": "address"
+                    }
+                  },
+                  "visibility": "internal"
+                },
+                {
+                  "constant": false,
+                  "id": 25910,
+                  "mutability": "mutable",
+                  "name": "newLimit",
+                  "nameLocation": "3380:8:23",
+                  "nodeType": "VariableDeclaration",
+                  "scope": 25913,
+                  "src": "3372:16:23",
+                  "stateVariable": false,
+                  "storageLocation": "default",
+                  "typeDescriptions": {
+                    "typeIdentifier": "t_uint256",
+                    "typeString": "uint256"
+                  },
+                  "typeName": {
+                    "id": 25909,
+                    "name": "uint256",
+                    "nodeType": "ElementaryTypeName",
+                    "src": "3372:7:23",
+                    "typeDescriptions": {
+                      "typeIdentifier": "t_uint256",
+                      "typeString": "uint256"
+                    }
+                  },
+                  "visibility": "internal"
+                }
+              ],
+              "src": "3356:33:23"
+            },
+            "returnParameters": {
+              "id": 25912,
+              "nodeType": "ParameterList",
+              "parameters": [],
+              "src": "3398:0:23"
+            },
+            "scope": 25914,
+            "stateMutability": "nonpayable",
+            "virtual": false,
+            "visibility": "external"
+          }
+        ],
+        "abstract": false,
+        "baseContracts": [
+          {
+            "baseName": {
+              "id": 25818,
+              "name": "IDefaultAccessControl",
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 26652,
+              "src": "209:21:23"
+            },
+            "id": 25819,
+            "nodeType": "InheritanceSpecifier",
+            "src": "209:21:23"
+          },
+          {
+            "baseName": {
+              "id": 25820,
+              "name": "IERC165",
+              "nodeType": "IdentifierPath",
+              "referencedDeclaration": 19970,
+              "src": "232:7:23"
+            },
+            "id": 25821,
+            "nodeType": "InheritanceSpecifier",
+            "src": "232:7:23"
+          }
+        ],
+        "canonicalName": "IProtocolGovernance",
+        "contractDependencies": [],
+        "contractKind": "interface",
+        "fullyImplemented": false,
+        "linearizedBaseContracts": [
+          25914,
+          19970,
+          26652,
+          19467,
+          19442
+        ],
+        "name": "IProtocolGovernance",
+        "nameLocation": "186:19:23",
+        "scope": 25915,
+        "usedErrors": []
+      }
+    ],
+    "license": "UNLICENSED"
+  },
+  "id": 23
+}
