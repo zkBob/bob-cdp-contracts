@@ -17,17 +17,17 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     uint256 public constant DECIMALS = 18;
     uint256 public constant Q96 = 2**96;
 
-    /// @notice Mapping, returning oracle by it`s token.
+    /// @notice Mapping, returning oracle for token
     mapping(address => address) public oraclesIndex;
 
-    /// @notice Mapping, returning decimals by it`s token.
+    /// @notice Mapping, returning decimals of token
     mapping(address => uint256) public decimalsIndex;
     EnumerableSet.AddressSet private _tokens;
 
-    /// @notice Creates a new contract.
-    /// @param tokens Tokens, managed by the oracles
-    /// @param oracles Initial Chainlink oracles
-    /// @param admin Oracles admin
+    /// @notice Creates a new contract
+    /// @param tokens Initial supported tokens
+    /// @param oracles Initial approved Chainlink oracles
+    /// @param admin Protocol admin
     constructor(
         address[] memory tokens,
         address[] memory oracles,
@@ -38,14 +38,14 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     // -------------------------  EXTERNAL, VIEW  ------------------------------
 
-    /// @notice Return, if token has been added to oracles or not.
+    /// @notice Returns if an oracle was approved for a token
     /// @param token A given token address
     function hasOracle(address token) external view returns (bool) {
         return _tokens.contains(token);
     }
 
-    /// @notice Get all tokens, supported by the oracles.
-    /// @return Array of supported tokens
+    /// @notice Get all tokens which have approved oracles
+    /// @return address[] Array of supported tokens
     function supportedTokens() external view returns (address[] memory) {
         return _tokens.values();
     }
@@ -82,7 +82,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     // -------------------------  EXTERNAL, MUTATING  ------------------------------
 
-    /// @notice Add more chainlink oracles and tokens, managed by them.
+    /// @notice Add more chainlink oracles and tokens
     /// @param tokens Array of new tokens
     /// @param oracles Array of new oracles
     function addChainlinkOracles(address[] memory tokens, address[] memory oracles) external {
@@ -113,15 +113,15 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
             oraclesIndex[token] = oracle;
             decimalsIndex[token] = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
         }
-        emit OraclesAdded(tx.origin, msg.sender, tokens, oracles);
+        emit TokensAndOraclesAdded(tx.origin, msg.sender, tokens, oracles);
     }
 
     // --------------------------  EVENTS  --------------------------
 
-    /// @notice Emitted when new Chainlink oracle is added
+    /// @notice Emitted when new tokens and Chainlink oracles are added
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param tokens Tokens added
-    /// @param oracles Orecles added for the tokens
-    event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles);
+    /// @param oracles Oracles added for the tokens
+    event TokensAndOraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles);
 }

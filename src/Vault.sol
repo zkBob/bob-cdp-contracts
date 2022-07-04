@@ -15,40 +15,37 @@ import "./utils/DefaultAccessControl.sol";
 
 /// @notice Contract of the system vault manager
 contract Vault is DefaultAccessControl {
-    /// @notice Thrown when a value is not valid.
+    /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
-    /// @notice Thrown when token capital exceeds max token capital limit.
+    /// @notice Thrown when token capital exceeds max token capital limit
     error CollateralTokenOverflow(address token);
 
-    /// @notice Thrown when capital is less than min single nft capital.
+    /// @notice Thrown when vaule of a deposited NFT is less than min single nft capital (set in governance)
     error CollateralUnderflow();
 
-    /// @notice Thrown debt exceeds max debt.
-    error DebtOverflow();
-
-    /// @notice Thrown when a pool address is not valid.
+    /// @notice Thrown when a pool address is not valid
     error InvalidPool();
 
-    /// @notice Thrown when a value is not valid.
+    /// @notice Thrown when a value of a stabilization fee is not valid
     error InvalidValue();
 
-    /// @notice Thrown when system is paused.
+    /// @notice Thrown when system is paused
     error Paused();
 
-    /// @notice Thrown when position is healthy.
+    /// @notice Thrown when position is healthy
     error PositionHealthy();
 
-    /// @notice Thrown when position is unhealthy.
+    /// @notice Thrown when position is unhealthy
     error PositionUnhealthy();
 
-    /// @notice Thrown when token capital limit has been set.
+    /// @notice Thrown when MUSD token contract has already been set
     error TokenSet();
 
-    /// @notice Thrown when debt has not been paid.
+    /// @notice Thrown when a vault is tried to be closed and debt has not been paid yet
     error UnpaidDebt();
 
-    /// @notice Thrown when debt limit has been exceeded.
+    /// @notice Thrown when vault debt limit (which's set in governance) would been exceeded after a deposit
     error DebtLimitExceeded();
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -59,18 +56,18 @@ contract Vault is DefaultAccessControl {
     uint256 public constant Q128 = 2**128;
     uint256 public constant Q96 = 2**96;
 
-    /// @notice Collateral position information.
-    /// @param token0 First token in UniswapV3 position
-    /// @param token1 Second token in UniswapV3 position
-    /// @param fee Fee of Uniswap position
+    /// @notice Information about a single UniV3 NFT
+    /// @param token0 First token in UniswapV3 pool
+    /// @param token1 Second token in UniswapV3 pool
+    /// @param fee Fee of Uniswap pool
     /// @param positionKey Key of a specific position in UniswapV3 pool
     /// @param liquidity Overall liquidity in UniswapV3 position
-    /// @param feeGrowthInside0LastX128 Fee growth of token0 inside the tick range as of the last mint/burn in UniswapV3 position
-    /// @param feeGrowthInside1LastX128 Fee growth of token1 inside the tick range as of the last mint/burn in UniswapV3 position
-    /// @param tokensOwed0 The computed amount of token0 owed to the position as of the last mint/burn
-    /// @param tokensOwed1 The computed amount of token1 owed to the position as of the last mint/burn
-    /// @param sqrtRatioAX96 UniswapV3 sqrtPriceA * 2**96
-    /// @param sqrtRatioBX96 UniswapV3 sqrtPriceB * 2**96
+    /// @param feeGrowthInside0LastX128 Fee growth of token0 inside the tick range as of the moment of the deposit
+    /// @param feeGrowthInside1LastX128 Fee growth of token1 inside the tick range as of the moment of the deposit
+    /// @param tokensOwed0 The computed amount of token0 owed to the position as of the moment of the deposit
+    /// @param tokensOwed1 The computed amount of token1 owed to the position as of the moment of the deposit
+    /// @param sqrtRatioAX96 A sqrt price representing the first tick boundary
+    /// @param sqrtRatioBX96 A sqrt price representing the second tick boundary
     /// @param targetPool Address of UniswapV3 pool, which contains collateral position
     /// @param vaultId Id of Mellow Vault, which takes control over collateral nft
     struct PositionInfo {
@@ -89,46 +86,46 @@ contract Vault is DefaultAccessControl {
         uint256 vaultId;
     }
 
-    /// @notice UniswapV3 position manager (remains constant after contract creation).
+    /// @notice UniswapV3 position manager
     INonfungiblePositionManager public immutable positionManager;
 
-    /// @notice UniswapV3 factory (remains constant after contract creation).
+    /// @notice UniswapV3 factory
     IUniswapV3Factory public immutable factory;
 
-    /// @notice Protocol governance, which controls this specific Vault (remains constant after contract creation).
+    /// @notice Protocol governance, which controls this specific Vault
     IProtocolGovernance public immutable protocolGovernance;
 
-    /// @notice Oracle for price estimation.
+    /// @notice Oracle for price estimations
     IOracle public oracle;
 
-    /// @notice Mellow Stable Token.
+    /// @notice Mellow Stable Token
     IMUSD public token;
 
-    /// @notice Vault fees treasury address (remains constant after contract creation).
+    /// @notice Vault fees treasury address
     address public immutable treasury;
 
-    /// @notice State variable, which shows if Vault is paused or not.
+    /// @notice State variable, which shows if Vault is paused or not
     bool public isPaused = false;
 
-    /// @notice State variable, which shows if Vault is private or not.
+    /// @notice State variable, which shows if Vault is private or not
     bool public isPrivate = true;
 
     EnumerableSet.AddressSet private _depositorsAllowlist;
     mapping(address => EnumerableSet.UintSet) private _ownedVaults;
     mapping(uint256 => EnumerableSet.UintSet) private _vaultNfts;
 
-    /// @notice Mapping, returning vault owner by vault id.
+    /// @notice Mapping, returning vault owner by vault id
     mapping(uint256 => address) public vaultOwner;
 
-    /// @notice Mapping, returning debt by vault id.
+    /// @notice Mapping, returning debt by vault id
     mapping(uint256 => uint256) public debt;
 
-    /// @notice Mapping, returning debt fee by vault id.
+    /// @notice Mapping, returning total accumulated stabilising fees by vault id
     mapping(uint256 => uint256) public debtFee;
 
     mapping(uint256 => uint256) private _lastDebtFeeUpdateTimestamp;
 
-    /// @notice Mapping, returning max collateral supply by token address.
+    /// @notice Mapping, returning current maximal possible supply in NFTs for a token
     mapping(address => uint256) public maxCollateralSupply;
 
     mapping(uint256 => PositionInfo) private _positionInfo;
@@ -142,12 +139,12 @@ contract Vault is DefaultAccessControl {
     /// @notice Array, contatining stabilisation fee update timestamps history.
     uint256[] public stabilisationFeeUpdateTimestamp;
 
-    /// @notice Creates a new contract.
+    /// @notice Creates a new contract
     /// @param admin Protocol admin
     /// @param positionManager_ UniswapV3 position manager
     /// @param factory_ UniswapV3 factory
     /// @param protocolGovernance_ UniswapV3 protocol governance
-    /// @param oracle_ UniswapV3 oracle
+    /// @param oracle_ Chainlink oracle
     /// @param treasury_ Vault fees treasury
     /// @param stabilisationFee_ MUSD initial stabilisation fee
     constructor(
@@ -183,9 +180,9 @@ contract Vault is DefaultAccessControl {
 
     // -------------------   PUBLIC, VIEW   -------------------
 
-    /// @notice Calculate Health factor for a given vault.
+    /// @notice Calculate health factor for a given vault
     /// @param vaultId Id of the vault
-    /// @return Health factor
+    /// @return uint256 Health factor
     function calculateHealthFactor(uint256 vaultId) public view returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
@@ -200,42 +197,42 @@ contract Vault is DefaultAccessControl {
 
     // -------------------  EXTERNAL, VIEW  -------------------
 
-    /// @notice Get all vaults with a given owner.
+    /// @notice Get all vaults with a given owner
     /// @param target Owner address
-    /// @return Array of vaults, owned by address
+    /// @return uint256[] Array of vaults, owned by address
     function ownedVaultsByAddress(address target) external view returns (uint256[] memory) {
         return _ownedVaults[target].values();
     }
 
-    /// @notice Get all NFTs, managed by vault with given id.
+    /// @notice Get all NFTs, managed by vault with given id
     /// @param vaultId Id of the vault
-    /// @return Array of NFTs, managed by vault
+    /// @return uint256[] Array of NFTs, managed by vault
     function vaultNftsById(uint256 vaultId) external view returns (uint256[] memory) {
         return _vaultNfts[vaultId].values();
     }
 
-    /// @notice Get all verified depositors.
-    /// @return Array of verified depositors
+    /// @notice Get all verified depositors
+    /// @return address[] Array of verified depositors
     function depositorsAllowlist() external view returns (address[] memory) {
         return _depositorsAllowlist.values();
     }
 
-    /// @notice Get total dept for a given vault by id.
+    /// @notice Get total debt for a given vault by id (including fees)
     /// @param vaultId Id of the vault
-    /// @return Total debt value
+    /// @return uint256 Total debt value
     function getOverallDebt(uint256 vaultId) external view returns (uint256) {
         return debt[vaultId] + debtFee[vaultId] + _calculateDebtFees(vaultId);
     }
 
-    /// @notice Get up-to-date stabilisation fee.
-    /// @return Stabilisation fee
+    /// @notice Get up-to-date stabilisation fee
+    /// @return uint256 Stabilisation fee
     function stabilisationFee() external view returns (uint256) {
         return stabilisationFeeUpdate[stabilisationFeeUpdate.length - 1];
     }
 
     // -------------------  EXTERNAL, MUTATING  -------------------
 
-    /// @notice Open a new Vault.
+    /// @notice Open a new Vault
     /// @return vaultId Id of the new vault
     function openVault() external returns (uint256 vaultId) {
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
@@ -252,7 +249,7 @@ contract Vault is DefaultAccessControl {
         return vaultCount;
     }
 
-    /// @notice Close a vault.
+    /// @notice Close a vault
     /// @param vaultId Id of the vault
     function closeVault(uint256 vaultId) external {
         _requireVaultOwner(vaultId);
@@ -267,9 +264,9 @@ contract Vault is DefaultAccessControl {
         emit VaultClosed(tx.origin, msg.sender, vaultId);
     }
 
-    /// @notice Deposit collateral to a given vault.
+    /// @notice Deposit collateral to a given vault
     /// @param vaultId Id of the vault
-    /// @param nft Nft
+    /// @param nft UniV3 NFT to be deposited
     function depositCollateral(uint256 vaultId, uint256 nft) external {
         _checkIsPaused();
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
@@ -353,8 +350,8 @@ contract Vault is DefaultAccessControl {
         emit CollateralDeposited(tx.origin, msg.sender, vaultId, nft);
     }
 
-    /// @notice Withdraw collateral from a given vault.
-    /// @param nft Nft
+    /// @notice Withdraw collateral from a given vault
+    /// @param nft UniV3 NFT to be withdrawn
     function withdrawCollateral(uint256 nft) external {
         _checkIsPaused();
         PositionInfo memory position = _positionInfo[nft];
@@ -392,9 +389,9 @@ contract Vault is DefaultAccessControl {
         emit CollateralWithdrew(tx.origin, msg.sender, position.vaultId, nft);
     }
 
-    /// @notice Mint debt on a given vault.
+    /// @notice Mint debt on a given vault
     /// @param vaultId Id of the vault
-    /// @param amount Debt amount
+    /// @param amount Debt amount to be mited
     function mintDebt(uint256 vaultId, uint256 amount) external {
         _checkIsPaused();
         _requireVaultOwner(vaultId);
@@ -417,9 +414,9 @@ contract Vault is DefaultAccessControl {
         emit DebtMinted(tx.origin, msg.sender, vaultId, amount);
     }
 
-    /// @notice Burn debt on a given vault.
+    /// @notice Burn debt on a given vault
     /// @param vaultId Id of the vault
-    /// @param amount Debt amount
+    /// @param amount Debt amount to be burned
     function burnDebt(uint256 vaultId, uint256 amount) external {
         _checkIsPaused();
         _requireVaultOwner(vaultId);
@@ -441,8 +438,8 @@ contract Vault is DefaultAccessControl {
         emit DebtBurned(tx.origin, msg.sender, vaultId, amount);
     }
 
-    /// @notice Liquidate a vault.
-    /// @param vaultId Id of the vault
+    /// @notice Liquidate a vault
+    /// @param vaultId Id of the vault subject to liquidation
     function liquidate(uint256 vaultId) external {
         _updateDebtFees(vaultId);
 
@@ -473,7 +470,7 @@ contract Vault is DefaultAccessControl {
         emit VaultLiquidated(tx.origin, msg.sender, vaultId);
     }
 
-    /// @notice Set a new price oracle.
+    /// @notice Set a new price oracle
     /// @param oracle_ New oracle
     function setOracle(IOracle oracle_) external {
         _requireAdmin();
@@ -485,8 +482,8 @@ contract Vault is DefaultAccessControl {
         emit OracleUpdated(tx.origin, msg.sender, address(oracle));
     }
 
-    /// @notice Set a new token.
-    /// @param token_ New token
+    /// @notice Set MUSD token
+    /// @param token_ MUSD token
     function setToken(IMUSD token_) external {
         _requireAdmin();
         if (address(token_) == address(0)) {
@@ -500,7 +497,7 @@ contract Vault is DefaultAccessControl {
         emit TokenUpdated(tx.origin, msg.sender, address(token));
     }
 
-    /// @notice Pause the system.
+    /// @notice Pause the system
     function pause() external {
         _requireAtLeastOperator();
         isPaused = true;
@@ -508,7 +505,7 @@ contract Vault is DefaultAccessControl {
         emit SystemPaused(tx.origin, msg.sender);
     }
 
-    /// @notice Unpause the system.
+    /// @notice Unpause the system
     function unpause() external {
         _requireAdmin();
         isPaused = false;
@@ -516,7 +513,7 @@ contract Vault is DefaultAccessControl {
         emit SystemUnpaused(tx.origin, msg.sender);
     }
 
-    /// @notice Make the system private.
+    /// @notice Make the system private
     function makePrivate() external {
         _requireAdmin();
         isPrivate = true;
@@ -524,7 +521,7 @@ contract Vault is DefaultAccessControl {
         emit SystemPrivate(tx.origin, msg.sender);
     }
 
-    /// @notice Make the system public.
+    /// @notice Make the system public
     function makePublic() external {
         _requireAdmin();
         isPrivate = false;
@@ -532,7 +529,7 @@ contract Vault is DefaultAccessControl {
         emit SystemPublic(tx.origin, msg.sender);
     }
 
-    /// @notice Add an array of new depositors to allow list.
+    /// @notice Add an array of new depositors to the allow list
     /// @param depositors Array of new depositors
     function addDepositorsToAllowlist(address[] calldata depositors) external {
         _requireAdmin();
@@ -541,7 +538,7 @@ contract Vault is DefaultAccessControl {
         }
     }
 
-    /// @notice Remove an array of depositors from allow list.
+    /// @notice Remove an array of depositors from the allow list
     /// @param depositors Array of new depositors
     function removeDepositorsFromAllowlist(address[] calldata depositors) external {
         _requireAdmin();
@@ -550,7 +547,7 @@ contract Vault is DefaultAccessControl {
         }
     }
 
-    /// @notice Update stabilisation fee.
+    /// @notice Update stabilisation fee
     /// @param stabilisationFee_ New stabilisation fee
     function updateStabilisationFee(uint256 stabilisationFee_) external {
         _requireAdmin();
@@ -795,86 +792,86 @@ contract Vault is DefaultAccessControl {
 
     // --------------------------  EVENTS  --------------------------
 
-    /// @notice Emitted when a new vault is being opened.
+    /// @notice Emitted when a new vault is being opened
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     event VaultOpened(address indexed origin, address indexed sender, uint256 vaultId);
 
-    /// @notice Emitted when a vault is being liquidated.
+    /// @notice Emitted when a vault is being liquidated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     event VaultLiquidated(address indexed origin, address indexed sender, uint256 vaultId);
 
-    /// @notice Emitted when a vault is being closed.
+    /// @notice Emitted when a vault is being closed
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     event VaultClosed(address indexed origin, address indexed sender, uint256 vaultId);
 
-    /// @notice Emitted when a collateral is being deposited.
+    /// @notice Emitted when a collateral is being deposited
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
     event CollateralDeposited(address indexed origin, address indexed sender, uint256 vaultId, uint256 tokenId);
 
-    /// @notice Emitted when a collateral is being withdrawn.
+    /// @notice Emitted when a collateral is being withdrawn
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
     event CollateralWithdrew(address indexed origin, address indexed sender, uint256 vaultId, uint256 tokenId);
 
-    /// @notice Emitted when a debt is being minted.
+    /// @notice Emitted when a debt is being minted
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param amount Debt amount
     event DebtMinted(address indexed origin, address indexed sender, uint256 vaultId, uint256 amount);
 
-    /// @notice Emitted when a debt is being burnt.
+    /// @notice Emitted when a debt is being burnt
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param amount Debt amount
     event DebtBurned(address indexed origin, address indexed sender, uint256 vaultId, uint256 amount);
 
-    /// @notice Emitted when the stabilisation fee is being updated.
+    /// @notice Emitted when the stabilisation fee is being updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param stabilisationFee New stabilisation fee
     event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
 
-    /// @notice Emitted when the oracle is being updated.
+    /// @notice Emitted when the oracle is being updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param oracleAddress New oracle address
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
 
-    /// @notice Emitted when the token is being updated.
+    /// @notice Emitted when the token is being updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param tokenAddress New token address
     event TokenUpdated(address indexed origin, address indexed sender, address tokenAddress);
 
-    /// @notice Emitted when the system is set to paused.
+    /// @notice Emitted when the system is set to paused
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     event SystemPaused(address indexed origin, address indexed sender);
 
-    /// @notice Emitted when the system is set to unpaused.
+    /// @notice Emitted when the system is set to unpaused
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     event SystemUnpaused(address indexed origin, address indexed sender);
 
-    /// @notice Emitted when the system is set to private.
+    /// @notice Emitted when the system is set to private
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     event SystemPrivate(address indexed origin, address indexed sender);
 
-    /// @notice Emitted when the system is set to public.
+    /// @notice Emitted when the system is set to public
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     event SystemPublic(address indexed origin, address indexed sender);

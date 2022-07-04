@@ -6,10 +6,10 @@ import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @notice Global protocol params.
-    /// @param liquidationFee Part of the funds on vault, transfered to Protocol Treasury after liquidation
-    /// @param liquidationPremium Amount of fees given to liquidator after liquidation
-    /// @param maxDebtPerVault Max possible debt for each vault
-    /// @param minSingleNftCapital Min possible NFT capitalisation for each position
+    /// @param liquidationFee Share of the MUSD value of assets of a vault, due to be transferred to the Protocol Treasury after a liquidation (multiplied by DENOMINATOR)
+    /// @param liquidationPremium Share of the MUSD value of assets of a vault, due to be awarded to a liquidator after a liquidation (multiplied by DENOMINATOR)
+    /// @param maxDebtPerVault Max possible debt for one vault (nominated in MUSD weis)
+    /// @param minSingleNftCapital Min possible MUSD NFT value allowed to deposit (nominated in MUSD weis)
     struct ProtocolParams {
         uint256 liquidationFee;
         uint256 liquidationPremium;
@@ -19,23 +19,28 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
 
     // -------------------  EXTERNAL, VIEW  -------------------
 
-    /// @notice Liquidation threshold for certain pool.
+    /// @notice Liquidation threshold for certain pool (multiplied by DENOMINATOR)
+    /// @dev The logic of this parameter is following:
+    /// Assume we have nft's n1,...,nk from corresponding pools with liq.thresholds l1,...,lk and real MUSD values v1,...,vk (which can be obtained from Uni info & Chainlink oracle)
+    /// Then, a position is healthy <=> (l1 * v1 + ... + lk * vk) <= totalDebt
+    /// Hence, 0 <= threshold <= 1 is held
     /// @param pool The given address of pool
-    /// @return Liquidation threshold value
+    /// @return uint256 Liquidation threshold value
     function liquidationThreshold(address pool) external view returns (uint256);
 
-    /// @notice Global protocol params.
-    /// @return Protocol params struct
+    /// @notice Global protocol params
+    /// @return ProtocolParams Protocol params struct
     function protocolParams() external view returns (ProtocolParams memory);
 
-    /// @notice Check if pool is in the whitelist or not.
+    /// @notice Check if pool is in the whitelist
     /// @param pool The given address of pool
-    /// @return True if pool is whitelisted, else returns false
+    /// @return bool True if pool is whitelisted, false if not
     function isPoolWhitelisted(address pool) external view returns (bool);
 
-    /// @notice Token capital limit for each token address.
+    /// @notice Token capital limit in all the protocol for a given token (nominated in MUSD weis)
+    /// @dev Amount of a token of a certain position is calculated as a maximal amount of token possible in this position taken by all prices
     /// @param token The given address of token
-    /// @return Token capital limit if limit is set, else uint256.max
+    /// @return uint256 Token capital limit if limit is set, else uint256.max
     function getTokenLimit(address token) external view returns (uint256);
 
     // -------------------  EXTERNAL, MUTATING  -------------------
@@ -60,8 +65,8 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @param pool Address of the new whitelisted pool
     function setWhitelistedPool(address pool) external;
 
-    /// @notice Delete pool from the whitelist.
-    /// @param pool Address of the deleted whitelisted pool
+    /// @notice Revoke pool from the whitelist.
+    /// @param pool Address of the revoked whitelisted pool
     function revokeWhitelistedPool(address pool) external;
 
     /// @notice Set liquidation threshold for a given pool.

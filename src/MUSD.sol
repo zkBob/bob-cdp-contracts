@@ -5,10 +5,10 @@ import "@solmate/src/tokens/ERC20.sol";
 
 /// @notice Contract of the stable token MUSD
 contract MUSD is ERC20 {
-    /// @notice Thrown when a user has not permissions to perform a certain action.
+    /// @notice Thrown when a user doesn't have permission to perform a certain action.
     error Forbidden();
 
-    /// @notice The only vault, which is allowed to mint or burn MUSD (remains constant after contract creation).
+    /// @notice The address of the vault which is only allowed to mint or burn MUSD
     address public immutable governingVault;
 
     /// @notice Creates a new contract.
