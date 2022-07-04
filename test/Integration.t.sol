@@ -128,7 +128,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.mintDebt(vaultA, 1000 * 10**18);
         vault.mintDebt(vaultB, 1 * 10**18);
 
-        //bankrupt first vault
+        // bankrupt first vault
 
         oracle.setPrice(weth, 200 << 96);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
@@ -142,7 +142,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         token.approve(address(vault), type(uint256).max);
         vault.liquidate(vaultA);
 
-        //second vault is okay at the moment
+        // second vault is okay at the moment
 
         token.approve(address(vault), type(uint256).max);
         vm.expectRevert(Vault.PositionHealthy.selector);
@@ -171,14 +171,14 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         uint256 overallDebt = vault.debt(vaultId) + vault.debtFee(vaultId);
         assertTrue(healthFactor <= overallDebt); // hence subject to liquidation
 
-        oracle.setPrice(weth, 1200 << 96); //price got back
+        oracle.setPrice(weth, 1200 << 96); // price got back
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 10000 * 10**18, true);
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
         vm.expectRevert(Vault.PositionHealthy.selector);
-        vault.liquidate(vaultId); //hence not liquidated
+        vault.liquidate(vaultId); // hence not liquidated
         vm.stopPrank();
     }
 
@@ -197,7 +197,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
         vault.liquidate(vaultId); // liquidated
-        assertTrue(token.balanceOf(treasury) > 0); //liquidation succeded
+        assertTrue(token.balanceOf(treasury) > 0); // liquidation succeded
         vm.stopPrank();
     }
 
@@ -250,20 +250,20 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.warp(block.timestamp + YEAR);
         assertEq(vault.getOverallDebt(vaultId), 1555 * 10**18);
 
-        vault.updateStabilisationFee(5 * 10**7); //5%
+        vault.updateStabilisationFee(5 * 10**7); // 5%
         vm.warp(block.timestamp + YEAR);
         assertEq(vault.getOverallDebt(vaultId), 1630 * 10**18);
 
-        vault.updateStabilisationFee(1 * 10**7); //1%
+        vault.updateStabilisationFee(1 * 10**7); // 1%
         vm.warp(block.timestamp + YEAR);
-        vault.updateStabilisationFee(5 * 10**7); //5%
+        vault.updateStabilisationFee(5 * 10**7); // 5%
         vm.warp(block.timestamp + YEAR);
         assertEq(vault.getOverallDebt(vaultId), 1720 * 10**18);
 
         vault.burnDebt(vaultId, 900 * 10**18);
         assertEq(vault.getOverallDebt(vaultId), 820 * 10**18);
 
-        vault.updateStabilisationFee(0); //0%
+        vault.updateStabilisationFee(0); // 0%
         vm.warp(block.timestamp + 10 * YEAR);
         assertEq(vault.getOverallDebt(vaultId), 820 * 10**18);
 
@@ -347,33 +347,33 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, 100);
 
-        oracle.setPrice(weth, (uint256(1000 << 96) * 999999) / 1000000); //small price change to make position slightly lower than health threshold
+        oracle.setPrice(weth, (uint256(1000 << 96) * 999999) / 1000000); // small price change to make position slightly lower than health threshold
         uint256 healthAfterPriceChanged = vault.calculateHealthFactor(vaultId);
         uint256 debt = vault.debt(vaultId);
 
         assertTrue(healthAfterPriceChanged <= debt);
 
-        uint256 amountOut = makeSwap(weth, usdc, 10**22); //have to get a lot of fees
+        uint256 amountOut = makeSwap(weth, usdc, 10**22); // have to get a lot of fees
         makeSwap(usdc, weth, amountOut);
 
         uint256 healthAfterSwaps = vault.calculateHealthFactor(vaultId);
         assertTrue(healthBeforeSwaps * 100001 <= healthAfterSwaps * 100000);
-        assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 2); //difference < 0.2% though
+        assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 2); // difference < 0.2% though
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 10000 * 10**18, true);
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
         vm.expectRevert(Vault.PositionHealthy.selector);
-        vault.liquidate(vaultId); //hence not liquidated
+        vault.liquidate(vaultId); // hence not liquidated
         vm.stopPrank();
     }
 
     function testTokenGotScammedHenceLiquidated() public {
-        //usdc playing a role of scammed token here
+        // usdc playing a role of scammed token here
         uint256 vaultId = vault.openVault();
 
-        protocolGovernance.setTokenLimit(usdc, 100000 * 10**6); //100000 USD
+        protocolGovernance.setTokenLimit(usdc, 100000 * 10**6); // 100000 USD
 
         uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
         uint256 nftB = openUniV3Position(wbtc, weth, 10**8 / 2, 10**18 * 20, address(vault)); //20000 USD
@@ -396,14 +396,14 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
     function LiquidationThresholdChangedHenceLiquidated() public {
         uint256 vaultId = vault.openVault();
 
-        uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
+        uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); // 20000 USD
         vault.depositCollateral(vaultId, nftA);
         vault.mintDebt(vaultId, 10000 * (10**18));
 
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
 
         protocolGovernance.setLiquidationThreshold(pool, 2 * 10**8);
-        vault.burnDebt(vaultId, 5000 * (10**18)); //repaid debt partially and anyway liquidated
+        vault.burnDebt(vaultId, 5000 * (10**18)); // repaid debt partially and anyway liquidated
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 100000 * 10**18, true);
@@ -415,13 +415,13 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
     function testTokenLimitDecreasedAndIncreasedBack() public {
         uint256 vaultId = vault.openVault();
-        uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
+        uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); // 20000 USD
 
         vault.depositCollateral(vaultId, nftA);
-        vault.mintDebt(vaultId, 1000 * (10**18)); //1000 USD minted
+        vault.mintDebt(vaultId, 1000 * (10**18)); // 1000 USD minted
 
         protocolGovernance.setTokenLimit(usdc, 100 * (10**6)); // 100 USD limit set
-        vault.mintDebt(vaultId, 1000 * (10**18)); //can mint more anyway
+        vault.mintDebt(vaultId, 1000 * (10**18)); // can mint more anyway
 
         uint256 nftB = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
         vm.expectRevert(abi.encodeWithSelector(Vault.CollateralTokenOverflow.selector, usdc));
