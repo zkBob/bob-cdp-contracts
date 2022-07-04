@@ -147,6 +147,24 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertEq(vaultNfts[0], tokenId);
     }
 
+    function testFailDepositCollateralNotApproved() public {
+        uint256 vaultId = vault.openVault();
+
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+
+        vault.depositCollateral(vaultId, tokenId);
+        vault.withdrawCollateral(tokenId);
+        vault.depositCollateral(vaultId, tokenId); //not approved
+    }
+
+    function testFailTryDepositTwice() public {
+        uint256 vaultId = vault.openVault();
+
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.depositCollateral(vaultId, tokenId);
+    }
+
     function testDepositCollateralWhenForbidden() public {
         vm.expectRevert(Vault.AllowList.selector);
 
@@ -234,6 +252,14 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertEq(positionManager.ownerOf(tokenId), address(this));
     }
 
+    function testClosedVaultNotAcceptingAnything() public {
+        uint256 vaultId = vault.openVault();
+        vault.closeVault(vaultId);
+
+        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vault.depositCollateral(vaultId, 123);
+    }
+
     function testCloseWithUnpaidDebt() public {
         uint256 vaultId = vault.openVault();
 
@@ -290,17 +316,6 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, type(uint256).max);
-    }
-
-    function testMintDebtWhenDebtLimitExceeded() public {
-        uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        vault.depositCollateral(vaultId, tokenId);
-
-        protocolGovernance.changeMaxDebtPerVault(10**18);
-
-        vm.expectRevert(Vault.DebtLimitExceeded.selector);
-        vault.mintDebt(vaultId, 10**19);
     }
 
     function testMintDebtEmit() public {
@@ -493,7 +508,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
 
         uint256 healthPreAction = vault.calculateHealthFactor(vaultId);
-        makeEthUsdcSwap();
+        makeSwap(weth, usdc, 10**18);
         uint256 healthPostAction = vault.calculateHealthFactor(vaultId);
         assertTrue(healthPreAction != healthPostAction);
         assertApproxEqual(healthPreAction, healthPostAction, 1);
@@ -544,19 +559,53 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 debt = vault.debt(vaultId) + vault.debtFee(vaultId);
 
         assertTrue(health < debt);
+        vm.warp(block.timestamp + 3600);
 
         address liquidator = getNextUserAddress();
+        assertEq(token.balanceOf(address(this)), 1100 * 10**18);
 
         deal(address(token), liquidator, 2000 * 10**18, true);
+        uint256 oldLiquidatorBalance = token.balanceOf(liquidator);
+        uint256 debtToBeRepaid = vault.debt(vaultId);
 
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
         vault.liquidate(vaultId);
         vm.stopPrank();
 
+        uint256 liquidatorSpent = oldLiquidatorBalance - token.balanceOf(liquidator);
+
         uint256 targetTreasuryBalance = (1600 * 10**18 * protocolGovernance.protocolParams().liquidationFee) / 10**9;
-        assertApproxEqual(targetTreasuryBalance, token.balanceOf(address(treasury)), 150);
+        uint256 treasuryGot = token.balanceOf(address(treasury));
+
+        assertApproxEqual(targetTreasuryBalance, treasuryGot, 150);
         assertEq(positionManager.ownerOf(tokenId), liquidator);
+
+        uint256 lowerBoundRemaning = 100 * 10**18;
+        uint256 gotBack = token.balanceOf(address(this));
+
+        assertTrue(lowerBoundRemaning <= gotBack);
+        assertEq(gotBack + debtToBeRepaid + treasuryGot, liquidatorSpent);
+
+        assertEq(vault.debt(vaultId), 0);
+        assertEq(vault.debtFee(vaultId), 0);
+    }
+
+    function testFailLiquidateWithSmallAmount() public {
+        uint256 vaultId = vault.openVault();
+        // overall ~2000$ -> HF: ~1200$
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1100 * 10**18);
+        // eth 1000 -> 800
+        oracle.setPrice(weth, 800 << 96);
+
+        address liquidator = getNextUserAddress();
+        deal(address(token), liquidator, 2000 * 10**18, true);
+
+        vm.startPrank(liquidator);
+        token.approve(address(vault), vault.debt(vaultId)); //too small for liquidating
+        vault.liquidate(vaultId);
     }
 
     function testLiquidateWhenPositionHealthy() public {

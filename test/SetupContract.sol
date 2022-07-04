@@ -35,6 +35,7 @@ contract SetupContract is Test, ConfigContract {
         IERC20(wbtc).approve(UniV3PositionManager, type(uint256).max);
         IERC20(weth).approve(UniV3PositionManager, type(uint256).max);
         IERC20(weth).approve(SwapRouter, type(uint256).max);
+        IERC20(usdc).approve(SwapRouter, type(uint256).max);
         IERC20(usdc).approve(UniV3PositionManager, type(uint256).max);
         IERC20(ape).approve(UniV3PositionManager, type(uint256).max);
     }
