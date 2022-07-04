@@ -17,10 +17,17 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     uint256 public constant DECIMALS = 18;
     uint256 public constant Q96 = 2**96;
 
+    /// @inheritdoc IOracle
     mapping(address => address) public oraclesIndex;
+
+    /// @inheritdoc IOracle
     mapping(address => uint256) public decimalsIndex;
     EnumerableSet.AddressSet private _tokens;
 
+    /// @notice Creates a new contract.
+    /// @param tokens Tokens, managed by the oracles
+    /// @param oracles Initial Chainlink oracles
+    /// @param admin Oracles admin
     constructor(
         address[] memory tokens,
         address[] memory oracles,
@@ -31,10 +38,14 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     // -------------------------  EXTERNAL, VIEW  ------------------------------
 
+    /// @notice Return, if token has been added to oracles or not.
+    /// @param token A given token address
     function hasOracle(address token) external view returns (bool) {
         return _tokens.contains(token);
     }
 
+    /// @notice Get all tokens, supported by the oracles.
+    /// @return Array of supported tokens
     function supportedTokens() external view returns (address[] memory) {
         return _tokens.values();
     }
@@ -71,6 +82,9 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     // -------------------------  EXTERNAL, MUTATING  ------------------------------
 
+    /// @notice Add more chainlink oracles and tokens, managed by them.
+    /// @param tokens Array of new tokens
+    /// @param oracles Array of new oracles
     function addChainlinkOracles(address[] memory tokens, address[] memory oracles) external {
         _requireAdmin();
         _addChainlinkOracles(tokens, oracles);

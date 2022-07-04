@@ -6,6 +6,7 @@ import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "./interfaces/IProtocolGovernance.sol";
 import "./utils/DefaultAccessControl.sol";
 
+/// @notice Contract of the system protocol governance
 contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl {
     /// @notice Thrown when a value is not valid.
     error InvalidValue();

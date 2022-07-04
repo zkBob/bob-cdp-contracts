@@ -13,6 +13,7 @@ import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
 import "./utils/DefaultAccessControl.sol";
 
+/// @notice Contract of the system vault manager
 contract Vault is DefaultAccessControl {
     /// @notice Thrown when a value is not valid.
     error AllowList();

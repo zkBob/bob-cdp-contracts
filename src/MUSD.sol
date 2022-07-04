@@ -3,6 +3,7 @@ pragma solidity ^0.8.13;
 
 import "@solmate/src/tokens/ERC20.sol";
 
+/// @notice Contract of the stable token MUSD
 contract MUSD is ERC20 {
     /// @notice Thrown when a user has not permissions to perform a certain action.
     error Forbidden();
