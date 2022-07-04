@@ -6,9 +6,15 @@ import "@openzeppelin/contracts/utils/introspection/ERC165.sol";
 import "./interfaces/IProtocolGovernance.sol";
 import "./utils/DefaultAccessControl.sol";
 
+/// @notice Contract of the system protocol governance
 contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl {
+    /// @notice Thrown when a value is not valid.
     error InvalidValue();
+
+    /// @notice Thrown when a pool address is not valid.
     error InvalidPool();
+
+    /// @notice Thrown when a value is equal to zero.
     error ValueZero();
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -30,6 +36,8 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     mapping(address => uint256) private _tokenCapitalLimit;
 
+    /// @notice Creates a new contract.
+    /// @param admin Protocol admin
     constructor(address admin) DefaultAccessControl(admin) {
         _protocolParams.maxDebtPerVault = type(uint256).max;
     }
@@ -54,6 +62,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         return _tokenCapitalLimit[token];
     }
 
+    /// @inheritdoc IERC165
     function supportsInterface(bytes4 interfaceId)
         public
         view
@@ -151,17 +160,58 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     // --------------------------  EVENTS  --------------------------
 
+    /// @notice Emitted when liquidation fee is being reset.
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param liquidationFee The new liquidation fee
     event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFee);
+
+    /// @notice Emitted when liquidation premium is being reset.
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param liquidationPremium The new liquidation premium
     event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremium);
+
+    /// @notice Emitted when max debt per vault is being reset.
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param maxDebtPerVault The new max debt per vault
     event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
+
+    /// @notice Emitted when min nft capital is being reset.
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param minSingleNftCapital The new min nft capital
     event MinSingleNftCapitalChanged(address indexed origin, address indexed sender, uint256 minSingleNftCapital);
+
+    /// @notice Emitted when liquidation threshold for a specific pool is being set.
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param pool The given pool
+    /// @param liquidationRatio The new liquidation ratio
     event LiquidationThresholdSet(
         address indexed origin,
         address indexed sender,
         address pool,
         uint256 liquidationRatio
     );
+
+    /// @notice Emitted when new pool is being added to the whitelist.
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param pool The new whitelisted pool
     event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
+
+    /// @notice Emitted when pool is being deleted from the whitelist.
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param pool The deleted whitelisted pool
     event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
+
+    /// @notice Emitted when token capital limit is being set.
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param token The token address
+    /// @param stagedLimit The new token capital limit
     event TokenLimitSet(address indexed origin, address indexed sender, address token, uint256 stagedLimit);
 }
