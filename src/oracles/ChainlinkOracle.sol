@@ -17,10 +17,10 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     uint256 public constant DECIMALS = 18;
     uint256 public constant Q96 = 2**96;
 
-    /// @inheritdoc IOracle
+    /// @notice Mapping, returning oracle by it`s token.
     mapping(address => address) public oraclesIndex;
 
-    /// @inheritdoc IOracle
+    /// @notice Mapping, returning decimals by it`s token.
     mapping(address => uint256) public decimalsIndex;
     EnumerableSet.AddressSet private _tokens;
 

@@ -231,7 +231,7 @@ contract Vault is DefaultAccessControl {
     // -------------------  EXTERNAL, MUTATING  -------------------
 
     /// @notice Open a new Vault.
-    /// @return Id of the new vault
+    /// @return vaultId Id of the new vault
     function openVault() external returns (uint256 vaultId) {
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
@@ -766,7 +766,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Emitted when the token is being updated.
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
-    /// @param oracltokenAddresseAddress New token address
+    /// @param tokenAddress New token address
     event TokenUpdated(address indexed origin, address indexed sender, address tokenAddress);
 
     /// @notice Emitted when the system is set to paused.
