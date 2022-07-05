@@ -133,15 +133,21 @@ contract Vault is DefaultAccessControl {
 
     mapping(uint256 => PositionInfo) private _positionInfo;
 
-    /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault).
+    /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault)
     uint256 public vaultCount = 0;
 
-    /// @notice Array, contatining stabilisation fee updates history.
+    /// @notice Array, contatining stabilisation fee updates history
     uint256[] public stabilisationFeeUpdate;
 
-    /// @notice Array, contatining stabilisation fee update timestamps history.
+    /// @notice Array, contatining stabilisation fee update timestamps history
     uint256[] public stabilisationFeeUpdateTimestamp;
-    
+
+    /// @notice State variable, returning current stabilisation fee
+    uint256 public stabilisationFee;
+
+    /// @notice State variable, returning latest timestamp of stabilisation fee update
+    uint256 public lastStabilisationFeeUpdateTimestamp;
+
     /// @notice State variable, meaning time-weighted cumulative stabilisation fee
     uint256 public cumulativeStabilisationFeePerSecond = 0;
 
