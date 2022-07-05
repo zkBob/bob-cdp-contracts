@@ -18,34 +18,34 @@ contract Vault is DefaultAccessControl {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
-    /// @notice Thrown when token capital exceeds max token capital limit
+    /// @notice Thrown when a token total value in the protocol would exceed max token capital limit (set in governance) after a deposit
     error CollateralTokenOverflow(address token);
 
-    /// @notice Thrown when vaule of a deposited NFT is less than min single nft capital (set in governance)
+    /// @notice Thrown when a value of a deposited NFT is less than min single nft capital (set in governance)
     error CollateralUnderflow();
 
-    /// @notice Thrown when a pool address is not valid
+    /// @notice Thrown when a pool of NFT is not in the whitelist
     error InvalidPool();
 
-    /// @notice Thrown when a value of a stabilization fee is not valid
+    /// @notice Thrown when a value of a stabilization fee is incorrect
     error InvalidValue();
 
-    /// @notice Thrown when system is paused
+    /// @notice Thrown when the system is paused
     error Paused();
 
-    /// @notice Thrown when position is healthy
+    /// @notice Thrown when a position is healthy
     error PositionHealthy();
 
-    /// @notice Thrown when position is unhealthy
+    /// @notice Thrown when a position is unhealthy
     error PositionUnhealthy();
 
-    /// @notice Thrown when MUSD token contract has already been set
+    /// @notice Thrown when the MUSD token contract has already been set
     error TokenSet();
 
     /// @notice Thrown when a vault is tried to be closed and debt has not been paid yet
     error UnpaidDebt();
 
-    /// @notice Thrown when vault debt limit (which's set in governance) would been exceeded after a deposit
+    /// @notice Thrown when the vault debt limit (which's set in governance) would been exceeded after a deposit
     error DebtLimitExceeded();
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -120,7 +120,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Mapping, returning debt by vault id
     mapping(uint256 => uint256) public debt;
 
-    /// @notice Mapping, returning total accumulated stabilising fees by vault id
+    /// @notice Mapping, returning total accumulated stabilising fees by vault id (which are due to be paid)
     mapping(uint256 => uint256) public debtFee;
 
     mapping(uint256 => uint256) private _lastDebtFeeUpdateTimestamp;
