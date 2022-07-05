@@ -5,7 +5,7 @@ import "./utils/IDefaultAccessControl.sol";
 import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
-    /// @notice Global protocol params.
+    /// @notice Global protocol params
     /// @param liquidationFee Share of the MUSD value of assets of a vault, due to be transferred to the Protocol Treasury after a liquidation (multiplied by DENOMINATOR)
     /// @param liquidationPremium Share of the MUSD value of assets of a vault, due to be awarded to a liquidator after a liquidation (multiplied by DENOMINATOR)
     /// @param maxDebtPerVault Max possible debt for one vault (nominated in MUSD weis)
@@ -45,36 +45,36 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
 
     // -------------------  EXTERNAL, MUTATING  -------------------
 
-    /// @notice Change liquidation fee to a given value.
+    /// @notice Change liquidation fee to a given value
     /// @param liquidationFee The new liquidation fee
     function changeLiquidationFee(uint256 liquidationFee) external;
 
-    /// @notice Change liquidation premium to a given value.
+    /// @notice Change liquidation premium to a given value
     /// @param liquidationPremium The new liquidation premium
     function changeLiquidationPremium(uint256 liquidationPremium) external;
 
-    /// @notice Change max debt per vault to a given value.
+    /// @notice Change max debt per vault to a given value
     /// @param maxDebtPerVault The new max possible debt per vault
     function changeMaxDebtPerVault(uint256 maxDebtPerVault) external;
 
-    /// @notice Change min single nft capital to a given value.
+    /// @notice Change min single nft capital to a given value
     /// @param minSingleNftCapital The new min possible nft capital
     function changeMinSingleNftCapital(uint256 minSingleNftCapital) external;
 
-    /// @notice Add new pool to the whitelist.
+    /// @notice Add new pool to the whitelist
     /// @param pool Address of the new whitelisted pool
     function setWhitelistedPool(address pool) external;
 
-    /// @notice Revoke pool from the whitelist.
+    /// @notice Revoke pool from the whitelist
     /// @param pool Address of the revoked whitelisted pool
     function revokeWhitelistedPool(address pool) external;
 
-    /// @notice Set liquidation threshold for a given pool.
+    /// @notice Set liquidation threshold for a given pool
     /// @param pool Address of the pool
     /// @param liquidationRatio The new liquidation ratio
     function setLiquidationThreshold(address pool, uint256 liquidationRatio) external;
 
-    /// @notice Set new capital limit for a given token.
+    /// @notice Set new capital limit for a given token
     /// @param token Address of the token
     /// @param newLimit The new token capital limit
     function setTokenLimit(address token, uint256 newLimit) external;
