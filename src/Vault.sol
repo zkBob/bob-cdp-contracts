@@ -566,6 +566,8 @@ contract Vault is DefaultAccessControl {
 
     // -------------------  INTERNAL, VIEW  -----------------------
 
+    /// @notice Calculate vault capital total amount
+    /// @param vaultId Vault id
     function _calculateVaultAmount(uint256 vaultId) internal view returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
@@ -575,6 +577,14 @@ contract Vault is DefaultAccessControl {
         return result;
     }
 
+    /// @notice Get fee growth inside position
+    /// @param pool UniswapV3 pool
+    /// @param tickLower UniswapV3 lower tick
+    /// @param tickUpper UniswapV3 upper tick
+    /// @param tickCurrent UniswapV3 current tick
+    /// @param feeGrowthGlobal0X128 UniswapV3 fees of token0 collected per unit of liquidity for the entire life of the pool
+    /// @param feeGrowthGlobal1X128 UniswapV3 fees of token1 collected per unit of liquidity for the entire life of the pool
+    /// @return feeGrowthInside0X128 - UniswapV3 feeGrowthInside0X128, feeGrowthInside1X128 - UniswapV3 feeGrowthInside1X128
     function _getFeeGrowthInside(
         IUniswapV3Pool pool,
         int24 tickLower,
@@ -618,6 +628,10 @@ contract Vault is DefaultAccessControl {
         }
     }
 
+    /// @notice Calculate total tokens + fees for position
+    /// @param pool UniswapV3 pool
+    /// @param uniV3Nft UniswapV3 nft of position
+    /// @return tokensOwed0 - UniswapV3 tokensOwed0 + fees, tokensOwed1 - UniswapV3 tokensOwed1 + fees
     function _calculateFees(IUniswapV3Pool pool, uint256 uniV3Nft)
         internal
         view
@@ -671,6 +685,11 @@ contract Vault is DefaultAccessControl {
         tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1DeltaX128, liquidity, Q128));
     }
 
+    /// @notice Calculate total capital of position
+    /// @param nft UniswapV3 nft of position
+    /// @param position Position info
+    /// @param liquidationThreshold System liquidation threshold
+    /// @return Position capital
     function _calculatePosition(
         uint256 nft,
         PositionInfo memory position,
@@ -703,18 +722,24 @@ contract Vault is DefaultAccessControl {
         return result;
     }
 
+    /// @notice Check if caller is vault owner
+    /// @param vaultId Vault id
     function _requireVaultOwner(uint256 vaultId) internal view {
         if (vaultOwner[vaultId] != msg.sender) {
             revert Forbidden();
         }
     }
 
+    /// @notice Check if system is paused
     function _checkIsPaused() internal view {
         if (isPaused) {
             revert Paused();
         }
     }
 
+    /// @notice Calculate debt fees for a given vault
+    /// @param vaultId Vault id
+    /// @return debtDelta - time accumulated debt fees
     function _calculateDebtFees(uint256 vaultId) internal view returns (uint256 debtDelta) {
         debtDelta = 0;
         uint256 lastDebtFeeUpdateTimestamp = _lastDebtFeeUpdateTimestamp[vaultId];
@@ -742,6 +767,10 @@ contract Vault is DefaultAccessControl {
 
     // -------------------  INTERNAL, MUTATING  -------------------
 
+    /// @notice Close a vault (internal)
+    /// @param vaultId Id of the vault
+    /// @param owner Vault owner
+    /// @param nftsRecipient Address to receive nft of positions in the closed vault
     function _closeVault(
         uint256 vaultId,
         address owner,
@@ -780,6 +809,8 @@ contract Vault is DefaultAccessControl {
         delete _lastDebtFeeUpdateTimestamp[vaultId];
     }
 
+    /// @notice Update time-dependent debt fees for a vault
+    /// @param vaultId Id of the vault
     function _updateDebtFees(uint256 vaultId) internal {
         if (block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId] > 0) {
             uint256 debtDelta = _calculateDebtFees(vaultId);
