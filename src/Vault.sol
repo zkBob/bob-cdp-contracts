@@ -125,6 +125,9 @@ contract Vault is DefaultAccessControl {
 
     mapping(uint256 => uint256) private _lastDebtFeeUpdateTimestamp;
 
+    /// @notice Mapping, returning last cumulative sum of debt fees by vault id
+    mapping(uint256 => uint256) private _lastDebtFeeUpdateCumulativeSum;
+
     /// @notice Mapping, returning current maximal possible supply in NFTs for a token
     mapping(address => uint256) public maxCollateralSupply;
 
@@ -138,6 +141,9 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Array, contatining stabilisation fee update timestamps history.
     uint256[] public stabilisationFeeUpdateTimestamp;
+    
+    /// @notice State variable, meaning time-weighted cumulative stabilisation fee
+    uint256 public cumulativeStabilisationFeePerSecond = 0;
 
     /// @notice Creates a new contract
     /// @param admin Protocol admin
@@ -174,8 +180,8 @@ contract Vault is DefaultAccessControl {
 
         // initial value
 
-        stabilisationFeeUpdate.push(stabilisationFee_);
-        stabilisationFeeUpdateTimestamp.push(block.timestamp);
+        stabilisationFee = stabilisationFee_;
+        lastStabilisationFeeUpdateTimestamp = block.timestamp;
     }
 
     // -------------------   PUBLIC, VIEW   -------------------
@@ -222,12 +228,6 @@ contract Vault is DefaultAccessControl {
     /// @return uint256 Total debt value
     function getOverallDebt(uint256 vaultId) external view returns (uint256) {
         return debt[vaultId] + debtFee[vaultId] + _calculateDebtFees(vaultId);
-    }
-
-    /// @notice Get up-to-date stabilisation fee
-    /// @return uint256 Stabilisation fee
-    function stabilisationFee() external view returns (uint256) {
-        return stabilisationFeeUpdate[stabilisationFeeUpdate.length - 1];
     }
 
     // -------------------  EXTERNAL, MUTATING  -------------------
@@ -554,12 +554,12 @@ contract Vault is DefaultAccessControl {
         if (stabilisationFee_ > DENOMINATOR) {
             revert InvalidValue();
         }
-        if (block.timestamp > stabilisationFeeUpdateTimestamp[stabilisationFeeUpdateTimestamp.length - 1]) {
-            stabilisationFeeUpdate.push(stabilisationFee_);
-            stabilisationFeeUpdateTimestamp.push(block.timestamp);
-        } else {
-            stabilisationFeeUpdate[stabilisationFeeUpdate.length - 1] = stabilisationFee_;
-        }
+
+        uint256 delta = block.timestamp - lastStabilisationFeeUpdateTimestamp;
+        cumulativeStabilisationFeePerSecond += delta * stabilisationFee;
+
+        stabilisationFee = stabilisationFee_;
+        lastStabilisationFeeUpdateTimestamp = block.timestamp;
 
         emit StabilisationFeeUpdated(tx.origin, msg.sender, stabilisationFee_);
     }
@@ -741,28 +741,16 @@ contract Vault is DefaultAccessControl {
     /// @param vaultId Vault id
     /// @return debtDelta - time accumulated debt fees
     function _calculateDebtFees(uint256 vaultId) internal view returns (uint256 debtDelta) {
-        debtDelta = 0;
-        uint256 lastDebtFeeUpdateTimestamp = _lastDebtFeeUpdateTimestamp[vaultId];
-        uint256 timeElapsed = block.timestamp - lastDebtFeeUpdateTimestamp;
-        if (debt[vaultId] == 0 || timeElapsed == 0) {
-            return debtDelta;
+        if (debt[vaultId] == 0) {
+            return 0;
         }
-        uint256 timeUpperBound = block.timestamp;
-        for (uint256 i = stabilisationFeeUpdate.length; i > 0; --i) {
-            // avoiding overflow
-            uint256 timeLowerBound = stabilisationFeeUpdateTimestamp[i - 1] > lastDebtFeeUpdateTimestamp
-                ? stabilisationFeeUpdateTimestamp[i - 1]
-                : lastDebtFeeUpdateTimestamp;
 
-            if (timeLowerBound >= timeUpperBound) {
-                break;
-            }
-
-            uint256 baseForFees = FullMath.mulDiv(debt[vaultId], stabilisationFeeUpdate[i - 1], DENOMINATOR);
-            debtDelta += FullMath.mulDiv(baseForFees, timeUpperBound - timeLowerBound, YEAR);
-
-            timeUpperBound = stabilisationFeeUpdateTimestamp[i - 1];
-        }
+        uint256 currentCumulativeStabilisationFeePerSecond = cumulativeStabilisationFeePerSecond +
+            stabilisationFee *
+            (block.timestamp - lastStabilisationFeeUpdateTimestamp);
+        uint256 addedCumulativeSum = currentCumulativeStabilisationFeePerSecond -
+            _lastDebtFeeUpdateCumulativeSum[vaultId];
+        debtDelta = FullMath.mulDiv(debt[vaultId], addedCumulativeSum, YEAR * DENOMINATOR);
     }
 
     // -------------------  INTERNAL, MUTATING  -------------------
@@ -818,6 +806,10 @@ contract Vault is DefaultAccessControl {
                 debtFee[vaultId] += debtDelta;
             }
             _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
+            _lastDebtFeeUpdateCumulativeSum[vaultId] =
+                cumulativeStabilisationFeePerSecond +
+                stabilisationFee *
+                (block.timestamp - lastStabilisationFeeUpdateTimestamp);
         }
     }
 
