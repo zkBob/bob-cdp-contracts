@@ -92,6 +92,9 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     // -------------------------  INTERNAL, VIEW  ------------------------------
 
+    /// @notice Attempt to send a price query to chainlink oracle
+    /// @param oracle Chainlink oracle
+    /// @return success - query to chainlink oracle, answer - result of the query
     function _queryChainlinkOracle(IAggregatorV3 oracle) internal view returns (bool success, uint256 answer) {
         try oracle.latestRoundData() returns (uint80, int256 ans, uint256, uint256, uint80) {
             return (true, uint256(ans));
@@ -102,6 +105,9 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     // -------------------------  INTERNAL, MUTATING  ------------------------------
 
+    /// @notice Add more chainlink oracles and tokens (internal)
+    /// @param tokens Array of new tokens
+    /// @param oracles Array of new oracles
     function _addChainlinkOracles(address[] memory tokens, address[] memory oracles) internal {
         if (tokens.length != oracles.length) {
             revert InvalidValue();
