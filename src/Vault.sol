@@ -151,7 +151,12 @@ contract Vault is DefaultAccessControl {
         ++vaultCount;
         _ownedVaults[msg.sender].add(vaultCount);
         vaultOwner[vaultCount] = msg.sender;
-        _lastDebtFeeUpdateTimestamp[vaultCount] = block.timestamp;
+
+        _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
+        _lastDebtFeeUpdateCumulativeSum[vaultId] =
+            cumulativeStabilisationFeePerSecond +
+            stabilisationFee *
+            (block.timestamp - lastStabilisationFeeUpdateTimestamp);
 
         emit VaultOpened(tx.origin, msg.sender, vaultCount);
 
