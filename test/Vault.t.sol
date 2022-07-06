@@ -555,6 +555,9 @@ contract VaultTest is Test, SetupContract, Utilities {
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
+        address randomAddress = getNextUserAddress();
+        token.transfer(randomAddress, vault.debt(vaultId));
+
         uint256 health = vault.calculateHealthFactor(vaultId);
         uint256 debt = vault.debt(vaultId) + vault.debtFee(vaultId);
 
@@ -562,7 +565,6 @@ contract VaultTest is Test, SetupContract, Utilities {
         vm.warp(block.timestamp + 3600);
 
         address liquidator = getNextUserAddress();
-        assertEq(token.balanceOf(address(this)), 1100 * 10**18);
 
         deal(address(token), liquidator, 2000 * 10**18, true);
         uint256 oldLiquidatorBalance = token.balanceOf(liquidator);
