@@ -228,6 +228,8 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
     }
 
     function testMintBurnStabilizationFee() public {
+        vm.warp(block.timestamp + YEAR);
+
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**20, 10**11, address(vault));
         vault.depositCollateral(vaultId, tokenId);

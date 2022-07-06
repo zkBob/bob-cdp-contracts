@@ -149,13 +149,18 @@ contract Vault is DefaultAccessControl {
         }
 
         ++vaultCount;
-        _ownedVaults[msg.sender].add(vaultCount);
-        vaultOwner[vaultCount] = msg.sender;
-        _lastDebtFeeUpdateTimestamp[vaultCount] = block.timestamp;
+        vaultId = vaultCount;
 
-        emit VaultOpened(tx.origin, msg.sender, vaultCount);
+        _ownedVaults[msg.sender].add(vaultId);
+        vaultOwner[vaultId] = msg.sender;
 
-        return vaultCount;
+        _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
+        _lastDebtFeeUpdateCumulativeSum[vaultId] =
+            cumulativeStabilisationFeePerSecond +
+            stabilisationFee *
+            (block.timestamp - lastStabilisationFeeUpdateTimestamp);
+
+        emit VaultOpened(tx.origin, msg.sender, vaultId);
     }
 
     function closeVault(uint256 vaultId) external {
