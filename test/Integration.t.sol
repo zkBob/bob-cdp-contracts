@@ -179,20 +179,19 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         positionManager.approve(address(vault), secondNft);
         uint256 secondVault = vault.openVault();
         vault.depositCollateral(secondVault, secondNft);
-        vault.mintDebt(secondVault, 300 * 10 ** 18);
+        vault.mintDebt(secondVault, 300 * 10**18);
 
         vm.stopPrank();
-        vm.warp(block.timestamp + 4*YEAR);
+        vm.warp(block.timestamp + 4 * YEAR);
         assertTrue(vault.getOverallDebt(vaultId) > vault.calculateHealthFactor(vaultId));
 
         vm.startPrank(secondAddress);
         console.log(token.balanceOf(secondAddress));
-        token.transfer(firstAddress, 300 * 10 ** 18);
+        token.transfer(firstAddress, 300 * 10**18);
         vm.stopPrank();
 
         vault.burnDebt(vaultId, token.balanceOf(firstAddress));
         vault.closeVault(vaultId);
-
     }
 
     function testPriceDroppedAndGotBackNotLiquidated() public {
@@ -265,7 +264,6 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
     }
 
     function testMintBurnStabilizationFee() public {
-
         vm.warp(block.timestamp + YEAR);
 
         uint256 vaultId = vault.openVault();
