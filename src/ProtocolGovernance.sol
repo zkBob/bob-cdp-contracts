@@ -32,8 +32,10 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     /// @inheritdoc IProtocolGovernance
     mapping(address => uint256) public liquidationThreshold;
 
+    /// @notice Mapping, returning if token capital is limited or not
     mapping(address => bool) private _isTokenCapitalLimited;
 
+    /// @notice Mapping, returning token capital limit
     mapping(address => uint256) private _tokenCapitalLimit;
 
     /// @notice Creates a new contract
@@ -160,31 +162,31 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     // --------------------------  EVENTS  --------------------------
 
-    /// @notice Emitted when liquidation fee updated
+    /// @notice Emitted when liquidation fee is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param liquidationFee The new liquidation fee
     event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFee);
 
-    /// @notice Emitted when liquidation premium updated
+    /// @notice Emitted when liquidation premium is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param liquidationPremium The new liquidation premium
     event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremium);
 
-    /// @notice Emitted when max debt per vault updated
+    /// @notice Emitted when max debt per vault is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param maxDebtPerVault The new max debt per vault
     event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
 
-    /// @notice Emitted when min nft capital updated
+    /// @notice Emitted when min nft capital is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param minSingleNftCapital The new min nft capital
     event MinSingleNftCapitalChanged(address indexed origin, address indexed sender, uint256 minSingleNftCapital);
 
-    /// @notice Emitted when liquidation threshold for a specific pool updated
+    /// @notice Emitted when liquidation threshold for a specific pool is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The given pool
@@ -196,19 +198,19 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         uint256 liquidationRatio
     );
 
-    /// @notice Emitted when new pool added to the whitelist
+    /// @notice Emitted when new pool is added to the whitelist
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The new whitelisted pool
     event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
 
-    /// @notice Emitted when pool deleted from the whitelist
+    /// @notice Emitted when pool is deleted from the whitelist
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The deleted whitelisted pool
     event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
 
-    /// @notice Emitted when token capital limit set
+    /// @notice Emitted when token capital limit is set
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param token The token address

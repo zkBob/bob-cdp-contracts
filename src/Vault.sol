@@ -40,7 +40,7 @@ contract Vault is DefaultAccessControl {
     error PositionUnhealthy();
 
     /// @notice Thrown when the MUSD token contract has already been set
-    error TokenSet();
+    error TokenAlreadySet();
 
     /// @notice Thrown when a vault is tried to be closed and debt has not been paid yet
     error UnpaidDebt();
@@ -110,8 +110,13 @@ contract Vault is DefaultAccessControl {
     /// @notice State variable, which shows if Vault is private or not
     bool public isPrivate = true;
 
+    /// @notice Address set, containing only accounts, which are allowed to make deposits
     EnumerableSet.AddressSet private _depositorsAllowlist;
+
+    /// @notice Mapping, returning set of all vault ids owed by a user
     mapping(address => EnumerableSet.UintSet) private _ownedVaults;
+
+    /// @notice Mapping, returning set of all nfts, managed by vault
     mapping(uint256 => EnumerableSet.UintSet) private _vaultNfts;
 
     /// @notice Mapping, returning vault owner by vault id
@@ -123,24 +128,20 @@ contract Vault is DefaultAccessControl {
     /// @notice Mapping, returning total accumulated stabilising fees by vault id (which are due to be paid)
     mapping(uint256 => uint256) public debtFee;
 
+    /// @notice Mapping, returning timestamp of latest debt fee update, generated during last deposit / withdraw / mint / burn
     mapping(uint256 => uint256) private _lastDebtFeeUpdateTimestamp;
 
-    /// @notice Mapping, returning last cumulative sum of debt fees by vault id
+    /// @notice Mapping, returning last cumulative sum of debt fees by vault id, generated during last deposit / withdraw / mint / burn
     mapping(uint256 => uint256) private _lastDebtFeeUpdateCumulativeSum;
 
     /// @notice Mapping, returning current maximal possible supply in NFTs for a token
     mapping(address => uint256) public maxCollateralSupply;
 
+    /// @notice Mapping, returning position info by nft
     mapping(uint256 => PositionInfo) private _positionInfo;
 
     /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault)
     uint256 public vaultCount = 0;
-
-    /// @notice Array, contatining stabilisation fee updates history
-    uint256[] public stabilisationFeeUpdate;
-
-    /// @notice Array, contatining stabilisation fee update timestamps history
-    uint256[] public stabilisationFeeUpdateTimestamp;
 
     /// @notice State variable, returning current stabilisation fee
     uint256 public stabilisationFee;
@@ -397,7 +398,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Mint debt on a given vault
     /// @param vaultId Id of the vault
-    /// @param amount Debt amount to be mited
+    /// @param amount The debt amount to be mited
     function mintDebt(uint256 vaultId, uint256 amount) external {
         _checkIsPaused();
         _requireVaultOwner(vaultId);
@@ -422,7 +423,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Burn debt on a given vault
     /// @param vaultId Id of the vault
-    /// @param amount Debt amount to be burned
+    /// @param amount The debt amount to be burned
     function burnDebt(uint256 vaultId, uint256 amount) external {
         _checkIsPaused();
         _requireVaultOwner(vaultId);
@@ -477,7 +478,7 @@ contract Vault is DefaultAccessControl {
     }
 
     /// @notice Set a new price oracle
-    /// @param oracle_ New oracle
+    /// @param oracle_ The new oracle
     function setOracle(IOracle oracle_) external {
         _requireAdmin();
         if (address(oracle_) == address(0)) {
@@ -496,11 +497,11 @@ contract Vault is DefaultAccessControl {
             revert AddressZero();
         }
         if (address(token) != address(0)) {
-            revert TokenSet();
+            revert TokenAlreadySet();
         }
         token = token_;
 
-        emit TokenUpdated(tx.origin, msg.sender, address(token));
+        emit TokenSet(tx.origin, msg.sender, address(token));
     }
 
     /// @notice Pause the system
@@ -572,8 +573,9 @@ contract Vault is DefaultAccessControl {
 
     // -------------------  INTERNAL, VIEW  -----------------------
 
-    /// @notice Calculate vault capital total amount
+    /// @notice Calculate the vault capital total amount (nominated in MUSD weis)
     /// @param vaultId Vault id
+    /// @return uint256 Vault capital (nominated in MUSD weis)
     function _calculateVaultAmount(uint256 vaultId) internal view returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
@@ -590,7 +592,7 @@ contract Vault is DefaultAccessControl {
     /// @param tickCurrent UniswapV3 current tick
     /// @param feeGrowthGlobal0X128 UniswapV3 fees of token0 collected per unit of liquidity for the entire life of the pool
     /// @param feeGrowthGlobal1X128 UniswapV3 fees of token1 collected per unit of liquidity for the entire life of the pool
-    /// @return feeGrowthInside0X128 - UniswapV3 feeGrowthInside0X128, feeGrowthInside1X128 - UniswapV3 feeGrowthInside1X128
+    /// @return feeGrowthInside0X128 The all-time fee growth in token0, per unit of liquidity, inside the position's tick boundaries, feeGrowthInside1X128 The all-time fee growth in token1, per unit of liquidity, inside the position's tick boundaries
     function _getFeeGrowthInside(
         IUniswapV3Pool pool,
         int24 tickLower,
@@ -634,10 +636,10 @@ contract Vault is DefaultAccessControl {
         }
     }
 
-    /// @notice Calculate total tokens + fees for position
+    /// @notice Calculate token fees for the position
     /// @param pool UniswapV3 pool
-    /// @param uniV3Nft UniswapV3 nft of position
-    /// @return tokensOwed0 - UniswapV3 tokensOwed0 + fees, tokensOwed1 - UniswapV3 tokensOwed1 + fees
+    /// @param uniV3Nft UniswapV3 nft of the position
+    /// @return tokensOwed0 The fees of the position in token0, tokensOwed1 The fees of the position in token1
     function _calculateFees(IUniswapV3Pool pool, uint256 uniV3Nft)
         internal
         view
@@ -691,11 +693,11 @@ contract Vault is DefaultAccessControl {
         tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1DeltaX128, liquidity, Q128));
     }
 
-    /// @notice Calculate total capital of position
-    /// @param nft UniswapV3 nft of position
+    /// @notice Calculate total capital of the position (nominated in MUSD weis)
+    /// @param nft UniswapV3 nft of the position
     /// @param position Position info
     /// @param liquidationThreshold System liquidation threshold
-    /// @return Position capital
+    /// @return uint256 Position capital (nominated in MUSD weis)
     function _calculatePosition(
         uint256 nft,
         PositionInfo memory position,
@@ -728,7 +730,7 @@ contract Vault is DefaultAccessControl {
         return result;
     }
 
-    /// @notice Check if caller is vault owner
+    /// @notice Check if the caller is the vault owner
     /// @param vaultId Vault id
     function _requireVaultOwner(uint256 vaultId) internal view {
         if (vaultOwner[vaultId] != msg.sender) {
@@ -736,16 +738,16 @@ contract Vault is DefaultAccessControl {
         }
     }
 
-    /// @notice Check if system is paused
+    /// @notice Check if the system is paused
     function _checkIsPaused() internal view {
         if (isPaused) {
             revert Paused();
         }
     }
 
-    /// @notice Calculate debt fees for a given vault
+    /// @notice Calculate debt fees for a given vault by substracting the current cumulative stabilisation fee per second by the previous one
     /// @param vaultId Vault id
-    /// @return debtDelta - time accumulated debt fees
+    /// @return debtDelta Stabilisation fee for debt on current vault
     function _calculateDebtFees(uint256 vaultId) internal view returns (uint256 debtDelta) {
         if (debt[vaultId] == 0) {
             return 0;
@@ -764,7 +766,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Close a vault (internal)
     /// @param vaultId Id of the vault
     /// @param owner Vault owner
-    /// @param nftsRecipient Address to receive nft of positions in the closed vault
+    /// @param nftsRecipient Address to receive nft of the positions in the closed vault
     function _closeVault(
         uint256 vaultId,
         address owner,
@@ -803,7 +805,7 @@ contract Vault is DefaultAccessControl {
         delete _lastDebtFeeUpdateTimestamp[vaultId];
     }
 
-    /// @notice Update time-dependent debt fees for a vault
+    /// @notice Update fees for debt on a certain vault
     /// @param vaultId Id of the vault
     function _updateDebtFees(uint256 vaultId) internal {
         if (block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId] > 0) {
@@ -821,69 +823,69 @@ contract Vault is DefaultAccessControl {
 
     // --------------------------  EVENTS  --------------------------
 
-    /// @notice Emitted when a new vault is being opened
+    /// @notice Emitted when a new vault is opened
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     event VaultOpened(address indexed origin, address indexed sender, uint256 vaultId);
 
-    /// @notice Emitted when a vault is being liquidated
+    /// @notice Emitted when a vault is liquidated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     event VaultLiquidated(address indexed origin, address indexed sender, uint256 vaultId);
 
-    /// @notice Emitted when a vault is being closed
+    /// @notice Emitted when a vault is closed
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     event VaultClosed(address indexed origin, address indexed sender, uint256 vaultId);
 
-    /// @notice Emitted when a collateral is being deposited
+    /// @notice Emitted when a collateral is deposited
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
     event CollateralDeposited(address indexed origin, address indexed sender, uint256 vaultId, uint256 tokenId);
 
-    /// @notice Emitted when a collateral is being withdrawn
+    /// @notice Emitted when a collateral is withdrawn
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
     event CollateralWithdrew(address indexed origin, address indexed sender, uint256 vaultId, uint256 tokenId);
 
-    /// @notice Emitted when a debt is being minted
+    /// @notice Emitted when a debt is minted
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param amount Debt amount
     event DebtMinted(address indexed origin, address indexed sender, uint256 vaultId, uint256 amount);
 
-    /// @notice Emitted when a debt is being burnt
+    /// @notice Emitted when a debt is burnt
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param amount Debt amount
     event DebtBurned(address indexed origin, address indexed sender, uint256 vaultId, uint256 amount);
 
-    /// @notice Emitted when the stabilisation fee is being updated
+    /// @notice Emitted when the stabilisation fee is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param stabilisationFee New stabilisation fee
     event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
 
-    /// @notice Emitted when the oracle is being updated
+    /// @notice Emitted when the oracle is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param oracleAddress New oracle address
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
 
-    /// @notice Emitted when the token is being updated
+    /// @notice Emitted when the token is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param tokenAddress New token address
-    event TokenUpdated(address indexed origin, address indexed sender, address tokenAddress);
+    event TokenSet(address indexed origin, address indexed sender, address tokenAddress);
 
     /// @notice Emitted when the system is set to paused
     /// @param origin Origin of the transaction (tx.origin)

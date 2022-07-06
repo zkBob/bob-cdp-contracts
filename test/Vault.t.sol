@@ -28,7 +28,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
-    event TokenUpdated(address indexed origin, address indexed sender, address oracleAddress);
+    event TokenSet(address indexed origin, address indexed sender, address oracleAddress);
 
     event SystemPaused(address indexed origin, address indexed sender);
     event SystemUnpaused(address indexed origin, address indexed sender);
@@ -772,8 +772,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.setToken(IMUSD(address(0)));
     }
 
-    function testSetTokenWhenTokenSet() public {
-        vm.expectRevert(Vault.TokenSet.selector);
+    function testSetTokenWhenTokenAlreadySet() public {
+        vm.expectRevert(Vault.TokenAlreadySet.selector);
         vault.setToken(IMUSD(getNextUserAddress()));
     }
 
@@ -789,7 +789,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         );
         address newAddress = getNextUserAddress();
         vm.expectEmit(false, true, false, true);
-        emit TokenUpdated(tx.origin, address(this), newAddress);
+        emit TokenSet(tx.origin, address(this), newAddress);
         newVault.setToken(IMUSD(newAddress));
     }
 

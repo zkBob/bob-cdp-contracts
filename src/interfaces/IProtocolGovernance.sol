@@ -19,13 +19,13 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
 
     // -------------------  EXTERNAL, VIEW  -------------------
 
-    /// @notice Liquidation threshold for certain pool (multiplied by DENOMINATOR)
+    /// @notice Liquidation threshold for a certain pool (multiplied by DENOMINATOR)
     /// @dev The logic of this parameter is following:
     /// Assume we have nft's n1,...,nk from corresponding pools with liq.thresholds l1,...,lk and real MUSD values v1,...,vk (which can be obtained from Uni info & Chainlink oracle)
     /// Then, a position is healthy <=> (l1 * v1 + ... + lk * vk) <= totalDebt
     /// Hence, 0 <= threshold <= 1 is held
     /// @param pool The given address of pool
-    /// @return uint256 Liquidation threshold value
+    /// @return uint256 Liquidation threshold value (multiplied by DENOMINATOR)
     function liquidationThreshold(address pool) external view returns (uint256);
 
     /// @notice Global protocol params
@@ -40,7 +40,7 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @notice Token capital limit in all the protocol for a given token (nominated in MUSD weis)
     /// @dev Amount of a token of a certain position is calculated as a maximal amount of token possible in this position taken by all prices
     /// @param token The given address of token
-    /// @return uint256 Token capital limit if limit is set, else uint256.max
+    /// @return uint256 Token capital limit (nominated in MUSD weis) if limit is set, else uint256.max
     function getTokenLimit(address token) external view returns (uint256);
 
     // -------------------  EXTERNAL, MUTATING  -------------------
@@ -57,8 +57,8 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @param maxDebtPerVault The new max possible debt per vault
     function changeMaxDebtPerVault(uint256 maxDebtPerVault) external;
 
-    /// @notice Change min single nft capital to a given value
-    /// @param minSingleNftCapital The new min possible nft capital
+    /// @notice Change min single nft capital to a given value (nominated in MUSD weis)
+    /// @param minSingleNftCapital The new min possible nft capital (nominated in MUSD weis)
     function changeMinSingleNftCapital(uint256 minSingleNftCapital) external;
 
     /// @notice Add new pool to the whitelist
