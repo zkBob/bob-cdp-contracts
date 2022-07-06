@@ -151,7 +151,12 @@ contract Vault is DefaultAccessControl {
         ++vaultCount;
         _ownedVaults[msg.sender].add(vaultCount);
         vaultOwner[vaultCount] = msg.sender;
+
         _lastDebtFeeUpdateTimestamp[vaultCount] = block.timestamp;
+        _lastDebtFeeUpdateCumulativeSum[vaultCount] =
+            cumulativeStabilisationFeePerSecond +
+            stabilisationFee *
+            (block.timestamp - lastStabilisationFeeUpdateTimestamp);
 
         emit VaultOpened(tx.origin, msg.sender, vaultCount);
 
@@ -646,6 +651,7 @@ contract Vault is DefaultAccessControl {
         delete vaultOwner[vaultId];
         delete _vaultNfts[vaultId];
         delete _lastDebtFeeUpdateTimestamp[vaultId];
+        delete _lastDebtFeeUpdateCumulativeSum[vaultId];
     }
 
     function _updateDebtFees(uint256 vaultId) internal {

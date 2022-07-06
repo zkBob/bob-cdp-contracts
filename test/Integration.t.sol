@@ -158,6 +158,43 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.closeVault(vaultB);
     }
 
+    function testOneUserClosesDebtOfSecond() public {
+        address firstAddress = address(this);
+
+        address secondAddress = getNextUserAddress();
+        address[] memory depositors = new address[](1);
+        depositors[0] = secondAddress;
+        vault.addDepositorsToAllowlist(depositors);
+
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 secondNft = openUniV3Position(weth, usdc, 10**18, 10**9, secondAddress);
+
+        positionManager.transferFrom(address(this), secondAddress, secondNft);
+        vault.depositCollateral(vaultId, tokenId);
+
+        vault.mintDebt(vaultId, 1100 * 10**18);
+        vm.startPrank(secondAddress);
+
+        positionManager.approve(address(vault), secondNft);
+        uint256 secondVault = vault.openVault();
+        vault.depositCollateral(secondVault, secondNft);
+        vault.mintDebt(secondVault, 300 * 10 ** 18);
+
+        vm.stopPrank();
+        vm.warp(block.timestamp + 4*YEAR);
+        assertTrue(vault.getOverallDebt(vaultId) > vault.calculateHealthFactor(vaultId));
+
+        vm.startPrank(secondAddress);
+        console.log(token.balanceOf(secondAddress));
+        token.transfer(firstAddress, 300 * 10 ** 18);
+        vm.stopPrank();
+
+        vault.burnDebt(vaultId, token.balanceOf(firstAddress));
+        vault.closeVault(vaultId);
+
+    }
+
     function testPriceDroppedAndGotBackNotLiquidated() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
@@ -228,6 +265,9 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
     }
 
     function testMintBurnStabilizationFee() public {
+
+        vm.warp(block.timestamp + YEAR);
+
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**20, 10**11, address(vault));
         vault.depositCollateral(vaultId, tokenId);
@@ -256,6 +296,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         vault.updateStabilisationFee(1 * 10**7); // 1%
         vm.warp(block.timestamp + YEAR);
+        assertEq(vault.getOverallDebt(vaultId), 1645 * 10**18);
         vault.updateStabilisationFee(5 * 10**7); // 5%
         vm.warp(block.timestamp + YEAR);
         assertEq(vault.getOverallDebt(vaultId), 1720 * 10**18);
