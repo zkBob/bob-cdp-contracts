@@ -585,7 +585,7 @@ contract Vault is DefaultAccessControl {
         return result;
     }
 
-    /// @notice Get fee growth inside position
+    /// @notice Get fee growth inside position from the tickLower to tickUpper
     /// @param pool UniswapV3 pool
     /// @param tickLower UniswapV3 lower tick
     /// @param tickUpper UniswapV3 upper tick
@@ -696,7 +696,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Calculate total capital of the position (nominated in MUSD weis)
     /// @param nft UniswapV3 nft of the position
     /// @param position Position info
-    /// @param liquidationThreshold System liquidation threshold
+    /// @param liquidationThreshold Liquidation threshold of the corresponding pool, set in the protocol governance
     /// @return uint256 Position capital (nominated in MUSD weis)
     function _calculatePosition(
         uint256 nft,
