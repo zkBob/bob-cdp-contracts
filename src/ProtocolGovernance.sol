@@ -14,24 +14,18 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 public constant DENOMINATOR = 10**9;
-    uint256 public constant TOKEN_DECIMALS = 18;
-    uint256 public constant MAX_LIQUIDATION_FEE_RATE = (DENOMINATOR / 100) * 10;
-    uint256 public constant MAX_PERCENTAGE_RATE = DENOMINATOR;
-    uint256 public constant MAX_NFT_CAPITAL_LIMIT_USD = 200_000;
 
     EnumerableSet.AddressSet private _whitelistedPools;
 
     ProtocolParams private _protocolParams;
 
     /// @inheritdoc IProtocolGovernance
-    mapping(address => uint256) public liquidationThreshold;
-
-    mapping(address => bool) private _isTokenCapitalLimited;
+    mapping(address => uint256) public liquidationThresholdD;
 
     mapping(address => uint256) private _tokenCapitalLimit;
 
-    constructor(address admin) DefaultAccessControl(admin) {
-        _protocolParams.maxDebtPerVault = type(uint256).max;
+    constructor(address admin, uint256 maxDebtPerVault) DefaultAccessControl(admin) {
+        _protocolParams.maxDebtPerVault = maxDebtPerVault;
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
@@ -48,10 +42,15 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
 
     /// @inheritdoc IProtocolGovernance
     function getTokenLimit(address token) external view returns (uint256) {
-        if (!_isTokenCapitalLimited[token]) {
+        uint256 limit = _tokenCapitalLimit[token];
+        if (limit == 0) {
             return type(uint256).max;
         }
-        return _tokenCapitalLimit[token];
+        return limit;
+    }
+
+    function whitelistedPool(uint256 i) external view returns (address) {
+        return _whitelistedPools.at(i);
     }
 
     function supportsInterface(bytes4 interfaceId)
@@ -66,23 +65,23 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     // -------------------  EXTERNAL, MUTATING  -------------------
 
     /// @inheritdoc IProtocolGovernance
-    function changeLiquidationFee(uint256 liquidationFee) external {
+    function changeLiquidationFee(uint256 liquidationFeeD) external {
         _requireAdmin();
-        if (liquidationFee > MAX_LIQUIDATION_FEE_RATE) {
+        if (liquidationFeeD > DENOMINATOR) {
             revert InvalidValue();
         }
-        _protocolParams.liquidationFee = liquidationFee;
-        emit LiquidationFeeChanged(tx.origin, msg.sender, liquidationFee);
+        _protocolParams.liquidationFeeD = liquidationFeeD;
+        emit LiquidationFeeChanged(tx.origin, msg.sender, liquidationFeeD);
     }
 
     /// @inheritdoc IProtocolGovernance
-    function changeLiquidationPremium(uint256 liquidationPremium) external {
+    function changeLiquidationPremium(uint256 liquidationPremiumD) external {
         _requireAdmin();
-        if (liquidationPremium > MAX_LIQUIDATION_FEE_RATE) {
+        if (liquidationPremiumD > DENOMINATOR) {
             revert InvalidValue();
         }
-        _protocolParams.liquidationPremium = liquidationPremium;
-        emit LiquidationPremiumChanged(tx.origin, msg.sender, liquidationPremium);
+        _protocolParams.liquidationPremiumD = liquidationPremiumD;
+        emit LiquidationPremiumChanged(tx.origin, msg.sender, liquidationPremiumD);
     }
 
     /// @inheritdoc IProtocolGovernance
@@ -93,13 +92,10 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     }
 
     /// @inheritdoc IProtocolGovernance
-    function changeMinSingleNftCapital(uint256 minSingleNftCapital) external {
+    function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external {
         _requireAdmin();
-        if (minSingleNftCapital > MAX_NFT_CAPITAL_LIMIT_USD * (10**TOKEN_DECIMALS)) {
-            revert InvalidValue();
-        }
-        _protocolParams.minSingleNftCapital = minSingleNftCapital;
-        emit MinSingleNftCapitalChanged(tx.origin, msg.sender, minSingleNftCapital);
+        _protocolParams.minSingleNftCollateral = minSingleNftCollateral;
+        emit MinSingleNftCollateralChanged(tx.origin, msg.sender, minSingleNftCollateral);
     }
 
     /// @inheritdoc IProtocolGovernance
@@ -116,12 +112,12 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     function revokeWhitelistedPool(address pool) external {
         _requireAdmin();
         _whitelistedPools.remove(pool);
-        liquidationThreshold[pool] = 0;
+        liquidationThresholdD[pool] = 0;
         emit WhitelistedPoolRevoked(tx.origin, msg.sender, pool);
     }
 
     /// @inheritdoc IProtocolGovernance
-    function setLiquidationThreshold(address pool, uint256 liquidationRatio) external {
+    function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external {
         _requireAdmin();
         if (pool == address(0)) {
             revert AddressZero();
@@ -129,12 +125,12 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         if (!_whitelistedPools.contains(pool)) {
             revert InvalidPool();
         }
-        if (liquidationRatio > DENOMINATOR) {
+        if (liquidationThresholdD_ > DENOMINATOR) {
             revert InvalidValue();
         }
 
-        liquidationThreshold[pool] = liquidationRatio;
-        emit LiquidationThresholdSet(tx.origin, msg.sender, pool, liquidationRatio);
+        liquidationThresholdD[pool] = liquidationThresholdD_;
+        emit LiquidationThresholdSet(tx.origin, msg.sender, pool, liquidationThresholdD_);
     }
 
     /// @inheritdoc IProtocolGovernance
@@ -144,22 +140,21 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
             revert AddressZero();
         }
 
-        _isTokenCapitalLimited[token] = true;
         _tokenCapitalLimit[token] = newLimit;
         emit TokenLimitSet(tx.origin, msg.sender, token, newLimit);
     }
 
     // --------------------------  EVENTS  --------------------------
 
-    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFee);
-    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremium);
+    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFeeD);
+    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremiumD);
     event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
-    event MinSingleNftCapitalChanged(address indexed origin, address indexed sender, uint256 minSingleNftCapital);
+    event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
     event LiquidationThresholdSet(
         address indexed origin,
         address indexed sender,
         address pool,
-        uint256 liquidationRatio
+        uint256 liquidationThresholdD_
     );
     event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
     event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);

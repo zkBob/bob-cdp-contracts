@@ -14,7 +14,7 @@ contract SetupContract is Test, ConfigContract {
     }
 
     function deployProtocolGovernance() internal returns (ProtocolGovernance) {
-        ProtocolGovernance protocolGovernance = new ProtocolGovernance(address(this));
+        ProtocolGovernance protocolGovernance = new ProtocolGovernance(address(this), type(uint256).max);
         return protocolGovernance;
     }
 

@@ -10,10 +10,10 @@ import "./utils/Utilities.sol";
 import "src/interfaces/IProtocolGovernance.sol";
 
 contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
-    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFee);
-    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremium);
+    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFeeD);
+    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremiumD);
     event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
-    event MinSingleNftCapitalChanged(address indexed origin, address indexed sender, uint256 minSingleNftCapital);
+    event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
     event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
     event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
     event TokenLimitSet(address indexed origin, address indexed sender, address token, uint256 stagedLimit);
@@ -21,35 +21,35 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
         address indexed origin,
         address indexed sender,
         address pool,
-        uint256 liquidationRatio
+        uint256 liquidationThresholdD
     );
 
     ProtocolGovernance protocolGovernance;
 
     function setUp() public {
-        protocolGovernance = new ProtocolGovernance(address(this));
+        protocolGovernance = new ProtocolGovernance(address(this), type(uint256).max);
     }
 
     // protocolParams
 
     function testDefaultProtocolParams() public {
         IProtocolGovernance.ProtocolParams memory params = protocolGovernance.protocolParams();
-        assertEq(params.liquidationFee, 0);
-        assertEq(params.liquidationPremium, 0);
+        assertEq(params.liquidationFeeD, 0);
+        assertEq(params.liquidationPremiumD, 0);
         assertEq(params.maxDebtPerVault, type(uint256).max);
-        assertEq(params.minSingleNftCapital, 0);
+        assertEq(params.minSingleNftCollateral, 0);
     }
 
     function testChangedProtocolParams() public {
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);
         protocolGovernance.changeMaxDebtPerVault(10**24);
-        protocolGovernance.changeMinSingleNftCapital(10**18);
+        protocolGovernance.changeMinSingleNftCollateral(10**18);
         IProtocolGovernance.ProtocolParams memory newParams = protocolGovernance.protocolParams();
-        assertEq(newParams.liquidationFee, 3 * 10**7);
-        assertEq(newParams.liquidationPremium, 3 * 10**7);
+        assertEq(newParams.liquidationFeeD, 3 * 10**7);
+        assertEq(newParams.liquidationPremiumD, 3 * 10**7);
         assertEq(newParams.maxDebtPerVault, 10**24);
-        assertEq(newParams.minSingleNftCapital, 10**18);
+        assertEq(newParams.minSingleNftCollateral, 10**18);
     }
 
     // isPoolWhitelisted + setWhitelistedPool + revokeWhitelistedPool
@@ -89,13 +89,41 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
 
     function testTokenRevokedAndReturned() public {
         address token = usdc;
-        protocolGovernance.setTokenLimit(token, 0);
+        protocolGovernance.setTokenLimit(token, 1);
         uint256 limit = protocolGovernance.getTokenLimit(token);
-        assertEq(limit, 0);
+        assertEq(limit, 1);
 
         protocolGovernance.setTokenLimit(token, 10**50);
         uint256 newLimit = protocolGovernance.getTokenLimit(token);
         assertEq(newLimit, 10**50);
+    }
+
+    // whitelistedPool
+
+    function testGetWhitelistedPoolSuccess() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        protocolGovernance.setWhitelistedPool(pool);
+        assertTrue(pool == protocolGovernance.whitelistedPool(0));
+    }
+
+    function testSeveralPoolsOkay() public {
+        address poolA = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address poolB = IUniswapV3Factory(UniV3Factory).getPool(wbtc, usdc, 3000);
+        protocolGovernance.setWhitelistedPool(poolA);
+        protocolGovernance.setWhitelistedPool(poolB);
+
+        address pool0 = protocolGovernance.whitelistedPool(0);
+        address pool1 = protocolGovernance.whitelistedPool(1);
+
+        assertTrue(pool0 != pool1);
+        assertTrue(pool0 == poolA || pool0 == poolB);
+        assertTrue(pool1 == poolA || pool1 == poolB);
+    }
+
+    function testFailMissingIndex() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        protocolGovernance.setWhitelistedPool(pool);
+        protocolGovernance.whitelistedPool(1);
     }
 
     // supportsInterface
@@ -112,14 +140,18 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
     // Access control of all public methods
 
     function testAccessControlsAllAccountsMethods() public {
+
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        protocolGovernance.setWhitelistedPool(pool);
+
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
 
         protocolGovernance.protocolParams();
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
         protocolGovernance.isPoolWhitelisted(pool);
         protocolGovernance.getTokenLimit(usdc);
-        protocolGovernance.liquidationThreshold(usdc);
+        protocolGovernance.liquidationThresholdD(usdc);
+        protocolGovernance.whitelistedPool(0);
     }
 
     // changeLiquidationFee
@@ -127,7 +159,7 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
     function testLiquidationFeeSuccess() public {
         protocolGovernance.changeLiquidationFee(10**8);
         IProtocolGovernance.ProtocolParams memory newParams = protocolGovernance.protocolParams();
-        assertEq(newParams.liquidationFee, 10**8);
+        assertEq(newParams.liquidationFeeD, 10**8);
     }
 
     function testLiquidationFeeTooLarge() public {
@@ -153,7 +185,7 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
     function testLiquidationPremiumSuccess() public {
         protocolGovernance.changeLiquidationPremium(10**8);
         IProtocolGovernance.ProtocolParams memory newParams = protocolGovernance.protocolParams();
-        assertEq(newParams.liquidationPremium, 10**8);
+        assertEq(newParams.liquidationPremiumD, 10**8);
     }
 
     function testLiquidationPremiumTooLarge() public {
@@ -204,30 +236,25 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
         protocolGovernance.changeMaxDebtPerVault(10**10);
     }
 
-    // changeMinSingleNftCapital
+    // changeSingleNftCollateral
 
-    function testChangeMinSingleNftCapitalSuccess() public {
-        protocolGovernance.changeMinSingleNftCapital(10**18);
+    function testChangeMinSingleNftCollateralSuccess() public {
+        protocolGovernance.changeMinSingleNftCollateral(10**18);
         IProtocolGovernance.ProtocolParams memory newParams = protocolGovernance.protocolParams();
-        assertEq(newParams.minSingleNftCapital, 10**18);
+        assertEq(newParams.minSingleNftCollateral, 10**18);
     }
 
-    function testChangeMinSingleNftCapitalTooLarge() public {
-        vm.expectRevert(ProtocolGovernance.InvalidValue.selector);
-        protocolGovernance.changeMinSingleNftCapital(21 * 10**18 * 10_000);
-    }
-
-    function testChangeMinSingleNftCapitalAccessControl() public {
+    function testChangeMinSingleNftCollateralAccessControl() public {
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
         vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-        protocolGovernance.changeMinSingleNftCapital(10**18);
+        protocolGovernance.changeMinSingleNftCollateral(10**18);
     }
 
-    function testChangeMinSingleNftCapitalEmitted() public {
+    function testChangeMinSingleNftCollateralEmitted() public {
         vm.expectEmit(false, true, false, true);
-        emit MinSingleNftCapitalChanged(getNextUserAddress(), address(this), 10**20);
-        protocolGovernance.changeMinSingleNftCapital(10**20);
+        emit MinSingleNftCollateralChanged(getNextUserAddress(), address(this), 10**20);
+        protocolGovernance.changeMinSingleNftCollateral(10**20);
     }
 
     // setWhitelistedPool
@@ -310,25 +337,25 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
     function testSetThresholdSuccess() public {
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
         protocolGovernance.setWhitelistedPool(pool);
-        assertEq(protocolGovernance.liquidationThreshold(pool), 0);
+        assertEq(protocolGovernance.liquidationThresholdD(pool), 0);
         protocolGovernance.setLiquidationThreshold(pool, 5 * 10**8);
-        assertEq(protocolGovernance.liquidationThreshold(pool), 5 * 10**8);
+        assertEq(protocolGovernance.liquidationThresholdD(pool), 5 * 10**8);
     }
 
     function testSetZeroThresholdIsOkay() public {
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
         protocolGovernance.setWhitelistedPool(pool);
         protocolGovernance.setLiquidationThreshold(pool, 0);
-        assertEq(protocolGovernance.liquidationThreshold(pool), 0);
+        assertEq(protocolGovernance.liquidationThresholdD(pool), 0);
     }
 
     function testSetNewThreshold() public {
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
         protocolGovernance.setWhitelistedPool(pool);
         protocolGovernance.setLiquidationThreshold(pool, 5 * 10**8);
-        assertEq(protocolGovernance.liquidationThreshold(pool), 5 * 10**8);
+        assertEq(protocolGovernance.liquidationThresholdD(pool), 5 * 10**8);
         protocolGovernance.setLiquidationThreshold(pool, 3 * 10**8);
-        assertEq(protocolGovernance.liquidationThreshold(pool), 3 * 10**8);
+        assertEq(protocolGovernance.liquidationThresholdD(pool), 3 * 10**8);
     }
 
     function testSetThresholdNotWhitelisted() public {
@@ -342,7 +369,7 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
         protocolGovernance.setWhitelistedPool(pool);
         protocolGovernance.setLiquidationThreshold(pool, 5 * 10**8);
         protocolGovernance.revokeWhitelistedPool(pool);
-        assertEq(protocolGovernance.liquidationThreshold(pool), 0);
+        assertEq(protocolGovernance.liquidationThresholdD(pool), 0);
         vm.expectRevert(ProtocolGovernance.InvalidPool.selector);
         protocolGovernance.setLiquidationThreshold(pool, 3 * 10**8);
     }

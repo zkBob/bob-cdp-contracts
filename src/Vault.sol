@@ -115,7 +115,7 @@ contract Vault is DefaultAccessControl {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
             uint256 nft = _vaultNfts[vaultId].at(i);
-            uint256 liquidationThresholdD = protocolGovernance.liquidationThreshold(
+            uint256 liquidationThresholdD = protocolGovernance.liquidationThresholdD(
                 address(_positionInfo[nft].targetPool)
             );
             result += _calculateAdjustedCollateral(nft, _positionInfo[nft], liquidationThresholdD);
@@ -245,7 +245,7 @@ contract Vault is DefaultAccessControl {
 
         if (
             _calculateAdjustedCollateral(nft, position, DENOMINATOR) <
-            protocolGovernance.protocolParams().minSingleNftCapital
+            protocolGovernance.protocolParams().minSingleNftCollateral
         ) {
             revert CollateralUnderflow();
         }
@@ -272,9 +272,9 @@ contract Vault is DefaultAccessControl {
         PositionInfo memory position = _positionInfo[nft];
         _requireVaultOwner(position.vaultId);
 
-        uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(address(position.targetPool));
+        uint256 liquidationThresholdD = protocolGovernance.liquidationThresholdD(address(position.targetPool));
         uint256 result = calculateVaultAdjustedCollateral(position.vaultId) -
-            _calculateAdjustedCollateral(nft, position, liquidationThreshold);
+            _calculateAdjustedCollateral(nft, position, liquidationThresholdD);
 
         // checking that health factor is more or equal than 1
         if (result < getOverallDebt(position.vaultId)) {
@@ -359,14 +359,14 @@ contract Vault is DefaultAccessControl {
 
         uint256 vaultAmount = _calculateVaultCollateral(vaultId);
         uint256 returnAmount = FullMath.mulDiv(
-            DENOMINATOR - protocolGovernance.protocolParams().liquidationPremium,
+            DENOMINATOR - protocolGovernance.protocolParams().liquidationPremiumD,
             vaultAmount,
             DENOMINATOR
         );
         token.transferFrom(msg.sender, address(this), returnAmount);
 
         uint256 daoReceiveAmount = stabilisationFeeVaultSnapshot[vaultId] +
-            FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFee, vaultAmount, DENOMINATOR);
+            FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFeeD, vaultAmount, DENOMINATOR);
         token.transfer(treasury, daoReceiveAmount);
         token.transfer(owner, returnAmount - daoReceiveAmount);
         token.burn(owner, vaultDebt[vaultId]);
@@ -566,7 +566,7 @@ contract Vault is DefaultAccessControl {
     function _calculateAdjustedCollateral(
         uint256 nft,
         PositionInfo memory position,
-        uint256 liquidationThreshold
+        uint256 liquidationThresholdD
     ) internal view returns (uint256) {
         uint256[] memory tokenAmounts = new uint256[](2);
         (uint160 sqrtRatioX96, , , , , , ) = position.targetPool.slot0();
@@ -589,7 +589,7 @@ contract Vault is DefaultAccessControl {
         uint256 result = 0;
         for (uint256 i = 0; i < 2; ++i) {
             uint256 tokenAmountsUSD = FullMath.mulDiv(tokenAmounts[i], pricesX96[i], Q96);
-            result += FullMath.mulDiv(tokenAmountsUSD, liquidationThreshold, DENOMINATOR);
+            result += FullMath.mulDiv(tokenAmountsUSD, liquidationThresholdD, DENOMINATOR);
         }
 
         return result;

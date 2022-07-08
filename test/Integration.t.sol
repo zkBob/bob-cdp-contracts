@@ -34,7 +34,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
-        protocolGovernance = new ProtocolGovernance(address(this));
+        protocolGovernance = new ProtocolGovernance(address(this), type(uint256).max);
 
         treasury = getNextUserAddress();
 
@@ -53,7 +53,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);
-        protocolGovernance.changeMinSingleNftCapital(10**17);
+        protocolGovernance.changeMinSingleNftCollateral(10**17);
 
         setPools(IProtocolGovernance(protocolGovernance));
         setApprovals();
@@ -71,7 +71,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         uint256 nftB = openUniV3Position(wbtc, usdc, 5 * 10**8, 100000 * 10**6, address(vault)); // 200000 USD
         uint256 nftC = openUniV3Position(wbtc, weth, 10**8 / 20000, 10**18 / 1000, address(vault)); // 2 USD
 
-        protocolGovernance.changeMinSingleNftCapital(18 * 10**17);
+        protocolGovernance.changeMinSingleNftCollateral(18 * 10**17);
 
         vault.depositCollateral(vaultId, nftA);
         vault.mintDebt(vaultId, 1000 * 10**18);
@@ -92,7 +92,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.withdrawCollateral(nftB);
         vault.withdrawCollateral(nftA);
 
-        protocolGovernance.changeMinSingleNftCapital(18 * 10**20);
+        protocolGovernance.changeMinSingleNftCollateral(18 * 10**20);
         vault.mintDebt(vaultId, 10);
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);

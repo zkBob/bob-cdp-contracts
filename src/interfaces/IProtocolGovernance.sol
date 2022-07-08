@@ -6,15 +6,15 @@ import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     struct ProtocolParams {
-        uint256 liquidationFee;
-        uint256 liquidationPremium;
+        uint256 liquidationFeeD;
+        uint256 liquidationPremiumD;
         uint256 maxDebtPerVault;
-        uint256 minSingleNftCapital;
+        uint256 minSingleNftCollateral;
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
 
-    function liquidationThreshold(address pool) external view returns (uint256);
+    function liquidationThresholdD(address pool) external view returns (uint256);
 
     function protocolParams() external view returns (ProtocolParams memory);
 
@@ -22,21 +22,23 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
 
     function getTokenLimit(address token) external view returns (uint256);
 
+    function whitelistedPool(uint256 i) external view returns (address);
+
     // -------------------  EXTERNAL, MUTATING  -------------------
 
-    function changeLiquidationFee(uint256 liquidationFee) external;
+    function changeLiquidationFee(uint256 liquidationFeeD) external;
 
-    function changeLiquidationPremium(uint256 liquidationPremium) external;
+    function changeLiquidationPremium(uint256 liquidationPremiumD) external;
 
     function changeMaxDebtPerVault(uint256 maxDebtPerVault) external;
 
-    function changeMinSingleNftCapital(uint256 minSingleNftCapital) external;
+    function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external;
 
     function setWhitelistedPool(address pool) external;
 
     function revokeWhitelistedPool(address pool) external;
 
-    function setLiquidationThreshold(address pool, uint256 liquidationRatio) external;
+    function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external;
 
     function setTokenLimit(address token, uint256 newLimit) external;
 }
