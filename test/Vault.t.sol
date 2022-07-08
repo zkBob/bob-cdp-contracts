@@ -195,6 +195,15 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
     }
 
+    function testDepositCollateralWhenPositionExceedsMinCapitalButEstimationNotSuccess() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        protocolGovernance.setLiquidationThreshold(pool, 10**7); // 1%
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**15, 10**6, address(vault));
+
+        vault.depositCollateral(vaultId, tokenId);
+    }
+
     function testDepositCollateralWhenExceedsMaxCollateralSupplyToken0() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
@@ -266,6 +275,20 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 10);
+
+        vm.expectRevert(Vault.UnpaidDebt.selector);
+        vault.closeVault(vaultId);
+    }
+
+    function testCloseVaultWithUnpaidFees() public {
+        uint256 vaultId = vault.openVault();
+
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1000 * 10**18);
+
+        vm.warp(block.timestamp + YEAR);
+        vault.burnDebt(vaultId, 1000 * 10**18);
 
         vm.expectRevert(Vault.UnpaidDebt.selector);
         vault.closeVault(vaultId);
@@ -356,6 +379,48 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.mintDebt(vaultId, 1000);
         vm.warp(block.timestamp + YEAR);
         vault.burnDebt(vaultId, 1003);
+    }
+
+    function testFailBurnAfterTransferPartOfBalance() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1000);
+
+        address receiver = getNextUserAddress();
+        token.transfer(receiver, 500);
+
+        vault.burnDebt(vaultId, 600);
+    }
+
+    function testPartialBurnSuccess() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 300 * 10**18);
+        vm.warp(block.timestamp + YEAR);
+
+        vault.burnDebt(vaultId, 150 * 10**18);
+        assertEq(token.balanceOf(address(this)), 150 * 10**18);
+        assertEq(token.balanceOf(treasury), 0);
+        assertEq(vault.debtFee(vaultId), 3 * 10**18);
+        assertEq(vault.debt(vaultId), 150 * 10**18);
+    }
+
+    function testPartialFeesBurnSuccess() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 300 * 10**18);
+        vm.warp(block.timestamp + YEAR);
+
+        deal(address(token), address(this), 303 * 10**18);
+        vault.burnDebt(vaultId, 302 * 10**18);
+
+        assertEq(token.balanceOf(address(this)), 1 * 10**18);
+        assertEq(token.balanceOf(treasury), 2 * 10**18);
+        assertEq(vault.debtFee(vaultId), 10**18);
+        assertEq(vault.debt(vaultId), 0);
     }
 
     function testBurnDebtSuccessWithFees() public {

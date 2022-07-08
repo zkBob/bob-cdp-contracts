@@ -655,6 +655,7 @@ contract Vault is DefaultAccessControl {
         delete vaultOwner[vaultId];
         delete _vaultNfts[vaultId];
         delete _stabilisationFeeVaultSnapshotTimestamp[vaultId];
+        delete _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
     }
 
     function _updateVaultStabilisationFee(uint256 vaultId) internal {
