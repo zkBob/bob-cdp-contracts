@@ -124,9 +124,17 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Mapping, returning debt by vault id
     mapping(uint256 => uint256) public vaultDebt;
+
+    /// @notice Mapping, returning total accumulated stabilising fees by vault id (which are due to be paid)
     mapping(uint256 => uint256) public stabilisationFeeVaultSnapshot;
+
+    /// @notice Mapping, returning timestamp of latest debt fee update, generated during last deposit / withdraw / mint / burn
     mapping(uint256 => uint256) private _stabilisationFeeVaultSnapshotTimestamp;
+
+    /// @notice Mapping, returning last cumulative sum of time-weighted debt fees by vault id, generated during last deposit / withdraw / mint / burn
     mapping(uint256 => uint256) private _globalStabilisationFeePerUSDVaultSnapshotD;
+
+    /// @notice Mapping, returning current maximal possible supply in NFTs for a token
     mapping(address => uint256) public maxCollateralSupply;
 
     /// @notice Mapping, returning position info by nft
@@ -135,16 +143,13 @@ contract Vault is DefaultAccessControl {
     /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault)
     uint256 public vaultCount = 0;
 
-    /// @notice State variable, returning current stabilisation fee
-    uint256 public stabilisationFee;
+    /// @notice State variable, returning current stabilisation fee (multiplied by DENOMINATOR)
+    uint256 public stabilisationFeeRateD;
 
     /// @notice State variable, returning latest timestamp of stabilisation fee update
-    uint256 public lastStabilisationFeeUpdateTimestamp;
+    uint256 public globalStabilisationFeePerUSDSnapshotTimestamp;
 
     /// @notice State variable, meaning time-weighted cumulative stabilisation fee
-    uint256 public cumulativeStabilisationFeePerSecond = 0;
-    uint256 public stabilisationFeeRateD;
-    uint256 public globalStabilisationFeePerUSDSnapshotTimestamp;
     uint256 public globalStabilisationFeePerUSDSnapshotD = 0;
 
     /// @notice Creates a new contract
@@ -188,6 +193,9 @@ contract Vault is DefaultAccessControl {
 
     // -------------------   PUBLIC, VIEW   -------------------
 
+    /// @notice Calculate health factor for a given vault
+    /// @param vaultId Id of the vault
+    /// @return uint256 Health factor
     function calculateVaultAdjustedCollateral(uint256 vaultId) public view returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
@@ -200,6 +208,8 @@ contract Vault is DefaultAccessControl {
         return result;
     }
 
+    /// @notice Get global time-weighted stabilisation fee per USD (multiplied by DENOMINATOR)
+    /// @return uint256 Global stabilisation fee per USD (multiplied by DENOMINATOR)
     function globalStabilisationFeePerUSDD() public view returns (uint256) {
         return
             globalStabilisationFeePerUSDSnapshotD +
@@ -207,6 +217,9 @@ contract Vault is DefaultAccessControl {
             YEAR;
     }
 
+    /// @notice Get total debt for a given vault by id (including fees)
+    /// @param vaultId Id of the vault
+    /// @return uint256 Total debt value
     function getOverallDebt(uint256 vaultId) public view returns (uint256) {
         return vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] + _accruedStabilisationFee(vaultId);
     }
@@ -555,6 +568,8 @@ contract Vault is DefaultAccessControl {
         }
     }
 
+    /// @notice Update stabilisation fee (multiplied by DENOMINATOR) and calculate global stabilisation fee per USD up to current timestamp using previous stabilisation fee
+    /// @param depositors Array of new depositors
     function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external {
         _requireAdmin();
         if (stabilisationFeeRateD_ > DENOMINATOR) {
@@ -572,6 +587,9 @@ contract Vault is DefaultAccessControl {
 
     // -------------------  INTERNAL, VIEW  -----------------------
 
+    /// @notice Calculate the vault capital total amount (nominated in MUSD weis)
+    /// @param vaultId Vault id
+    /// @return uint256 Vault capital (nominated in MUSD weis)
     function _calculateVaultCollateral(uint256 vaultId) internal view returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
@@ -581,6 +599,14 @@ contract Vault is DefaultAccessControl {
         return result;
     }
 
+    /// @notice Get fee growth inside position from the tickLower to tickUpper
+    /// @param pool UniswapV3 pool
+    /// @param tickLower UniswapV3 lower tick
+    /// @param tickUpper UniswapV3 upper tick
+    /// @param tickCurrent UniswapV3 current tick
+    /// @param feeGrowthGlobal0X128 UniswapV3 fees of token0 collected per unit of liquidity for the entire life of the pool
+    /// @param feeGrowthGlobal1X128 UniswapV3 fees of token1 collected per unit of liquidity for the entire life of the pool
+    /// @return feeGrowthInside0X128 The all-time fee growth in token0, per unit of liquidity, inside the position's tick boundaries, feeGrowthInside1X128 The all-time fee growth in token1, per unit of liquidity, inside the position's tick boundaries
     function _getUniswapFeeGrowthInside(
         IUniswapV3Pool pool,
         int24 tickLower,
@@ -624,6 +650,10 @@ contract Vault is DefaultAccessControl {
         }
     }
 
+    /// @notice Calculate Uniswap token fees for the position with a given nft
+    /// @param pool UniswapV3 pool
+    /// @param uniV3Nft UniswapV3 nft of the position
+    /// @return tokensOwed0 The fees of the position in token0, tokensOwed1 The fees of the position in token1
     function _calculateUniswapFees(IUniswapV3Pool pool, uint256 uniV3Nft)
         internal
         view
@@ -677,6 +707,11 @@ contract Vault is DefaultAccessControl {
         tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1DeltaX128, liquidity, Q128));
     }
 
+    /// @notice Calculate total capital of the position (nominated in MUSD weis)
+    /// @param nft UniswapV3 nft of the position
+    /// @param position Position info
+    /// @param liquidationThreshold Liquidation threshold of the corresponding pool, set in the protocol governance
+    /// @return uint256 Position capital (nominated in MUSD weis)
     function _calculateAdjustedCollateral(
         uint256 nft,
         PositionInfo memory position,
@@ -724,6 +759,9 @@ contract Vault is DefaultAccessControl {
         }
     }
 
+    /// @notice Calculate accured stabilisation fee for a given vault (in MUSD weis)
+    /// @param vaultId Id of the vault
+    /// @return Accured stablisation fee of the vault (in MUSD weis)
     function _accruedStabilisationFee(uint256 vaultId) internal view returns (uint256) {
         if (vaultDebt[vaultId] == 0) {
             return 0;
@@ -779,6 +817,8 @@ contract Vault is DefaultAccessControl {
         delete _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
     }
 
+    /// @notice Update stabilisation fee for a given vault (in MUSD weis)
+    /// @param vaultId Id of the vault
     function _updateVaultStabilisationFee(uint256 vaultId) internal {
         if (block.timestamp == _stabilisationFeeVaultSnapshotTimestamp[vaultId]) {
             return;
