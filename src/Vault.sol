@@ -599,7 +599,7 @@ contract Vault is DefaultAccessControl {
         return result;
     }
 
-    /// @notice Get fee growth inside position from the tickLower to tickUpper since the position has been initialised
+    /// @notice Get fee growth inside position from the tickLower to tickUpper since the pool has been initialised
     /// @param pool UniswapV3 pool
     /// @param tickLower UniswapV3 lower tick
     /// @param tickUpper UniswapV3 upper tick
