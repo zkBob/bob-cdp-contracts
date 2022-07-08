@@ -569,7 +569,7 @@ contract Vault is DefaultAccessControl {
     }
 
     /// @notice Update stabilisation fee (multiplied by DENOMINATOR) and calculate global stabilisation fee per USD up to current timestamp using previous stabilisation fee
-    /// @param depositors Array of new depositors
+    /// @param stabilisationFeeRateD_ New stabilisation fee multiplied by DENOMINATOR
     function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external {
         _requireAdmin();
         if (stabilisationFeeRateD_ > DENOMINATOR) {
