@@ -193,9 +193,9 @@ contract Vault is DefaultAccessControl {
 
     // -------------------   PUBLIC, VIEW   -------------------
 
-    /// @notice Calculate health factor for a given vault
+    /// @notice Calculate adjusted collateral for a given vault
     /// @param vaultId Id of the vault
-    /// @return uint256 Health factor
+    /// @return uint256 Adjusted collateral
     function calculateVaultAdjustedCollateral(uint256 vaultId) public view returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
@@ -707,7 +707,7 @@ contract Vault is DefaultAccessControl {
         tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1DeltaX128, liquidity, Q128));
     }
 
-    /// @notice Calculate total capital of the position (nominated in MUSD weis)
+    /// @notice Calculate total capital of the specific collateral (nominated in MUSD weis)
     /// @param nft UniswapV3 nft of the position
     /// @param position Position info
     /// @param liquidationThreshold Liquidation threshold of the corresponding pool, set in the protocol governance
