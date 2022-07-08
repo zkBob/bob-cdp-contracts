@@ -195,6 +195,15 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
     }
 
+    function testDepositCollateralWhenPositionExceedsMinCapitalButEstimationNotSuccess() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        protocolGovernance.setLiquidationThreshold(pool, 10**7); // 1%
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**15, 10**6, address(vault));
+
+        vault.depositCollateral(vaultId, tokenId);
+    }
+
     function testDepositCollateralWhenExceedsMaxCollateralSupplyToken0() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
@@ -266,6 +275,20 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 10);
+
+        vm.expectRevert(Vault.UnpaidDebt.selector);
+        vault.closeVault(vaultId);
+    }
+
+    function testCloseVaultWithUnpaidFees() public {
+        uint256 vaultId = vault.openVault();
+
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1000 * 10**18);
+
+        vm.warp(block.timestamp + YEAR);
+        vault.burnDebt(vaultId, 1000 * 10**18);
 
         vm.expectRevert(Vault.UnpaidDebt.selector);
         vault.closeVault(vaultId);
@@ -356,6 +379,48 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.mintDebt(vaultId, 1000);
         vm.warp(block.timestamp + YEAR);
         vault.burnDebt(vaultId, 1003);
+    }
+
+    function testFailBurnAfterTransferPartOfBalance() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1000);
+
+        address receiver = getNextUserAddress();
+        token.transfer(receiver, 500);
+
+        vault.burnDebt(vaultId, 600);
+    }
+
+    function testPartialBurnSuccess() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 300 * 10**18);
+        vm.warp(block.timestamp + YEAR);
+
+        vault.burnDebt(vaultId, 150 * 10**18);
+        assertEq(token.balanceOf(address(this)), 150 * 10**18);
+        assertEq(token.balanceOf(treasury), 0);
+        assertEq(vault.stabilisationFeeVaultSnapshot(vaultId), 3 * 10**18);
+        assertEq(vault.vaultDebt(vaultId), 150 * 10**18);
+    }
+
+    function testPartialFeesBurnSuccess() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 300 * 10**18);
+        vm.warp(block.timestamp + YEAR);
+
+        deal(address(token), address(this), 303 * 10**18);
+        vault.burnDebt(vaultId, 302 * 10**18);
+
+        assertEq(token.balanceOf(address(this)), 1 * 10**18);
+        assertEq(token.balanceOf(treasury), 2 * 10**18);
+        assertEq(vault.stabilisationFeeVaultSnapshot(vaultId), 10**18);
+        assertEq(vault.vaultDebt(vaultId), 0);
     }
 
     function testBurnDebtSuccessWithFees() public {
@@ -449,7 +514,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testHealthFactorSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 health = vault.calculateHealthFactor(vaultId);
+        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
         assertEq(health, 0);
     }
 
@@ -459,7 +524,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 lowCapitalBound = 10**18 * 1100;
         uint256 upCapitalBound = 10**18 * 1300; // health apparently ~1200USD
         vault.depositCollateral(vaultId, tokenId);
-        uint256 health = vault.calculateHealthFactor(vaultId);
+        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
         assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
     }
 
@@ -468,7 +533,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.withdrawCollateral(tokenId);
-        uint256 health = vault.calculateHealthFactor(vaultId);
+        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
         assertEq(health, 0);
     }
 
@@ -477,11 +542,11 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         uint256 nftB = openUniV3Position(wbtc, weth, 10**8, 10**18 * 20, address(vault));
         vault.depositCollateral(vaultId, nftA);
-        uint256 healthOneAsset = vault.calculateHealthFactor(vaultId);
+        uint256 healthOneAsset = vault.calculateVaultAdjustedCollateral(vaultId);
         vault.depositCollateral(vaultId, nftB);
-        uint256 healthTwoAssets = vault.calculateHealthFactor(vaultId);
+        uint256 healthTwoAssets = vault.calculateVaultAdjustedCollateral(vaultId);
         vault.withdrawCollateral(nftB);
-        uint256 healthOneAssetFinal = vault.calculateHealthFactor(vaultId);
+        uint256 healthOneAssetFinal = vault.calculateVaultAdjustedCollateral(vaultId);
 
         assertEq(healthOneAsset, healthOneAssetFinal);
         assertTrue(healthOneAsset < healthTwoAssets);
@@ -492,11 +557,11 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        uint256 healthPreAction = vault.calculateHealthFactor(vaultId);
+        uint256 healthPreAction = vault.calculateVaultAdjustedCollateral(vaultId);
         oracle.setPrice(weth, 800 << 96);
-        uint256 healthLowPrice = vault.calculateHealthFactor(vaultId);
+        uint256 healthLowPrice = vault.calculateVaultAdjustedCollateral(vaultId);
         oracle.setPrice(weth, 2000 << 96);
-        uint256 healthHighPrice = vault.calculateHealthFactor(vaultId);
+        uint256 healthHighPrice = vault.calculateVaultAdjustedCollateral(vaultId);
 
         assertTrue(healthLowPrice < healthPreAction);
         assertTrue(healthPreAction < healthHighPrice);
@@ -507,9 +572,9 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        uint256 healthPreAction = vault.calculateHealthFactor(vaultId);
+        uint256 healthPreAction = vault.calculateVaultAdjustedCollateral(vaultId);
         makeSwap(weth, usdc, 10**18);
-        uint256 healthPostAction = vault.calculateHealthFactor(vaultId);
+        uint256 healthPostAction = vault.calculateVaultAdjustedCollateral(vaultId);
         assertTrue(healthPreAction != healthPostAction);
         assertApproxEqual(healthPreAction, healthPostAction, 1);
     }
@@ -523,24 +588,24 @@ contract VaultTest is Test, SetupContract, Utilities {
         protocolGovernance.setLiquidationThreshold(pool, 1e8);
         uint256 lowCapitalBound = 10**18 * 150;
         uint256 upCapitalBound = 10**18 * 250; // health apparently ~200USD
-        uint256 health = vault.calculateHealthFactor(vaultId);
+        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
         assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
 
         protocolGovernance.revokeWhitelistedPool(pool);
-        uint256 healthNoAssets = vault.calculateHealthFactor(vaultId);
+        uint256 healthNoAssets = vault.calculateVaultAdjustedCollateral(vaultId);
         assertEq(healthNoAssets, 0);
     }
 
     function testHealthFactorFromRandomAddress() public {
         uint256 vaultId = vault.openVault();
         vm.prank(getNextUserAddress());
-        uint256 health = vault.calculateHealthFactor(vaultId);
+        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
         assertEq(health, 0);
     }
 
     function testHealthFactorNonExistingVault() public {
         uint256 nextId = vault.vaultCount();
-        uint256 health = vault.calculateHealthFactor(nextId);
+        uint256 health = vault.calculateVaultAdjustedCollateral(nextId);
         assertEq(health, 0);
     }
 
@@ -555,18 +620,20 @@ contract VaultTest is Test, SetupContract, Utilities {
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
-        uint256 health = vault.calculateHealthFactor(vaultId);
-        uint256 debt = vault.debt(vaultId) + vault.debtFee(vaultId);
+        address randomAddress = getNextUserAddress();
+        token.transfer(randomAddress, vault.vaultDebt(vaultId));
+
+        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
 
         assertTrue(health < debt);
         vm.warp(block.timestamp + 3600);
 
         address liquidator = getNextUserAddress();
-        assertEq(token.balanceOf(address(this)), 1100 * 10**18);
 
         deal(address(token), liquidator, 2000 * 10**18, true);
         uint256 oldLiquidatorBalance = token.balanceOf(liquidator);
-        uint256 debtToBeRepaid = vault.debt(vaultId);
+        uint256 debtToBeRepaid = vault.vaultDebt(vaultId);
 
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
@@ -587,8 +654,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertTrue(lowerBoundRemaning <= gotBack);
         assertEq(gotBack + debtToBeRepaid + treasuryGot, liquidatorSpent);
 
-        assertEq(vault.debt(vaultId), 0);
-        assertEq(vault.debtFee(vaultId), 0);
+        assertEq(vault.vaultDebt(vaultId), 0);
+        assertEq(vault.stabilisationFeeVaultSnapshot(vaultId), 0);
     }
 
     function testFailLiquidateWithSmallAmount() public {
@@ -604,7 +671,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         deal(address(token), liquidator, 2000 * 10**18, true);
 
         vm.startPrank(liquidator);
-        token.approve(address(vault), vault.debt(vaultId)); //too small for liquidating
+        token.approve(address(vault), vault.vaultDebt(vaultId)); //too small for liquidating
         vault.liquidate(vaultId);
     }
 
@@ -612,8 +679,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
 
-        uint256 health = vault.calculateHealthFactor(vaultId);
-        uint256 debt = vault.debt(vaultId) + vault.debtFee(vaultId);
+        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
 
         assertTrue(debt <= health);
 
@@ -631,8 +698,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
-        uint256 health = vault.calculateHealthFactor(vaultId);
-        uint256 debt = vault.debt(vaultId) + vault.debtFee(vaultId);
+        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
 
         assertTrue(health < debt);
 
@@ -862,11 +929,11 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertEq(overallDebt, 303 * 10**18); // +1%
     }
 
-    // updateStabilisationFee
+    // updateStabilisationFeeRate
 
     function testUpdateStabilisationFeeSuccess() public {
-        vault.updateStabilisationFee(2 * 10**7);
-        assertEq(vault.stabilisationFee(), 2 * 10**7);
+        vault.updateStabilisationFeeRate(2 * 10**7);
+        assertEq(vault.stabilisationFeeRateD(), 2 * 10**7);
     }
 
     function testUpdateStabilisationFeeSuccessWithCalculations() public {
@@ -877,7 +944,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vm.warp(block.timestamp + YEAR);
         uint256 overallDebt = vault.getOverallDebt(vaultId);
         assertEq(overallDebt, 303 * 10**18); // +1%
-        vault.updateStabilisationFee(10 * 10**7);
+        vault.updateStabilisationFeeRate(10 * 10**7);
         vm.warp(block.timestamp + YEAR);
         overallDebt = vault.getOverallDebt(vaultId);
         assertEq(overallDebt, 333 * 10**18); // +1% per first year and +10% per second year
@@ -886,17 +953,17 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testUpdateStabilisationFeeWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
         vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-        vault.updateStabilisationFee(10**7);
+        vault.updateStabilisationFeeRate(10**7);
     }
 
     function testUpdateStabilisationFeeWithInvalidValue() public {
         vm.expectRevert(Vault.InvalidValue.selector);
-        vault.updateStabilisationFee(10**12);
+        vault.updateStabilisationFeeRate(10**12);
     }
 
     function testUpdateStabilisationFeeEmit() public {
         vm.expectEmit(false, true, false, true);
         emit StabilisationFeeUpdated(getNextUserAddress(), address(this), 2 * 10**7);
-        vault.updateStabilisationFee(2 * 10**7);
+        vault.updateStabilisationFeeRate(2 * 10**7);
     }
 }

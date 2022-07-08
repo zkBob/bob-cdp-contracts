@@ -123,18 +123,10 @@ contract Vault is DefaultAccessControl {
     mapping(uint256 => address) public vaultOwner;
 
     /// @notice Mapping, returning debt by vault id
-    mapping(uint256 => uint256) public debt;
-
-    /// @notice Mapping, returning total accumulated stabilising fees by vault id (which are due to be paid)
-    mapping(uint256 => uint256) public debtFee;
-
-    /// @notice Mapping, returning timestamp of latest debt fee update, generated during last deposit / withdraw / mint / burn
-    mapping(uint256 => uint256) private _lastDebtFeeUpdateTimestamp;
-
-    /// @notice Mapping, returning last cumulative sum of debt fees by vault id, generated during last deposit / withdraw / mint / burn
-    mapping(uint256 => uint256) private _lastDebtFeeUpdateCumulativeSum;
-
-    /// @notice Mapping, returning current maximal possible supply in NFTs for a token
+    mapping(uint256 => uint256) public vaultDebt;
+    mapping(uint256 => uint256) public stabilisationFeeVaultSnapshot;
+    mapping(uint256 => uint256) private _stabilisationFeeVaultSnapshotTimestamp;
+    mapping(uint256 => uint256) private _globalStabilisationFeePerUSDVaultSnapshotD;
     mapping(address => uint256) public maxCollateralSupply;
 
     /// @notice Mapping, returning position info by nft
@@ -151,6 +143,9 @@ contract Vault is DefaultAccessControl {
 
     /// @notice State variable, meaning time-weighted cumulative stabilisation fee
     uint256 public cumulativeStabilisationFeePerSecond = 0;
+    uint256 public stabilisationFeeRateD;
+    uint256 public globalStabilisationFeePerUSDSnapshotTimestamp;
+    uint256 public globalStabilisationFeePerUSDSnapshotD = 0;
 
     /// @notice Creates a new contract
     /// @param admin Protocol admin
@@ -187,25 +182,33 @@ contract Vault is DefaultAccessControl {
 
         // initial value
 
-        stabilisationFee = stabilisationFee_;
-        lastStabilisationFeeUpdateTimestamp = block.timestamp;
+        stabilisationFeeRateD = stabilisationFee_;
+        globalStabilisationFeePerUSDSnapshotTimestamp = block.timestamp;
     }
 
     // -------------------   PUBLIC, VIEW   -------------------
 
-    /// @notice Calculate health factor for a given vault
-    /// @param vaultId Id of the vault
-    /// @return uint256 Health factor
-    function calculateHealthFactor(uint256 vaultId) public view returns (uint256) {
+    function calculateVaultAdjustedCollateral(uint256 vaultId) public view returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
             uint256 nft = _vaultNfts[vaultId].at(i);
-            uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(
+            uint256 liquidationThresholdD = protocolGovernance.liquidationThreshold(
                 address(_positionInfo[nft].targetPool)
             );
-            result += _calculatePosition(nft, _positionInfo[nft], liquidationThreshold);
+            result += _calculateAdjustedCollateral(nft, _positionInfo[nft], liquidationThresholdD);
         }
         return result;
+    }
+
+    function globalStabilisationFeePerUSDD() public view returns (uint256) {
+        return
+            globalStabilisationFeePerUSDSnapshotD +
+            (stabilisationFeeRateD * (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp)) /
+            YEAR;
+    }
+
+    function getOverallDebt(uint256 vaultId) public view returns (uint256) {
+        return vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] + _accruedStabilisationFee(vaultId);
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
@@ -230,13 +233,6 @@ contract Vault is DefaultAccessControl {
         return _depositorsAllowlist.values();
     }
 
-    /// @notice Get total debt for a given vault by id (including fees)
-    /// @param vaultId Id of the vault
-    /// @return uint256 Total debt value
-    function getOverallDebt(uint256 vaultId) external view returns (uint256) {
-        return debt[vaultId] + debtFee[vaultId] + _calculateDebtFees(vaultId);
-    }
-
     // -------------------  EXTERNAL, MUTATING  -------------------
 
     /// @notice Open a new Vault
@@ -247,22 +243,26 @@ contract Vault is DefaultAccessControl {
         }
 
         ++vaultCount;
-        _ownedVaults[msg.sender].add(vaultCount);
-        vaultOwner[vaultCount] = msg.sender;
-        _lastDebtFeeUpdateTimestamp[vaultCount] = block.timestamp;
+        vaultId = vaultCount;
 
-        emit VaultOpened(tx.origin, msg.sender, vaultCount);
+        _ownedVaults[msg.sender].add(vaultId);
+        vaultOwner[vaultId] = msg.sender;
 
-        return vaultCount;
+        _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
+        _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] =
+            globalStabilisationFeePerUSDSnapshotD +
+            (stabilisationFeeRateD * (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp)) /
+            YEAR;
+
+        emit VaultOpened(tx.origin, msg.sender, vaultId);
     }
 
     /// @notice Close a vault
     /// @param vaultId Id of the vault
     function closeVault(uint256 vaultId) external {
         _requireVaultOwner(vaultId);
-        _updateDebtFees(vaultId);
 
-        if (debt[vaultId] != 0 || debtFee[vaultId] != 0) {
+        if (vaultDebt[vaultId] != 0 || stabilisationFeeVaultSnapshot[vaultId] != 0) {
             revert UnpaidDebt();
         }
 
@@ -281,7 +281,6 @@ contract Vault is DefaultAccessControl {
         }
 
         _requireVaultOwner(vaultId);
-        _updateDebtFees(vaultId);
 
         {
             (
@@ -336,7 +335,10 @@ contract Vault is DefaultAccessControl {
             position.liquidity
         );
 
-        if (_calculatePosition(nft, position, DENOMINATOR) < protocolGovernance.protocolParams().minSingleNftCapital) {
+        if (
+            _calculateAdjustedCollateral(nft, position, DENOMINATOR) <
+            protocolGovernance.protocolParams().minSingleNftCapital
+        ) {
             revert CollateralUnderflow();
         }
 
@@ -363,14 +365,13 @@ contract Vault is DefaultAccessControl {
         _checkIsPaused();
         PositionInfo memory position = _positionInfo[nft];
         _requireVaultOwner(position.vaultId);
-        _updateDebtFees(position.vaultId);
 
         uint256 liquidationThreshold = protocolGovernance.liquidationThreshold(address(position.targetPool));
-        uint256 result = calculateHealthFactor(position.vaultId) -
-            _calculatePosition(nft, position, liquidationThreshold);
+        uint256 result = calculateVaultAdjustedCollateral(position.vaultId) -
+            _calculateAdjustedCollateral(nft, position, liquidationThreshold);
 
         // checking that health factor is more or equal than 1
-        if (result < debt[position.vaultId] + debtFee[position.vaultId]) {
+        if (result < getOverallDebt(position.vaultId)) {
             revert PositionUnhealthy();
         }
 
@@ -402,21 +403,21 @@ contract Vault is DefaultAccessControl {
     function mintDebt(uint256 vaultId, uint256 amount) external {
         _checkIsPaused();
         _requireVaultOwner(vaultId);
-        _updateDebtFees(vaultId);
+        _updateVaultStabilisationFee(vaultId);
 
-        uint256 healthFactor = calculateHealthFactor(vaultId);
+        uint256 healthFactor = calculateVaultAdjustedCollateral(vaultId);
 
-        if (healthFactor < debt[vaultId] + debtFee[vaultId] + amount) {
+        if (healthFactor < vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] + amount) {
             revert PositionUnhealthy();
         }
 
         uint256 debtLimit = protocolGovernance.protocolParams().maxDebtPerVault;
-        if (debtLimit < debt[vaultId] + debtFee[vaultId] + amount) {
+        if (debtLimit < vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] + amount) {
             revert DebtLimitExceeded();
         }
 
         token.mint(msg.sender, amount);
-        debt[vaultId] += amount;
+        vaultDebt[vaultId] += amount;
 
         emit DebtMinted(tx.origin, msg.sender, vaultId, amount);
     }
@@ -427,20 +428,22 @@ contract Vault is DefaultAccessControl {
     function burnDebt(uint256 vaultId, uint256 amount) external {
         _checkIsPaused();
         _requireVaultOwner(vaultId);
-        _updateDebtFees(vaultId);
+        _updateVaultStabilisationFee(vaultId);
 
-        amount = (amount < (debtFee[vaultId] + debt[vaultId])) ? amount : (debtFee[vaultId] + debt[vaultId]);
+        amount = (amount < (stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId]))
+            ? amount
+            : (stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId]);
 
-        if (amount > debt[vaultId]) {
-            uint256 burningFeeAmount = amount - debt[vaultId];
+        if (amount > vaultDebt[vaultId]) {
+            uint256 burningFeeAmount = amount - vaultDebt[vaultId];
             token.mint(treasury, burningFeeAmount);
-            debtFee[vaultId] -= burningFeeAmount;
+            stabilisationFeeVaultSnapshot[vaultId] -= burningFeeAmount;
             amount -= burningFeeAmount;
             token.burn(msg.sender, burningFeeAmount);
         }
 
         token.burn(msg.sender, amount);
-        debt[vaultId] -= amount;
+        vaultDebt[vaultId] -= amount;
 
         emit DebtBurned(tx.origin, msg.sender, vaultId, amount);
     }
@@ -448,17 +451,15 @@ contract Vault is DefaultAccessControl {
     /// @notice Liquidate a vault
     /// @param vaultId Id of the vault subject to liquidation
     function liquidate(uint256 vaultId) external {
-        _updateDebtFees(vaultId);
-
-        uint256 healthFactor = calculateHealthFactor(vaultId);
-        uint256 overallDebt = debt[vaultId] + debtFee[vaultId];
+        uint256 healthFactor = calculateVaultAdjustedCollateral(vaultId);
+        uint256 overallDebt = getOverallDebt(vaultId);
         if (healthFactor >= overallDebt) {
             revert PositionHealthy();
         }
 
         address owner = vaultOwner[vaultId];
 
-        uint256 vaultAmount = _calculateVaultAmount(vaultId);
+        uint256 vaultAmount = _calculateVaultCollateral(vaultId);
         uint256 returnAmount = FullMath.mulDiv(
             DENOMINATOR - protocolGovernance.protocolParams().liquidationPremium,
             vaultAmount,
@@ -466,11 +467,11 @@ contract Vault is DefaultAccessControl {
         );
         token.transferFrom(msg.sender, address(this), returnAmount);
 
-        uint256 daoReceiveAmount = debtFee[vaultId] +
+        uint256 daoReceiveAmount = stabilisationFeeVaultSnapshot[vaultId] +
             FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFee, vaultAmount, DENOMINATOR);
         token.transfer(treasury, daoReceiveAmount);
-        token.transfer(owner, returnAmount - daoReceiveAmount - debt[vaultId]);
-        token.burn(owner, debt[vaultId]);
+        token.transfer(owner, returnAmount - daoReceiveAmount);
+        token.burn(owner, vaultDebt[vaultId]);
 
         _closeVault(vaultId, owner, msg.sender);
 
@@ -554,46 +555,33 @@ contract Vault is DefaultAccessControl {
         }
     }
 
-    /// @notice Update stabilisation fee
-    /// @param stabilisationFee_ New stabilisation fee
-    function updateStabilisationFee(uint256 stabilisationFee_) external {
+    function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external {
         _requireAdmin();
-        if (stabilisationFee_ > DENOMINATOR) {
+        if (stabilisationFeeRateD_ > DENOMINATOR) {
             revert InvalidValue();
         }
 
-        uint256 delta = block.timestamp - lastStabilisationFeeUpdateTimestamp;
-        cumulativeStabilisationFeePerSecond += delta * stabilisationFee;
+        uint256 delta = block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp;
+        globalStabilisationFeePerUSDSnapshotD += (delta * stabilisationFeeRateD) / YEAR;
 
-        stabilisationFee = stabilisationFee_;
-        lastStabilisationFeeUpdateTimestamp = block.timestamp;
+        stabilisationFeeRateD = stabilisationFeeRateD_;
+        globalStabilisationFeePerUSDSnapshotTimestamp = block.timestamp;
 
-        emit StabilisationFeeUpdated(tx.origin, msg.sender, stabilisationFee_);
+        emit StabilisationFeeUpdated(tx.origin, msg.sender, stabilisationFeeRateD_);
     }
 
     // -------------------  INTERNAL, VIEW  -----------------------
 
-    /// @notice Calculate the vault capital total amount (nominated in MUSD weis)
-    /// @param vaultId Vault id
-    /// @return uint256 Vault capital (nominated in MUSD weis)
-    function _calculateVaultAmount(uint256 vaultId) internal view returns (uint256) {
+    function _calculateVaultCollateral(uint256 vaultId) internal view returns (uint256) {
         uint256 result = 0;
         for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
             uint256 nft = _vaultNfts[vaultId].at(i);
-            result += _calculatePosition(nft, _positionInfo[nft], DENOMINATOR);
+            result += _calculateAdjustedCollateral(nft, _positionInfo[nft], DENOMINATOR);
         }
         return result;
     }
 
-    /// @notice Get fee growth inside position from the tickLower to tickUpper
-    /// @param pool UniswapV3 pool
-    /// @param tickLower UniswapV3 lower tick
-    /// @param tickUpper UniswapV3 upper tick
-    /// @param tickCurrent UniswapV3 current tick
-    /// @param feeGrowthGlobal0X128 UniswapV3 fees of token0 collected per unit of liquidity for the entire life of the pool
-    /// @param feeGrowthGlobal1X128 UniswapV3 fees of token1 collected per unit of liquidity for the entire life of the pool
-    /// @return feeGrowthInside0X128 The all-time fee growth in token0, per unit of liquidity, inside the position's tick boundaries, feeGrowthInside1X128 The all-time fee growth in token1, per unit of liquidity, inside the position's tick boundaries
-    function _getFeeGrowthInside(
+    function _getUniswapFeeGrowthInside(
         IUniswapV3Pool pool,
         int24 tickLower,
         int24 tickUpper,
@@ -636,11 +624,7 @@ contract Vault is DefaultAccessControl {
         }
     }
 
-    /// @notice Calculate token fees for the position
-    /// @param pool UniswapV3 pool
-    /// @param uniV3Nft UniswapV3 nft of the position
-    /// @return tokensOwed0 The fees of the position in token0, tokensOwed1 The fees of the position in token1
-    function _calculateFees(IUniswapV3Pool pool, uint256 uniV3Nft)
+    function _calculateUniswapFees(IUniswapV3Pool pool, uint256 uniV3Nft)
         internal
         view
         returns (uint128 tokensOwed0, uint128 tokensOwed1)
@@ -673,7 +657,7 @@ contract Vault is DefaultAccessControl {
         uint256 feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
         (, int24 tick, , , , , ) = pool.slot0();
 
-        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getFeeGrowthInside(
+        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getUniswapFeeGrowthInside(
             pool,
             tickLower,
             tickUpper,
@@ -693,12 +677,7 @@ contract Vault is DefaultAccessControl {
         tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1DeltaX128, liquidity, Q128));
     }
 
-    /// @notice Calculate total capital of the position (nominated in MUSD weis)
-    /// @param nft UniswapV3 nft of the position
-    /// @param position Position info
-    /// @param liquidationThreshold Liquidation threshold of the corresponding pool, set in the protocol governance
-    /// @return uint256 Position capital (nominated in MUSD weis)
-    function _calculatePosition(
+    function _calculateAdjustedCollateral(
         uint256 nft,
         PositionInfo memory position,
         uint256 liquidationThreshold
@@ -713,7 +692,7 @@ contract Vault is DefaultAccessControl {
             position.liquidity
         );
 
-        (uint256 tokensOwed0, uint256 tokensOwed1) = _calculateFees(position.targetPool, nft);
+        (uint256 tokensOwed0, uint256 tokensOwed1) = _calculateUniswapFees(position.targetPool, nft);
         tokenAmounts[0] += tokensOwed0;
         tokenAmounts[1] += tokensOwed1;
 
@@ -745,20 +724,14 @@ contract Vault is DefaultAccessControl {
         }
     }
 
-    /// @notice Calculate debt fees for a given vault by substracting the current cumulative stabilisation fee per second by the previous one
-    /// @param vaultId Vault id
-    /// @return debtDelta Stabilisation fee for debt on current vault
-    function _calculateDebtFees(uint256 vaultId) internal view returns (uint256 debtDelta) {
-        if (debt[vaultId] == 0) {
+    function _accruedStabilisationFee(uint256 vaultId) internal view returns (uint256) {
+        if (vaultDebt[vaultId] == 0) {
             return 0;
         }
 
-        uint256 currentCumulativeStabilisationFeePerSecond = cumulativeStabilisationFeePerSecond +
-            stabilisationFee *
-            (block.timestamp - lastStabilisationFeeUpdateTimestamp);
-        uint256 addedCumulativeSum = currentCumulativeStabilisationFeePerSecond -
-            _lastDebtFeeUpdateCumulativeSum[vaultId];
-        debtDelta = FullMath.mulDiv(debt[vaultId], addedCumulativeSum, YEAR * DENOMINATOR);
+        uint256 deltaGlobalStabilisationFeeD = globalStabilisationFeePerUSDD() -
+            _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
+        return FullMath.mulDiv(vaultDebt[vaultId], deltaGlobalStabilisationFeeD, DENOMINATOR);
     }
 
     // -------------------  INTERNAL, MUTATING  -------------------
@@ -798,27 +771,27 @@ contract Vault is DefaultAccessControl {
 
         _ownedVaults[owner].remove(vaultId);
 
-        delete debt[vaultId];
-        delete debtFee[vaultId];
+        delete vaultDebt[vaultId];
+        delete stabilisationFeeVaultSnapshot[vaultId];
         delete vaultOwner[vaultId];
         delete _vaultNfts[vaultId];
-        delete _lastDebtFeeUpdateTimestamp[vaultId];
+        delete _stabilisationFeeVaultSnapshotTimestamp[vaultId];
+        delete _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
     }
 
-    /// @notice Update fees for debt on a certain vault
-    /// @param vaultId Id of the vault
-    function _updateDebtFees(uint256 vaultId) internal {
-        if (block.timestamp - _lastDebtFeeUpdateTimestamp[vaultId] > 0) {
-            uint256 debtDelta = _calculateDebtFees(vaultId);
-            if (debtDelta > 0) {
-                debtFee[vaultId] += debtDelta;
-            }
-            _lastDebtFeeUpdateTimestamp[vaultId] = block.timestamp;
-            _lastDebtFeeUpdateCumulativeSum[vaultId] =
-                cumulativeStabilisationFeePerSecond +
-                stabilisationFee *
-                (block.timestamp - lastStabilisationFeeUpdateTimestamp);
+    function _updateVaultStabilisationFee(uint256 vaultId) internal {
+        if (block.timestamp == _stabilisationFeeVaultSnapshotTimestamp[vaultId]) {
+            return;
         }
+        uint256 debtDelta = _accruedStabilisationFee(vaultId);
+        if (debtDelta > 0) {
+            stabilisationFeeVaultSnapshot[vaultId] += debtDelta;
+        }
+        _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
+        _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] =
+            globalStabilisationFeePerUSDSnapshotD +
+            (stabilisationFeeRateD * (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp)) /
+            YEAR;
     }
 
     // --------------------------  EVENTS  --------------------------
