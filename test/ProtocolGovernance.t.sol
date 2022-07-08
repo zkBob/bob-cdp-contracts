@@ -140,7 +140,6 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
     // Access control of all public methods
 
     function testAccessControlsAllAccountsMethods() public {
-
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
         protocolGovernance.setWhitelistedPool(pool);
 
