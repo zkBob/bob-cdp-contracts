@@ -158,6 +158,42 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.closeVault(vaultB);
     }
 
+    function testOneUserClosesDebtOfSecond() public {
+        address firstAddress = address(this);
+
+        address secondAddress = getNextUserAddress();
+        address[] memory depositors = new address[](1);
+        depositors[0] = secondAddress;
+        vault.addDepositorsToAllowlist(depositors);
+
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 secondNft = openUniV3Position(weth, usdc, 10**18, 10**9, secondAddress);
+
+        positionManager.transferFrom(address(this), secondAddress, secondNft);
+        vault.depositCollateral(vaultId, tokenId);
+
+        vault.mintDebt(vaultId, 1100 * 10**18);
+        vm.startPrank(secondAddress);
+
+        positionManager.approve(address(vault), secondNft);
+        uint256 secondVault = vault.openVault();
+        vault.depositCollateral(secondVault, secondNft);
+        vault.mintDebt(secondVault, 300 * 10**18);
+
+        vm.stopPrank();
+        vm.warp(block.timestamp + 4 * YEAR);
+        assertTrue(vault.getOverallDebt(vaultId) > vault.calculateVaultAdjustedCollateral(vaultId));
+
+        vm.startPrank(secondAddress);
+        console.log(token.balanceOf(secondAddress));
+        token.transfer(firstAddress, 300 * 10**18);
+        vm.stopPrank();
+
+        vault.burnDebt(vaultId, token.balanceOf(firstAddress));
+        vault.closeVault(vaultId);
+    }
+
     function testPriceDroppedAndGotBackNotLiquidated() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
@@ -258,6 +294,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         vault.updateStabilisationFeeRate(1 * 10**7); // 1%
         vm.warp(block.timestamp + YEAR);
+        assertEq(vault.getOverallDebt(vaultId), 1645 * 10**18);
         vault.updateStabilisationFeeRate(5 * 10**7); // 5%
         vm.warp(block.timestamp + YEAR);
         assertEq(vault.getOverallDebt(vaultId), 1720 * 10**18);
@@ -282,7 +319,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.mintDebt(vaultId, 1000 * 10**18);
         uint256 beforeDebt = vault.getOverallDebt(vaultId);
 
-        vault.updateStabilisationFeeRate(1);
+        vault.updateStabilisationFeeRate(10**8);
         vm.warp(block.timestamp + 1);
 
         uint256 afterDebt = vault.getOverallDebt(vaultId);
@@ -297,15 +334,15 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.mintDebt(vaultId, 1000 * 10**18);
         uint256 beforeDebt = vault.getOverallDebt(vaultId);
 
-        vm.warp(block.timestamp + 1);
-        uint256 secondFee = vault.getOverallDebt(vaultId) - beforeDebt;
-        vm.warp(block.timestamp + 59);
+        vm.warp(block.timestamp + 3600);
+        uint256 hourFee = vault.getOverallDebt(vaultId) - beforeDebt;
+        vm.warp(block.timestamp + 3600 * 23);
 
-        uint256 minuteFee = vault.getOverallDebt(vaultId) - beforeDebt;
-        assertEq(secondFee, minuteFee / 60);
+        uint256 dailyFee = vault.getOverallDebt(vaultId) - beforeDebt;
+        assertApproxEqual(dailyFee / 24, hourFee, 1); // <0.1% delta
     }
 
-    function testFeesUpdatedAfterAllOperations() public {
+    function testFeesUpdatedAfterAllOnlyMintBurn() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenA = openUniV3Position(weth, usdc, 10**20, 10**11, address(vault));
         uint256 tokenB = openUniV3Position(weth, usdc, 10**20, 10**11, address(vault));
@@ -329,13 +366,13 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.warp(block.timestamp + YEAR);
         vault.depositCollateral(vaultId, tokenB);
         newDebt = vault.stabilisationFeeVaultSnapshot(vaultId);
-        assertTrue(currentDebt < newDebt);
+        assertTrue(currentDebt == newDebt);
         currentDebt = newDebt;
 
         vm.warp(block.timestamp + YEAR);
         vault.withdrawCollateral(tokenB);
         newDebt = vault.stabilisationFeeVaultSnapshot(vaultId);
-        assertTrue(currentDebt < newDebt);
+        assertTrue(currentDebt == newDebt);
     }
 
     function testReasonablePoolFeesCalculating() public {
