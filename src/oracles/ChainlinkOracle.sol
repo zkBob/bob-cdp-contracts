@@ -20,7 +20,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     /// @notice Mapping, returning oracle for token
     mapping(address => address) public oraclesIndex;
 
-    /// @notice Mapping, returning decimals of token
+    /// @notice Mapping, returning the sum of decimals values of token and chainlink oracle
     mapping(address => uint256) public decimalsIndex;
     EnumerableSet.AddressSet private _tokens;
 
@@ -95,7 +95,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     /// @notice Attempt to send a price query to chainlink oracle
     /// @param oracle Chainlink oracle
-    /// @return success Query to chainlink oracle, answer Result of the query
+    /// @return success Query to chainlink oracle (if oracle.latestRoundData call works correctly => the answer can be received), answer Result of the query
     function _queryChainlinkOracle(IAggregatorV3 oracle) internal view returns (bool success, uint256 answer) {
         try oracle.latestRoundData() returns (uint80, int256 ans, uint256, uint256, uint80) {
             return (true, uint256(ans));

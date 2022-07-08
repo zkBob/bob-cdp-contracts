@@ -74,8 +74,8 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @param liquidationRatio The new liquidation ratio
     function setLiquidationThreshold(address pool, uint256 liquidationRatio) external;
 
-    /// @notice Set new capital limit for a given token
+    /// @notice Set new capital limit for a given token (in token weis)
     /// @param token Address of the token
-    /// @param newLimit The new token capital limit
+    /// @param newLimit The new token capital limit (in token weis)
     function setTokenLimit(address token, uint256 newLimit) external;
 }

@@ -35,7 +35,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     /// @notice Mapping, returning if token capital is limited or not
     mapping(address => bool) private _isTokenCapitalLimited;
 
-    /// @notice Mapping, returning token capital limit
+    /// @notice Mapping, returning token capital limit (in token weis)
     mapping(address => uint256) private _tokenCapitalLimit;
 
     /// @notice Creates a new contract

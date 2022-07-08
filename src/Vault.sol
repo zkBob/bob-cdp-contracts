@@ -18,7 +18,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
-    /// @notice Thrown when a token total value in the protocol would exceed max token capital limit (set in governance) after a deposit
+    /// @notice Thrown when a max token total value in the protocol would exceed max token capital limit (set in governance) after a deposit
     error CollateralTokenOverflow(address token);
 
     /// @notice Thrown when a value of a deposited NFT is less than min single nft capital (set in governance)
@@ -122,7 +122,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Mapping, returning vault owner by vault id
     mapping(uint256 => address) public vaultOwner;
 
-    /// @notice Mapping, returning debt by vault id
+    /// @notice Mapping, returning debt by vault id (in MUSD weis)
     mapping(uint256 => uint256) public vaultDebt;
 
     /// @notice Mapping, returning total accumulated stabilising fees by vault id (which are due to be paid)
@@ -134,7 +134,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Mapping, returning last cumulative sum of time-weighted debt fees by vault id, generated during last deposit / withdraw / mint / burn
     mapping(uint256 => uint256) private _globalStabilisationFeePerUSDVaultSnapshotD;
 
-    /// @notice Mapping, returning current maximal possible supply in NFTs for a token
+    /// @notice Mapping, returning current maximal possible supply in NFTs for a token (in token weis)
     mapping(address => uint256) public maxCollateralSupply;
 
     /// @notice Mapping, returning position info by nft
@@ -157,7 +157,7 @@ contract Vault is DefaultAccessControl {
     /// @param positionManager_ UniswapV3 position manager
     /// @param factory_ UniswapV3 factory
     /// @param protocolGovernance_ UniswapV3 protocol governance
-    /// @param oracle_ Chainlink oracle
+    /// @param oracle_ Oracle
     /// @param treasury_ Vault fees treasury
     /// @param stabilisationFee_ MUSD initial stabilisation fee
     constructor(
