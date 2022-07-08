@@ -54,7 +54,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
-        protocolGovernance = new ProtocolGovernance(address(this));
+        protocolGovernance = new ProtocolGovernance(address(this), type(uint256).max);
 
         treasury = getNextUserAddress();
 
@@ -73,7 +73,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);
-        protocolGovernance.changeMinSingleNftCapital(10**17);
+        protocolGovernance.changeMinSingleNftCollateral(10**17);
 
         setPools(IProtocolGovernance(protocolGovernance));
         setApprovals();
@@ -642,7 +642,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         uint256 liquidatorSpent = oldLiquidatorBalance - token.balanceOf(liquidator);
 
-        uint256 targetTreasuryBalance = (1600 * 10**18 * protocolGovernance.protocolParams().liquidationFee) / 10**9;
+        uint256 targetTreasuryBalance = (1600 * 10**18 * protocolGovernance.protocolParams().liquidationFeeD) / 10**9;
         uint256 treasuryGot = token.balanceOf(address(treasury));
 
         assertApproxEqual(targetTreasuryBalance, treasuryGot, 150);
