@@ -124,9 +124,10 @@ contract Vault is DefaultAccessControl {
     }
 
     function globalStabilisationFeePerUSDD() public view returns (uint256) {
-        return globalStabilisationFeePerUSDSnapshotD +
-            (stabilisationFeeRateD *
-            (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp)) / YEAR;
+        return
+            globalStabilisationFeePerUSDSnapshotD +
+            (stabilisationFeeRateD * (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp)) /
+            YEAR;
     }
 
     function getOverallDebt(uint256 vaultId) public view returns (uint256) {
@@ -163,8 +164,8 @@ contract Vault is DefaultAccessControl {
         _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
         _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] =
             globalStabilisationFeePerUSDSnapshotD +
-            stabilisationFeeRateD *
-            (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp) / YEAR;
+            (stabilisationFeeRateD * (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp)) /
+            YEAR;
 
         emit VaultOpened(tx.origin, msg.sender, vaultId);
     }
@@ -242,7 +243,10 @@ contract Vault is DefaultAccessControl {
             position.liquidity
         );
 
-        if (_calculateAdjustedCollateral(nft, position, DENOMINATOR) < protocolGovernance.protocolParams().minSingleNftCapital) {
+        if (
+            _calculateAdjustedCollateral(nft, position, DENOMINATOR) <
+            protocolGovernance.protocolParams().minSingleNftCapital
+        ) {
             revert CollateralUnderflow();
         }
 
@@ -326,7 +330,9 @@ contract Vault is DefaultAccessControl {
         _requireVaultOwner(vaultId);
         _updateVaultStabilisationFee(vaultId);
 
-        amount = (amount < (stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId])) ? amount : (stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId]);
+        amount = (amount < (stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId]))
+            ? amount
+            : (stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId]);
 
         if (amount > vaultDebt[vaultId]) {
             uint256 burningFeeAmount = amount - vaultDebt[vaultId];
@@ -662,8 +668,8 @@ contract Vault is DefaultAccessControl {
         _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
         _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] =
             globalStabilisationFeePerUSDSnapshotD +
-            (stabilisationFeeRateD *
-            (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp)) / YEAR;
+            (stabilisationFeeRateD * (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp)) /
+            YEAR;
     }
 
     event VaultOpened(address indexed origin, address indexed sender, uint256 vaultId);
