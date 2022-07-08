@@ -167,8 +167,8 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
-        uint256 healthFactor = vault.calculateHealthFactor(vaultId);
-        uint256 overallDebt = vault.debt(vaultId) + vault.debtFee(vaultId);
+        uint256 healthFactor = vault.calculateVaultAdjustedCollateral(vaultId);
+        uint256 overallDebt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
         assertTrue(healthFactor <= overallDebt); // hence subject to liquidation
 
         oracle.setPrice(weth, 1200 << 96); // price got back
@@ -189,7 +189,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
 
-        vault.updateStabilisationFee(5 * 10**7);
+        vault.updateStabilisationFeeRate(5 * 10**7);
 
         vm.warp(block.timestamp + 5 * YEAR);
         address liquidator = getNextUserAddress();
@@ -252,20 +252,20 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.warp(block.timestamp + YEAR);
         assertEq(vault.getOverallDebt(vaultId), 1555 * 10**18);
 
-        vault.updateStabilisationFee(5 * 10**7); // 5%
+        vault.updateStabilisationFeeRate(5 * 10**7); // 5%
         vm.warp(block.timestamp + YEAR);
         assertEq(vault.getOverallDebt(vaultId), 1630 * 10**18);
 
-        vault.updateStabilisationFee(1 * 10**7); // 1%
+        vault.updateStabilisationFeeRate(1 * 10**7); // 1%
         vm.warp(block.timestamp + YEAR);
-        vault.updateStabilisationFee(5 * 10**7); // 5%
+        vault.updateStabilisationFeeRate(5 * 10**7); // 5%
         vm.warp(block.timestamp + YEAR);
         assertEq(vault.getOverallDebt(vaultId), 1720 * 10**18);
 
         vault.burnDebt(vaultId, 900 * 10**18);
         assertEq(vault.getOverallDebt(vaultId), 820 * 10**18);
 
-        vault.updateStabilisationFee(0); // 0%
+        vault.updateStabilisationFeeRate(0); // 0%
         vm.warp(block.timestamp + 10 * YEAR);
         assertEq(vault.getOverallDebt(vaultId), 820 * 10**18);
 
@@ -282,7 +282,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.mintDebt(vaultId, 1000 * 10**18);
         uint256 beforeDebt = vault.getOverallDebt(vaultId);
 
-        vault.updateStabilisationFee(1);
+        vault.updateStabilisationFeeRate(1);
         vm.warp(block.timestamp + 1);
 
         uint256 afterDebt = vault.getOverallDebt(vaultId);
@@ -312,29 +312,29 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenA);
         vault.mintDebt(vaultId, 1000 * 10**18);
 
-        uint256 currentDebt = vault.debtFee(vaultId);
+        uint256 currentDebt = vault.stabilisationFeeVaultSnapshot(vaultId);
 
         vm.warp(block.timestamp + YEAR);
         vault.mintDebt(vaultId, 0);
-        uint256 newDebt = vault.debtFee(vaultId);
+        uint256 newDebt = vault.stabilisationFeeVaultSnapshot(vaultId);
         assertTrue(currentDebt < newDebt);
         currentDebt = newDebt;
 
         vm.warp(block.timestamp + YEAR);
         vault.burnDebt(vaultId, 0);
-        newDebt = vault.debtFee(vaultId);
+        newDebt = vault.stabilisationFeeVaultSnapshot(vaultId);
         assertTrue(currentDebt < newDebt);
         currentDebt = newDebt;
 
         vm.warp(block.timestamp + YEAR);
         vault.depositCollateral(vaultId, tokenB);
-        newDebt = vault.debtFee(vaultId);
+        newDebt = vault.stabilisationFeeVaultSnapshot(vaultId);
         assertTrue(currentDebt < newDebt);
         currentDebt = newDebt;
 
         vm.warp(block.timestamp + YEAR);
         vault.withdrawCollateral(tokenB);
-        newDebt = vault.debtFee(vaultId);
+        newDebt = vault.stabilisationFeeVaultSnapshot(vaultId);
         assertTrue(currentDebt < newDebt);
     }
 
@@ -343,22 +343,22 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, nftA);
 
-        uint256 healthBeforeSwaps = vault.calculateHealthFactor(vaultId);
+        uint256 healthBeforeSwaps = vault.calculateVaultAdjustedCollateral(vaultId);
         vault.mintDebt(vaultId, healthBeforeSwaps - 1);
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, 100);
 
         oracle.setPrice(weth, (uint256(1000 << 96) * 999999) / 1000000); // small price change to make position slightly lower than health threshold
-        uint256 healthAfterPriceChanged = vault.calculateHealthFactor(vaultId);
-        uint256 debt = vault.debt(vaultId);
+        uint256 healthAfterPriceChanged = vault.calculateVaultAdjustedCollateral(vaultId);
+        uint256 debt = vault.vaultDebt(vaultId);
 
         assertTrue(healthAfterPriceChanged <= debt);
 
         uint256 amountOut = makeSwap(weth, usdc, 10**22); // have to get a lot of fees
         makeSwap(usdc, weth, amountOut);
 
-        uint256 healthAfterSwaps = vault.calculateHealthFactor(vaultId);
+        uint256 healthAfterSwaps = vault.calculateVaultAdjustedCollateral(vaultId);
         assertTrue(healthBeforeSwaps * 100001 <= healthAfterSwaps * 100000);
         assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 2); // difference < 0.2% though
 
