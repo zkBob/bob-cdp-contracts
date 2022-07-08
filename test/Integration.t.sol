@@ -183,7 +183,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         vm.stopPrank();
         vm.warp(block.timestamp + 4 * YEAR);
-        assertTrue(vault.getOverallDebt(vaultId) > vault.calculateHealthFactor(vaultId));
+        assertTrue(vault.getOverallDebt(vaultId) > vault.calculateVaultAdjustedCollateral(vaultId));
 
         vm.startPrank(secondAddress);
         console.log(token.balanceOf(secondAddress));
@@ -295,7 +295,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.updateStabilisationFeeRate(1 * 10**7); // 1%
         vm.warp(block.timestamp + YEAR);
         assertEq(vault.getOverallDebt(vaultId), 1645 * 10**18);
-        vault.updateStabilisationFee(5 * 10**7); // 5%
+        vault.updateStabilisationFeeRate(5 * 10**7); // 5%
         vm.warp(block.timestamp + YEAR);
         assertEq(vault.getOverallDebt(vaultId), 1720 * 10**18);
 

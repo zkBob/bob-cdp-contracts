@@ -403,8 +403,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.burnDebt(vaultId, 150 * 10**18);
         assertEq(token.balanceOf(address(this)), 150 * 10**18);
         assertEq(token.balanceOf(treasury), 0);
-        assertEq(vault.debtFee(vaultId), 3 * 10**18);
-        assertEq(vault.debt(vaultId), 150 * 10**18);
+        assertEq(vault.stabilisationFeeVaultSnapshot(vaultId), 3 * 10**18);
+        assertEq(vault.vaultDebt(vaultId), 150 * 10**18);
     }
 
     function testPartialFeesBurnSuccess() public {
@@ -419,8 +419,8 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         assertEq(token.balanceOf(address(this)), 1 * 10**18);
         assertEq(token.balanceOf(treasury), 2 * 10**18);
-        assertEq(vault.debtFee(vaultId), 10**18);
-        assertEq(vault.debt(vaultId), 0);
+        assertEq(vault.stabilisationFeeVaultSnapshot(vaultId), 10**18);
+        assertEq(vault.vaultDebt(vaultId), 0);
     }
 
     function testBurnDebtSuccessWithFees() public {
