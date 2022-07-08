@@ -193,7 +193,7 @@ contract Vault is DefaultAccessControl {
 
     // -------------------   PUBLIC, VIEW   -------------------
 
-    /// @notice Calculate adjusted collateral for a given vault
+    /// @notice Calculate adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis)
     /// @param vaultId Id of the vault
     /// @return uint256 Adjusted collateral
     function calculateVaultAdjustedCollateral(uint256 vaultId) public view returns (uint256) {
