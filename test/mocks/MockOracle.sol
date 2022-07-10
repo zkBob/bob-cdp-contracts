@@ -9,7 +9,8 @@ contract MockOracle is IOracle {
         prices[token] = newPrice;
     }
 
-    function price(address token) external view returns (uint256 priceX96) {
+    function price(address token) external view returns (bool success, uint256 priceX96) {
+        success = true;
         priceX96 = prices[token];
     }
 }

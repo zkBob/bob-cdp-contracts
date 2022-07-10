@@ -18,7 +18,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     uint256 public constant Q96 = 2**96;
 
     mapping(address => address) public oraclesIndex;
-    mapping(address => uint256) public decimalsIndex;
+    mapping(address => uint256) public priceMultiplier;
     EnumerableSet.AddressSet private _tokens;
 
     constructor(
@@ -40,28 +40,20 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     }
 
     /// @inheritdoc IOracle
-    function price(address token) external view returns (uint256 priceX96) {
+    function price(address token) external view returns (bool success, uint256 priceX96) {
         priceX96 = 0;
         IAggregatorV3 chainlinkOracle = IAggregatorV3(oraclesIndex[token]);
         if (address(chainlinkOracle) == address(0)) {
-            return priceX96;
+            return (false, priceX96);
         }
-        uint256 priceNumerator;
-        bool success;
-        (success, priceNumerator) = _queryChainlinkOracle(chainlinkOracle);
+        uint256 oraclePrice;
+        (success, oraclePrice) = _queryChainlinkOracle(chainlinkOracle);
         if (!success) {
-            return priceX96;
+            return (false, priceX96);
         }
 
-        uint256 decimals = decimalsIndex[token];
-        uint256 priceDenominator = 1;
-
-        if (DECIMALS > decimals) {
-            priceNumerator *= 10**(DECIMALS - decimals);
-        } else if (decimals > DECIMALS) {
-            priceDenominator *= 10**(decimals - DECIMALS);
-        }
-        priceX96 = FullMath.mulDiv(priceNumerator, Q96, priceDenominator);
+        success = true;
+        priceX96 = oraclePrice * priceMultiplier[token];
     }
 
     /// @inheritdoc IERC165
@@ -97,7 +89,16 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
             address oracle = oracles[i];
             _tokens.add(token);
             oraclesIndex[token] = oracle;
-            decimalsIndex[token] = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
+
+            uint256 decimals = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
+            uint256 multiplierNumerator = 1;
+            uint256 multiplierDenominator = 1;
+            if (DECIMALS > decimals) {
+                multiplierNumerator *= 10**(DECIMALS - decimals);
+            } else if (decimals > DECIMALS) {
+                multiplierDenominator *= 10**(decimals - DECIMALS);
+            }
+            priceMultiplier[token] = FullMath.mulDiv(multiplierNumerator, Q96, multiplierDenominator);
         }
         emit OraclesAdded(tx.origin, msg.sender, tokens, oracles);
     }
@@ -108,6 +109,6 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param tokens Tokens added
-    /// @param oracles Orecles added for the tokens
+    /// @param oracles Oracles added for the tokens
     event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles);
 }
