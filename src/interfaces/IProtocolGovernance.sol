@@ -11,10 +11,10 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @param maxDebtPerVault Max possible debt for one vault (nominated in MUSD weis)
     /// @param minSingleNftCapital Min possible MUSD NFT value allowed to deposit (nominated in MUSD weis)
     struct ProtocolParams {
-        uint256 liquidationFee;
-        uint256 liquidationPremium;
+        uint256 liquidationFeeD;
+        uint256 liquidationPremiumD;
         uint256 maxDebtPerVault;
-        uint256 minSingleNftCapital;
+        uint256 minSingleNftCollateral;
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
@@ -26,7 +26,7 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// Hence, 0 <= threshold <= 1 is held
     /// @param pool The given address of pool
     /// @return uint256 Liquidation threshold value (multiplied by DENOMINATOR)
-    function liquidationThreshold(address pool) external view returns (uint256);
+    function liquidationThresholdD(address pool) external view returns (uint256);
 
     /// @notice Global protocol params
     /// @return ProtocolParams Protocol params struct
@@ -43,23 +43,25 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @return uint256 Token capital limit (nominated in MUSD weis) if limit is set, else uint256.max
     function getTokenLimit(address token) external view returns (uint256);
 
+    function whitelistedPool(uint256 i) external view returns (address);
+
     // -------------------  EXTERNAL, MUTATING  -------------------
 
     /// @notice Change liquidation fee to a given value
-    /// @param liquidationFee The new liquidation fee
-    function changeLiquidationFee(uint256 liquidationFee) external;
+    /// @param liquidationFeeD The new liquidation fee (multiplied by DENOMINATOR)
+    function changeLiquidationFee(uint256 liquidationFeeD) external;
 
     /// @notice Change liquidation premium to a given value
-    /// @param liquidationPremium The new liquidation premium
-    function changeLiquidationPremium(uint256 liquidationPremium) external;
+    /// @param liquidationPremiumD The new liquidation premium (multiplied by DENOMINATOR)
+    function changeLiquidationPremium(uint256 liquidationPremiumD) external;
 
     /// @notice Change max debt per vault to a given value
     /// @param maxDebtPerVault The new max possible debt per vault
     function changeMaxDebtPerVault(uint256 maxDebtPerVault) external;
 
-    /// @notice Change min single nft capital to a given value (nominated in MUSD weis)
-    /// @param minSingleNftCapital The new min possible nft capital (nominated in MUSD weis)
-    function changeMinSingleNftCapital(uint256 minSingleNftCapital) external;
+    /// @notice Change min single nft collateral to a given value (nominated in MUSD weis)
+    /// @param minSingleNftCollateral The new min possible nft collateral (nominated in MUSD weis)
+    function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external;
 
     /// @notice Add new pool to the whitelist
     /// @param pool Address of the new whitelisted pool
@@ -71,8 +73,8 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
 
     /// @notice Set liquidation threshold for a given pool
     /// @param pool Address of the pool
-    /// @param liquidationRatio The new liquidation ratio
-    function setLiquidationThreshold(address pool, uint256 liquidationRatio) external;
+    /// @param liquidationThresholdD_ The new liquidation threshold (multiplied by DENOMINATOR)
+    function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external;
 
     /// @notice Set new capital limit for a given token (in token weis)
     /// @param token Address of the token

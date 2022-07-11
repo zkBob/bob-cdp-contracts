@@ -41,17 +41,17 @@ abstract contract AbstractDeployment is Script {
         public
         view
         returns (
-            uint256 liquidationFee,
-            uint256 liquidationPremium,
-            uint256 minSingleNftCapital,
+            uint256 liquidationFeeD,
+            uint256 liquidationPremiumD,
+            uint256 minSingleNftCollateral,
             uint256 maxDebtPerVault,
             address[] memory pools,
             uint256[] memory liquidationThresholds
         )
     {
-        liquidationFee = 3 * 10**7;
-        liquidationPremium = 3 * 10**7;
-        minSingleNftCapital = 10**17;
+        liquidationFeeD = 3 * 10**7;
+        liquidationPremiumD = 3 * 10**7;
+        minSingleNftCollateral = 10**17;
         maxDebtPerVault = type(uint256).max;
 
         pools = new address[](3);
@@ -77,7 +77,7 @@ abstract contract AbstractDeployment is Script {
         ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, msg.sender);
         console2.log("Oracle", address(oracle));
 
-        ProtocolGovernance protocolGovernance = new ProtocolGovernance(msg.sender);
+        ProtocolGovernance protocolGovernance = new ProtocolGovernance(msg.sender, type(uint256).max);
         console2.log("ProtocolGovernance", address(protocolGovernance));
 
         setupGovernance(IProtocolGovernance(protocolGovernance), factory);
@@ -103,17 +103,17 @@ abstract contract AbstractDeployment is Script {
 
     function setupGovernance(IProtocolGovernance governance, address factory) public {
         (
-            uint256 liquidationFee,
-            uint256 liquidationPremium,
-            uint256 minSingleNftCapital,
+            uint256 liquidationFeeD,
+            uint256 liquidationPremiumD,
+            uint256 minSingleNftCollateral,
             uint256 maxDebtPerVault,
             address[] memory pools,
             uint256[] memory liquidationThresholds
         ) = governanceParams(factory);
 
-        governance.changeLiquidationFee(liquidationFee);
-        governance.changeLiquidationPremium(liquidationPremium);
-        governance.changeMinSingleNftCapital(minSingleNftCapital);
+        governance.changeLiquidationFee(liquidationFeeD);
+        governance.changeLiquidationPremium(liquidationPremiumD);
+        governance.changeMinSingleNftCollateral(minSingleNftCollateral);
         governance.changeMaxDebtPerVault(maxDebtPerVault);
 
         for (uint256 i = 0; i < pools.length; ++i) {
