@@ -83,13 +83,21 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
     // price
 
     function testPrice() public {
-        assertApproxEqual(1500, oracle.price(weth) >> 96, 500);
-        assertApproxEqual(10**12, oracle.price(usdc) >> 96, 50);
-        assertApproxEqual(20000 * (10**10), oracle.price(wbtc) >> 96, 500);
+        (bool wethSuccess, uint256 wethPriceX96) = oracle.price(weth);
+        (bool usdcSuccess, uint256 usdcPriceX96) = oracle.price(usdc);
+        (bool wbtcSuccess, uint256 wbtcPriceX96) = oracle.price(wbtc);
+        assertEq(wethSuccess, true);
+        assertEq(usdcSuccess, true);
+        assertEq(wbtcSuccess, true);
+        assertApproxEqual(1500, wethPriceX96 >> 96, 500);
+        assertApproxEqual(10**12, usdcPriceX96 >> 96, 50);
+        assertApproxEqual(20000 * (10**10), wbtcPriceX96 >> 96, 500);
     }
 
     function testPriceReturnsZeroForNonSetToken() public {
-        assertEq(oracle.price(getNextUserAddress()), 0);
+        (bool success, uint256 priceX96) = oracle.price(getNextUserAddress());
+        assertEq(success, false);
+        assertEq(priceX96, 0);
     }
 
     function testPriceReturnsZeroForBrokenOracle() public {
@@ -101,7 +109,8 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
         currentOracles[0] = address(mockOracle);
 
         oracle.addChainlinkOracles(currentTokens, currentOracles);
-
-        assertEq(oracle.price(ape), 0);
+        (bool success, uint256 priceX96) = oracle.price(ape);
+        assertEq(success, false);
+        assertEq(priceX96, 0);
     }
 }
