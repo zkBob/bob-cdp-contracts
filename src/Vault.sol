@@ -219,7 +219,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Get total debt for a given vault by id (including fees)
     /// @param vaultId Id of the vault
-    /// @return uint256 Total debt value
+    /// @return uint256 Total debt value (in MUSD weis)
     function getOverallDebt(uint256 vaultId) public view returns (uint256) {
         return vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] + _accruedStabilisationFee(vaultId);
     }

@@ -59,6 +59,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         return limit;
     }
 
+    /// @inheritdoc IProtocolGovernance
     function whitelistedPool(uint256 i) external view returns (address) {
         return _whitelistedPools.at(i);
     }

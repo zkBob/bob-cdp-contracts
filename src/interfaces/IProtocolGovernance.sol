@@ -43,35 +43,38 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @return uint256 Token capital limit (nominated in MUSD weis) if limit is set, else uint256.max
     function getTokenLimit(address token) external view returns (uint256);
 
+    /// @notice Get a whitelisted pool by its index
+    /// @param i Index of the pool
+    /// @return address Address of the pool
     function whitelistedPool(uint256 i) external view returns (address);
 
     // -------------------  EXTERNAL, MUTATING  -------------------
 
-    /// @notice Change liquidation fee to a given value
+    /// @notice Change liquidation fee (multiplied by DENOMINATOR) to a given value
     /// @param liquidationFeeD The new liquidation fee (multiplied by DENOMINATOR)
     function changeLiquidationFee(uint256 liquidationFeeD) external;
 
-    /// @notice Change liquidation premium to a given value
+    /// @notice Change liquidation premium (multiplied by DENOMINATOR) to a given value
     /// @param liquidationPremiumD The new liquidation premium (multiplied by DENOMINATOR)
     function changeLiquidationPremium(uint256 liquidationPremiumD) external;
 
-    /// @notice Change max debt per vault to a given value
-    /// @param maxDebtPerVault The new max possible debt per vault
+    /// @notice Change max debt per vault (nominated in MUSD weis) to a given value
+    /// @param maxDebtPerVault The new max possible debt per vault (nominated in MUSD weis)
     function changeMaxDebtPerVault(uint256 maxDebtPerVault) external;
 
     /// @notice Change min single nft collateral to a given value (nominated in MUSD weis)
     /// @param minSingleNftCollateral The new min possible nft collateral (nominated in MUSD weis)
     function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external;
 
-    /// @notice Add new pool to the whitelist
+    /// @notice Add a new pool to the whitelist
     /// @param pool Address of the new whitelisted pool
     function setWhitelistedPool(address pool) external;
 
-    /// @notice Revoke pool from the whitelist
+    /// @notice Revoke a pool from the whitelist
     /// @param pool Address of the revoked whitelisted pool
     function revokeWhitelistedPool(address pool) external;
 
-    /// @notice Set liquidation threshold for a given pool
+    /// @notice Set liquidation threshold (multiplied by DENOMINATOR) for a given pool
     /// @param pool Address of the pool
     /// @param liquidationThresholdD_ The new liquidation threshold (multiplied by DENOMINATOR)
     function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external;
