@@ -359,13 +359,21 @@ contract Vault is DefaultAccessControl {
             vaultAmount,
             DENOMINATOR
         );
+        uint256 currentDebt = vaultDebt[vaultId];
+        if (returnAmount < currentDebt) {
+            returnAmount = currentDebt;
+        }
         token.transferFrom(msg.sender, address(this), returnAmount);
+
+        token.burn(address(this), currentDebt);
 
         uint256 daoReceiveAmount = stabilisationFeeVaultSnapshot[vaultId] +
             FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFeeD, vaultAmount, DENOMINATOR);
+        if (daoReceiveAmount > returnAmount - currentDebt) {
+            daoReceiveAmount = returnAmount - currentDebt;
+        }
+        token.transfer(owner, returnAmount - currentDebt - daoReceiveAmount);
         token.transfer(treasury, daoReceiveAmount);
-        token.transfer(owner, returnAmount - daoReceiveAmount);
-        token.burn(owner, vaultDebt[vaultId]);
 
         _closeVault(vaultId, owner, msg.sender);
 
