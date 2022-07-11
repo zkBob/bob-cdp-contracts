@@ -18,7 +18,7 @@ import "./utils/Utilities.sol";
 import "./mocks/MockChainlinkOracle.sol";
 
 contract ChainlinkOracleTest is Test, SetupContract, Utilities {
-    event TokensAndOraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles);
+    event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles);
 
     ChainlinkOracle oracle;
 
@@ -67,7 +67,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
         ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles, address(this));
 
         vm.expectEmit(false, true, false, true);
-        emit TokensAndOraclesAdded(getNextUserAddress(), address(this), tokens, chainlinkOracles);
+        emit OraclesAdded(getNextUserAddress(), address(this), tokens, chainlinkOracles);
         currentOracle.addChainlinkOracles(tokens, chainlinkOracles);
     }
 
