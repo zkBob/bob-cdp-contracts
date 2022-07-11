@@ -198,12 +198,11 @@ contract Vault is DefaultAccessControl {
     /// @return uint256 Adjusted collateral
     function calculateVaultAdjustedCollateral(uint256 vaultId) public view returns (uint256) {
         uint256 result = 0;
-        for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
-            uint256 nft = _vaultNfts[vaultId].at(i);
-            uint256 liquidationThresholdD = protocolGovernance.liquidationThresholdD(
-                address(_positionInfo[nft].targetPool)
-            );
-            result += _calculateAdjustedCollateral(nft, _positionInfo[nft], liquidationThresholdD);
+        uint256[] memory nfts = _vaultNfts[vaultId].values();
+        for (uint256 i = 0; i < nfts.length; ++i) {
+            PositionInfo memory position = _positionInfo[nfts[i]];
+            uint256 liquidationThresholdD = protocolGovernance.liquidationThresholdD(address(position.targetPool));
+            result += _calculateAdjustedCollateral(nfts[i], position, liquidationThresholdD);
         }
         return result;
     }
@@ -262,10 +261,7 @@ contract Vault is DefaultAccessControl {
         vaultOwner[vaultId] = msg.sender;
 
         _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
-        _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] =
-            globalStabilisationFeePerUSDSnapshotD +
-            (stabilisationFeeRateD * (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp)) /
-            YEAR;
+        _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = globalStabilisationFeePerUSDD();
 
         emit VaultOpened(tx.origin, msg.sender, vaultId);
     }
@@ -592,9 +588,9 @@ contract Vault is DefaultAccessControl {
     /// @return uint256 Vault capital (nominated in MUSD weis)
     function _calculateVaultCollateral(uint256 vaultId) internal view returns (uint256) {
         uint256 result = 0;
-        for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
-            uint256 nft = _vaultNfts[vaultId].at(i);
-            result += _calculateAdjustedCollateral(nft, _positionInfo[nft], DENOMINATOR);
+        uint256[] memory nfts = _vaultNfts[vaultId].values();
+        for (uint256 i = 0; i < nfts.length; ++i) {
+            result += _calculateAdjustedCollateral(nfts[i], _positionInfo[nfts[i]], DENOMINATOR);
         }
         return result;
     }
@@ -732,8 +728,8 @@ contract Vault is DefaultAccessControl {
         tokenAmounts[1] += tokensOwed1;
 
         uint256[] memory pricesX96 = new uint256[](2);
-        pricesX96[0] = oracle.price(position.token0);
-        pricesX96[1] = oracle.price(position.token1);
+        (, pricesX96[0]) = oracle.price(position.token0);
+        (, pricesX96[1]) = oracle.price(position.token1);
 
         uint256 result = 0;
         for (uint256 i = 0; i < 2; ++i) {
@@ -785,7 +781,7 @@ contract Vault is DefaultAccessControl {
     ) internal {
         uint256[] memory nfts = _vaultNfts[vaultId].values();
 
-        for (uint256 i = 0; i < _vaultNfts[vaultId].length(); ++i) {
+        for (uint256 i = 0; i < nfts.length; ++i) {
             PositionInfo memory position = _positionInfo[nfts[i]];
 
             uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(
