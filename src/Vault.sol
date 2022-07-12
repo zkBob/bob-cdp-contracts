@@ -227,7 +227,8 @@ contract Vault is DefaultAccessControl {
     /// @param vaultId Id of the vault
     /// @return uint256 Total debt value (in MUSD weis)
     function getOverallDebt(uint256 vaultId) public view returns (uint256) {
-        return vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] + _accruedStabilisationFee(vaultId);
+        uint256 currentDebt = vaultDebt[vaultId];
+        return currentDebt + stabilisationFeeVaultSnapshot[vaultId] + _accruedStabilisationFee(vaultId, currentDebt);
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
@@ -670,11 +671,11 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Calculate accured stabilisation fee for a given vault (in MUSD weis)
     /// @param vaultId Id of the vault
-    /// @return Accured stablisation fee of the vault (in MUSD weis)
-    function _accruedStabilisationFee(uint256 vaultId) internal view returns (uint256) {
+    /// @return uint256 Accrued stablisation fee of the vault (in MUSD weis)
+    function _accruedStabilisationFee(uint256 vaultId, uint256 currentVaultDebt) internal view returns (uint256) {
         uint256 deltaGlobalStabilisationFeeD = globalStabilisationFeePerUSDD() -
             _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
-        return FullMath.mulDiv(vaultDebt[vaultId], deltaGlobalStabilisationFeeD, DENOMINATOR);
+        return FullMath.mulDiv(currentVaultDebt, deltaGlobalStabilisationFeeD, DENOMINATOR);
     }
 
     // -------------------  INTERNAL, MUTATING  -------------------
@@ -715,13 +716,12 @@ contract Vault is DefaultAccessControl {
     /// @notice Update stabilisation fee for a given vault (in MUSD weis)
     /// @param vaultId Id of the vault
     function _updateVaultStabilisationFee(uint256 vaultId) internal {
-        if (block.timestamp == _stabilisationFeeVaultSnapshotTimestamp[vaultId]) {
+        uint256 currentVaultDebt = vaultDebt[vaultId];
+        if (block.timestamp == _stabilisationFeeVaultSnapshotTimestamp[vaultId] || currentVaultDebt == 0) {
             return;
         }
-        uint256 debtDelta = _accruedStabilisationFee(vaultId);
-        if (debtDelta > 0) {
-            stabilisationFeeVaultSnapshot[vaultId] += debtDelta;
-        }
+
+        stabilisationFeeVaultSnapshot[vaultId] += _accruedStabilisationFee(vaultId, currentVaultDebt);
         _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
         _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = globalStabilisationFeePerUSDD();
     }
