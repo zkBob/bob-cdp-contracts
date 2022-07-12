@@ -114,14 +114,11 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
             oraclesIndex[token] = oracle;
 
             uint256 decimals = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
-            uint256 multiplierNumerator = 1;
-            uint256 multiplierDenominator = 1;
             if (DECIMALS > decimals) {
-                multiplierNumerator *= 10**(DECIMALS - decimals);
+                priceMultiplier[token] = (10**(DECIMALS - decimals)) * Q96;
             } else if (decimals > DECIMALS) {
-                multiplierDenominator *= 10**(decimals - DECIMALS);
+                priceMultiplier[token] = Q96 / 10**(decimals - DECIMALS);
             }
-            priceMultiplier[token] = FullMath.mulDiv(multiplierNumerator, Q96, multiplierDenominator);
         }
         emit OraclesAdded(tx.origin, msg.sender, tokens, oracles);
     }

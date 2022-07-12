@@ -11,6 +11,7 @@ import "./interfaces/oracles/IOracle.sol";
 import "./libraries/external/LiquidityAmounts.sol";
 import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
+import "./libraries/UniswapV3FeesCalculation.sol";
 import "./utils/DefaultAccessControl.sol";
 
 /// @notice Contract of the system vault manager
@@ -53,37 +54,20 @@ contract Vault is DefaultAccessControl {
 
     uint256 public constant DENOMINATOR = 10**9;
     uint256 public constant YEAR = 365 * 24 * 3600;
-    uint256 public constant Q128 = 2**128;
     uint256 public constant Q96 = 2**96;
 
     /// @notice Information about a single UniV3 NFT
-    /// @param token0 First token in UniswapV3 pool
-    /// @param token1 Second token in UniswapV3 pool
-    /// @param fee Fee of Uniswap pool
-    /// @param positionKey Key of a specific position in UniswapV3 pool
-    /// @param liquidity Overall liquidity in UniswapV3 position
-    /// @param feeGrowthInside0LastX128 Fee growth of token0 inside the tick range as of the moment of the deposit
-    /// @param feeGrowthInside1LastX128 Fee growth of token1 inside the tick range as of the moment of the deposit
-    /// @param tokensOwed0 The computed amount of token0 owed to the position as of the moment of the deposit
-    /// @param tokensOwed1 The computed amount of token1 owed to the position as of the moment of the deposit
-    /// @param sqrtRatioAX96 A sqrt price representing the first tick boundary
-    /// @param sqrtRatioBX96 A sqrt price representing the second tick boundary
     /// @param targetPool Address of UniswapV3 pool, which contains collateral position
     /// @param vaultId Id of Mellow Vault, which takes control over collateral nft
-    struct PositionInfo {
+    /// @param maxToken0Amount The maximum amount of token 0 for this position
+    /// @param maxToken1Amount The maximum amount of token 1 for this position
+    struct UniV3PositionInfo {
         address token0;
         address token1;
-        uint24 fee;
-        bytes32 positionKey;
-        uint128 liquidity;
-        uint256 feeGrowthInside0LastX128;
-        uint256 feeGrowthInside1LastX128;
-        uint128 tokensOwed0;
-        uint128 tokensOwed1;
-        uint160 sqrtRatioAX96;
-        uint160 sqrtRatioBX96;
         IUniswapV3Pool targetPool;
         uint256 vaultId;
+        uint256 maxToken0Amount;
+        uint256 maxToken1Amount;
     }
 
     /// @notice UniswapV3 position manager
@@ -138,7 +122,7 @@ contract Vault is DefaultAccessControl {
     mapping(address => uint256) public maxCollateralSupply;
 
     /// @notice Mapping, returning position info by nft
-    mapping(uint256 => PositionInfo) private _positionInfo;
+    mapping(uint256 => UniV3PositionInfo) private _uniV3PositionInfo;
 
     /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault)
     uint256 public vaultCount = 0;
@@ -179,6 +163,10 @@ contract Vault is DefaultAccessControl {
             revert AddressZero();
         }
 
+        if (stabilisationFee_ > DENOMINATOR) {
+            revert InvalidValue();
+        }
+
         positionManager = positionManager_;
         factory = factory_;
         protocolGovernance = protocolGovernance_;
@@ -200,9 +188,26 @@ contract Vault is DefaultAccessControl {
         uint256 result = 0;
         uint256[] memory nfts = _vaultNfts[vaultId].values();
         for (uint256 i = 0; i < nfts.length; ++i) {
-            PositionInfo memory position = _positionInfo[nfts[i]];
+            uint256 nft = nfts[i];
+            UniV3PositionInfo memory position = _uniV3PositionInfo[nft];
             uint256 liquidationThresholdD = protocolGovernance.liquidationThresholdD(address(position.targetPool));
-            result += _calculateAdjustedCollateral(nfts[i], position, liquidationThresholdD);
+            UniswapV3FeesCalculation.PositionInfo memory positionInfo;
+            (
+                ,
+                ,
+                ,
+                ,
+                ,
+                positionInfo.tickLower,
+                positionInfo.tickUpper,
+                positionInfo.liquidity,
+                positionInfo.feeGrowthInside0LastX128,
+                positionInfo.feeGrowthInside1LastX128,
+                positionInfo.tokensOwed0,
+                positionInfo.tokensOwed1
+            ) = positionManager.positions(nft);
+
+            result += _calculateAdjustedCollateral(position, liquidationThresholdD, positionInfo);
         }
         return result;
     }
@@ -250,12 +255,13 @@ contract Vault is DefaultAccessControl {
     /// @notice Open a new Vault
     /// @return vaultId Id of the new vault
     function openVault() external returns (uint256 vaultId) {
+        _requireUnpaused();
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
         }
 
-        ++vaultCount;
-        vaultId = vaultCount;
+        vaultId = vaultCount + 1;
+        vaultCount = vaultId;
 
         _ownedVaults[msg.sender].add(vaultId);
         vaultOwner[vaultId] = msg.sender;
@@ -263,28 +269,30 @@ contract Vault is DefaultAccessControl {
         _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
         _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = globalStabilisationFeePerUSDD();
 
-        emit VaultOpened(tx.origin, msg.sender, vaultId);
+        emit VaultOpened(msg.sender, vaultId);
     }
 
     /// @notice Close a vault
     /// @param vaultId Id of the vault
-    function closeVault(uint256 vaultId) external {
+    /// @param collateralRecipient The recipient address of collateral
+    function closeVault(uint256 vaultId, address collateralRecipient) external {
+        _requireUnpaused();
         _requireVaultOwner(vaultId);
 
-        if (vaultDebt[vaultId] != 0 || stabilisationFeeVaultSnapshot[vaultId] != 0) {
+        if (vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] != 0) {
             revert UnpaidDebt();
         }
 
-        _closeVault(vaultId, msg.sender, msg.sender);
+        _closeVault(vaultId, msg.sender, collateralRecipient);
 
-        emit VaultClosed(tx.origin, msg.sender, vaultId);
+        emit VaultClosed(msg.sender, vaultId);
     }
 
     /// @notice Deposit collateral to a given vault
     /// @param vaultId Id of the vault
     /// @param nft UniV3 NFT to be deposited
     function depositCollateral(uint256 vaultId, uint256 nft) external {
-        _checkIsPaused();
+        _requireUnpaused();
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
         }
@@ -306,163 +314,146 @@ contract Vault is DefaultAccessControl {
                 uint128 tokensOwed0,
                 uint128 tokensOwed1
             ) = positionManager.positions(nft);
-            IUniswapV3Pool pool = IUniswapV3Pool(factory.getPool(token0, token1, fee));
-
-            if (!protocolGovernance.isPoolWhitelisted(address(pool))) {
-                revert InvalidPool();
-            }
 
             positionManager.transferFrom(msg.sender, address(this), nft);
 
-            _positionInfo[nft] = PositionInfo({
+            _uniV3PositionInfo[nft] = UniV3PositionInfo({
                 token0: token0,
                 token1: token1,
-                fee: fee,
-                positionKey: keccak256(abi.encodePacked(address(positionManager), tickLower, tickUpper)),
-                liquidity: liquidity,
-                feeGrowthInside0LastX128: feeGrowthInside0LastX128,
-                feeGrowthInside1LastX128: feeGrowthInside1LastX128,
-                tokensOwed0: tokensOwed0,
-                tokensOwed1: tokensOwed1,
-                sqrtRatioAX96: TickMath.getSqrtRatioAtTick(tickLower),
-                sqrtRatioBX96: TickMath.getSqrtRatioAtTick(tickUpper),
-                targetPool: pool,
-                vaultId: vaultId
+                targetPool: IUniswapV3Pool(factory.getPool(token0, token1, fee)),
+                vaultId: vaultId,
+                maxToken0Amount: LiquidityAmounts.getAmount0ForLiquidity(
+                    TickMath.getSqrtRatioAtTick(tickLower),
+                    TickMath.getSqrtRatioAtTick(tickUpper),
+                    liquidity
+                ),
+                maxToken1Amount: LiquidityAmounts.getAmount1ForLiquidity(
+                    TickMath.getSqrtRatioAtTick(tickLower),
+                    TickMath.getSqrtRatioAtTick(tickUpper),
+                    liquidity
+                )
             });
+
+            if (
+                _calculateAdjustedCollateral(
+                    _uniV3PositionInfo[nft],
+                    DENOMINATOR,
+                    UniswapV3FeesCalculation.PositionInfo({
+                        tickLower: tickLower,
+                        tickUpper: tickUpper,
+                        liquidity: liquidity,
+                        feeGrowthInside0LastX128: feeGrowthInside0LastX128,
+                        feeGrowthInside1LastX128: feeGrowthInside1LastX128,
+                        tokensOwed0: tokensOwed0,
+                        tokensOwed1: tokensOwed1
+                    })
+                ) < protocolGovernance.protocolParams().minSingleNftCollateral
+            ) {
+                revert CollateralUnderflow();
+            }
         }
 
-        PositionInfo memory position = _positionInfo[nft];
+        UniV3PositionInfo memory position = _uniV3PositionInfo[nft];
 
-        uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(
-            position.sqrtRatioAX96,
-            position.sqrtRatioBX96,
-            position.liquidity
-        );
-        uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(
-            position.sqrtRatioAX96,
-            position.sqrtRatioBX96,
-            position.liquidity
-        );
-
-        if (
-            _calculateAdjustedCollateral(nft, position, DENOMINATOR) <
-            protocolGovernance.protocolParams().minSingleNftCollateral
-        ) {
-            revert CollateralUnderflow();
+        if (!protocolGovernance.isPoolWhitelisted(address(position.targetPool))) {
+            revert InvalidPool();
         }
 
-        maxCollateralSupply[position.token0] += token0LimitImpact;
+        uint256 newMaxCollateralSupplyToken0 = maxCollateralSupply[position.token0] + position.maxToken0Amount;
 
-        if (maxCollateralSupply[position.token0] > protocolGovernance.getTokenLimit(position.token0)) {
+        if (newMaxCollateralSupplyToken0 > protocolGovernance.getTokenLimit(position.token0)) {
             revert CollateralTokenOverflow(position.token0);
         }
 
-        maxCollateralSupply[position.token1] += token1LimitImpact;
+        uint256 newMaxCollateralSupplyToken1 = maxCollateralSupply[position.token1] + position.maxToken1Amount;
 
-        if (maxCollateralSupply[position.token1] > protocolGovernance.getTokenLimit(position.token1)) {
+        if (newMaxCollateralSupplyToken1 > protocolGovernance.getTokenLimit(position.token1)) {
             revert CollateralTokenOverflow(position.token1);
         }
+        maxCollateralSupply[position.token0] = newMaxCollateralSupplyToken0;
+        maxCollateralSupply[position.token1] = newMaxCollateralSupplyToken1;
 
         _vaultNfts[vaultId].add(nft);
 
-        emit CollateralDeposited(tx.origin, msg.sender, vaultId, nft);
+        emit CollateralDeposited(msg.sender, vaultId, nft);
     }
 
     /// @notice Withdraw collateral from a given vault
     /// @param nft UniV3 NFT to be withdrawn
     function withdrawCollateral(uint256 nft) external {
-        _checkIsPaused();
-        PositionInfo memory position = _positionInfo[nft];
+        UniV3PositionInfo memory position = _uniV3PositionInfo[nft];
         _requireVaultOwner(position.vaultId);
 
-        uint256 liquidationThresholdD = protocolGovernance.liquidationThresholdD(address(position.targetPool));
-        uint256 result = calculateVaultAdjustedCollateral(position.vaultId) -
-            _calculateAdjustedCollateral(nft, position, liquidationThresholdD);
-
-        // checking that health factor is more or equal than 1
-        if (result < getOverallDebt(position.vaultId)) {
-            revert PositionUnhealthy();
-        }
+        _vaultNfts[position.vaultId].remove(nft);
 
         positionManager.transferFrom(address(this), msg.sender, nft);
 
-        uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(
-            position.sqrtRatioAX96,
-            position.sqrtRatioBX96,
-            position.liquidity
-        );
-        uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(
-            position.sqrtRatioAX96,
-            position.sqrtRatioBX96,
-            position.liquidity
-        );
+        maxCollateralSupply[position.token0] -= position.maxToken0Amount;
+        maxCollateralSupply[position.token1] -= position.maxToken1Amount;
 
-        maxCollateralSupply[position.token0] -= token0LimitImpact;
-        maxCollateralSupply[position.token1] -= token1LimitImpact;
+        delete _uniV3PositionInfo[nft];
 
-        _vaultNfts[position.vaultId].remove(nft);
-        delete _positionInfo[nft];
+        // checking that health factor is more or equal than 1
+        if (calculateVaultAdjustedCollateral(position.vaultId) < getOverallDebt(position.vaultId)) {
+            revert PositionUnhealthy();
+        }
 
-        emit CollateralWithdrew(tx.origin, msg.sender, position.vaultId, nft);
+        emit CollateralWithdrew(msg.sender, position.vaultId, nft);
     }
 
     /// @notice Mint debt on a given vault
     /// @param vaultId Id of the vault
     /// @param amount The debt amount to be mited
     function mintDebt(uint256 vaultId, uint256 amount) external {
-        _checkIsPaused();
+        _requireUnpaused();
         _requireVaultOwner(vaultId);
         _updateVaultStabilisationFee(vaultId);
-
-        uint256 healthFactor = calculateVaultAdjustedCollateral(vaultId);
-
-        if (healthFactor < vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] + amount) {
-            revert PositionUnhealthy();
-        }
-
-        uint256 debtLimit = protocolGovernance.protocolParams().maxDebtPerVault;
-        if (debtLimit < vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] + amount) {
-            revert DebtLimitExceeded();
-        }
 
         token.mint(msg.sender, amount);
         vaultDebt[vaultId] += amount;
 
-        emit DebtMinted(tx.origin, msg.sender, vaultId, amount);
+        uint256 overallVaultDebt = getOverallDebt(vaultId);
+        if (calculateVaultAdjustedCollateral(vaultId) < overallVaultDebt) {
+            revert PositionUnhealthy();
+        }
+
+        if (protocolGovernance.protocolParams().maxDebtPerVault < overallVaultDebt) {
+            revert DebtLimitExceeded();
+        }
+
+        emit DebtMinted(msg.sender, vaultId, amount);
     }
 
     /// @notice Burn debt on a given vault
     /// @param vaultId Id of the vault
     /// @param amount The debt amount to be burned
     function burnDebt(uint256 vaultId, uint256 amount) external {
-        _checkIsPaused();
         _requireVaultOwner(vaultId);
         _updateVaultStabilisationFee(vaultId);
 
-        amount = (amount < (stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId]))
-            ? amount
-            : (stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId]);
+        uint256 currentVaultDebt = vaultDebt[vaultId];
+        uint256 overallDebt = stabilisationFeeVaultSnapshot[vaultId] + currentVaultDebt;
+        amount = (amount < overallDebt) ? amount : overallDebt;
+        uint256 overallAmount = amount;
 
-        if (amount > vaultDebt[vaultId]) {
-            uint256 burningFeeAmount = amount - vaultDebt[vaultId];
+        if (amount > currentVaultDebt) {
+            uint256 burningFeeAmount = amount - currentVaultDebt;
             token.mint(treasury, burningFeeAmount);
             stabilisationFeeVaultSnapshot[vaultId] -= burningFeeAmount;
             amount -= burningFeeAmount;
-            token.burn(msg.sender, burningFeeAmount);
         }
 
-        token.burn(msg.sender, amount);
+        token.burn(msg.sender, overallAmount);
         vaultDebt[vaultId] -= amount;
 
-        emit DebtBurned(tx.origin, msg.sender, vaultId, amount);
+        emit DebtBurned(msg.sender, vaultId, overallAmount);
     }
 
     /// @notice Liquidate a vault
     /// @param vaultId Id of the vault subject to liquidation
     function liquidate(uint256 vaultId) external {
-        uint256 healthFactor = calculateVaultAdjustedCollateral(vaultId);
         uint256 overallDebt = getOverallDebt(vaultId);
-        if (healthFactor >= overallDebt) {
+        if (calculateVaultAdjustedCollateral(vaultId) >= overallDebt) {
             revert PositionHealthy();
         }
 
@@ -482,7 +473,8 @@ contract Vault is DefaultAccessControl {
 
         token.burn(address(this), currentDebt);
 
-        uint256 daoReceiveAmount = stabilisationFeeVaultSnapshot[vaultId] +
+        uint256 daoReceiveAmount = overallDebt -
+            currentDebt +
             FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFeeD, vaultAmount, DENOMINATOR);
         if (daoReceiveAmount > returnAmount - currentDebt) {
             daoReceiveAmount = returnAmount - currentDebt;
@@ -492,7 +484,7 @@ contract Vault is DefaultAccessControl {
 
         _closeVault(vaultId, owner, msg.sender);
 
-        emit VaultLiquidated(tx.origin, msg.sender, vaultId);
+        emit VaultLiquidated(msg.sender, vaultId);
     }
 
     /// @notice Set a new price oracle
@@ -598,142 +590,55 @@ contract Vault is DefaultAccessControl {
         uint256 result = 0;
         uint256[] memory nfts = _vaultNfts[vaultId].values();
         for (uint256 i = 0; i < nfts.length; ++i) {
-            result += _calculateAdjustedCollateral(nfts[i], _positionInfo[nfts[i]], DENOMINATOR);
+            UniswapV3FeesCalculation.PositionInfo memory positionInfo;
+            uint256 nft = nfts[i];
+            (
+                ,
+                ,
+                ,
+                ,
+                ,
+                positionInfo.tickLower,
+                positionInfo.tickUpper,
+                positionInfo.liquidity,
+                positionInfo.feeGrowthInside0LastX128,
+                positionInfo.feeGrowthInside1LastX128,
+                positionInfo.tokensOwed0,
+                positionInfo.tokensOwed1
+            ) = positionManager.positions(nft);
+            result += _calculateAdjustedCollateral(_uniV3PositionInfo[nft], DENOMINATOR, positionInfo);
         }
         return result;
     }
 
-    /// @notice Get fee growth inside position from the tickLower to tickUpper since the pool has been initialised
-    /// @param pool UniswapV3 pool
-    /// @param tickLower UniswapV3 lower tick
-    /// @param tickUpper UniswapV3 upper tick
-    /// @param tickCurrent UniswapV3 current tick
-    /// @param feeGrowthGlobal0X128 UniswapV3 fees of token0 collected per unit of liquidity for the entire life of the pool
-    /// @param feeGrowthGlobal1X128 UniswapV3 fees of token1 collected per unit of liquidity for the entire life of the pool
-    /// @return feeGrowthInside0X128 The all-time fee growth in token0, per unit of liquidity, inside the position's tick boundaries, feeGrowthInside1X128 The all-time fee growth in token1, per unit of liquidity, inside the position's tick boundaries
-    function _getUniswapFeeGrowthInside(
-        IUniswapV3Pool pool,
-        int24 tickLower,
-        int24 tickUpper,
-        int24 tickCurrent,
-        uint256 feeGrowthGlobal0X128,
-        uint256 feeGrowthGlobal1X128
-    ) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
-        unchecked {
-            (, , uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128, , , , ) = pool.ticks(
-                tickLower
-            );
-            (, , uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128, , , , ) = pool.ticks(
-                tickUpper
-            );
-
-            // calculate fee growth below
-            uint256 feeGrowthBelow0X128;
-            uint256 feeGrowthBelow1X128;
-            if (tickCurrent >= tickLower) {
-                feeGrowthBelow0X128 = lowerFeeGrowthOutside0X128;
-                feeGrowthBelow1X128 = lowerFeeGrowthOutside1X128;
-            } else {
-                feeGrowthBelow0X128 = feeGrowthGlobal0X128 - lowerFeeGrowthOutside0X128;
-                feeGrowthBelow1X128 = feeGrowthGlobal1X128 - lowerFeeGrowthOutside1X128;
-            }
-
-            // calculate fee growth above
-            uint256 feeGrowthAbove0X128;
-            uint256 feeGrowthAbove1X128;
-            if (tickCurrent < tickUpper) {
-                feeGrowthAbove0X128 = upperFeeGrowthOutside0X128;
-                feeGrowthAbove1X128 = upperFeeGrowthOutside1X128;
-            } else {
-                feeGrowthAbove0X128 = feeGrowthGlobal0X128 - upperFeeGrowthOutside0X128;
-                feeGrowthAbove1X128 = feeGrowthGlobal1X128 - upperFeeGrowthOutside1X128;
-            }
-
-            feeGrowthInside0X128 = feeGrowthGlobal0X128 - feeGrowthBelow0X128 - feeGrowthAbove0X128;
-            feeGrowthInside1X128 = feeGrowthGlobal1X128 - feeGrowthBelow1X128 - feeGrowthAbove1X128;
-        }
-    }
-
-    /// @notice Calculate Uniswap token fees for the position with a given nft
-    /// @param pool UniswapV3 pool
-    /// @param uniV3Nft UniswapV3 nft of the position
-    /// @return tokensOwed0 The fees of the position in token0, tokensOwed1 The fees of the position in token1
-    function _calculateUniswapFees(IUniswapV3Pool pool, uint256 uniV3Nft)
-        internal
-        view
-        returns (uint128 tokensOwed0, uint128 tokensOwed1)
-    {
-        uint256 feeGrowthInside0LastX128;
-        uint256 feeGrowthInside1LastX128;
-        uint128 liquidity;
-        int24 tickLower;
-        int24 tickUpper;
-        (
-            ,
-            ,
-            ,
-            ,
-            ,
-            tickLower,
-            tickUpper,
-            liquidity,
-            feeGrowthInside0LastX128,
-            feeGrowthInside1LastX128,
-            tokensOwed0,
-            tokensOwed1
-        ) = positionManager.positions(uniV3Nft);
-
-        if (liquidity == 0) {
-            return (tokensOwed0, tokensOwed1);
-        }
-
-        uint256 feeGrowthGlobal0X128 = pool.feeGrowthGlobal0X128();
-        uint256 feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
-        (, int24 tick, , , , , ) = pool.slot0();
-
-        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getUniswapFeeGrowthInside(
-            pool,
-            tickLower,
-            tickUpper,
-            tick,
-            feeGrowthGlobal0X128,
-            feeGrowthGlobal1X128
-        );
-
-        uint256 feeGrowthInside0DeltaX128;
-        uint256 feeGrowthInside1DeltaX128;
-        unchecked {
-            feeGrowthInside0DeltaX128 = feeGrowthInside0X128 - feeGrowthInside0LastX128;
-            feeGrowthInside1DeltaX128 = feeGrowthInside1X128 - feeGrowthInside1LastX128;
-        }
-
-        tokensOwed0 += uint128(FullMath.mulDiv(feeGrowthInside0DeltaX128, liquidity, Q128));
-        tokensOwed1 += uint128(FullMath.mulDiv(feeGrowthInside1DeltaX128, liquidity, Q128));
-    }
-
     /// @notice Calculate total capital of the specific collateral (nominated in MUSD weis)
-    /// @param nft UniswapV3 nft of the position
     /// @param position Position info
     /// @param liquidationThresholdD Liquidation threshold of the corresponding pool, set in the protocol governance (multiplied by DENOMINATOR)
+    /// @param positionInfo Additional position info
     /// @return uint256 Position capital (nominated in MUSD weis)
     function _calculateAdjustedCollateral(
-        uint256 nft,
-        PositionInfo memory position,
-        uint256 liquidationThresholdD
+        UniV3PositionInfo memory position,
+        uint256 liquidationThresholdD,
+        UniswapV3FeesCalculation.PositionInfo memory positionInfo
     ) internal view returns (uint256) {
         uint256[] memory tokenAmounts = new uint256[](2);
-        (uint160 sqrtRatioX96, , , , , , ) = position.targetPool.slot0();
+        (uint160 sqrtRatioX96, int24 tick, , , , , ) = position.targetPool.slot0();
 
         (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
             sqrtRatioX96,
-            position.sqrtRatioAX96,
-            position.sqrtRatioBX96,
-            position.liquidity
+            TickMath.getSqrtRatioAtTick(positionInfo.tickLower),
+            TickMath.getSqrtRatioAtTick(positionInfo.tickUpper),
+            positionInfo.liquidity
         );
 
-        (uint256 tokensOwed0, uint256 tokensOwed1) = _calculateUniswapFees(position.targetPool, nft);
-        tokenAmounts[0] += tokensOwed0;
-        tokenAmounts[1] += tokensOwed1;
+        (uint256 actualTokensOwed0, uint256 actualTokensOwed1) = UniswapV3FeesCalculation._calculateUniswapFees(
+            position.targetPool,
+            tick,
+            positionInfo
+        );
+
+        tokenAmounts[0] += actualTokensOwed0;
+        tokenAmounts[1] += actualTokensOwed1;
 
         uint256[] memory pricesX96 = new uint256[](2);
         (, pricesX96[0]) = oracle.price(position.token0);
@@ -756,8 +661,8 @@ contract Vault is DefaultAccessControl {
         }
     }
 
-    /// @notice Check if the system is paused
-    function _checkIsPaused() internal view {
+    /// @notice Check if the system is unpaused
+    function _requireUnpaused() internal view {
         if (isPaused) {
             revert Paused();
         }
@@ -767,10 +672,6 @@ contract Vault is DefaultAccessControl {
     /// @param vaultId Id of the vault
     /// @return Accured stablisation fee of the vault (in MUSD weis)
     function _accruedStabilisationFee(uint256 vaultId) internal view returns (uint256) {
-        if (vaultDebt[vaultId] == 0) {
-            return 0;
-        }
-
         uint256 deltaGlobalStabilisationFeeD = globalStabilisationFeePerUSDD() -
             _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
         return FullMath.mulDiv(vaultDebt[vaultId], deltaGlobalStabilisationFeeD, DENOMINATOR);
@@ -790,25 +691,15 @@ contract Vault is DefaultAccessControl {
         uint256[] memory nfts = _vaultNfts[vaultId].values();
 
         for (uint256 i = 0; i < nfts.length; ++i) {
-            PositionInfo memory position = _positionInfo[nfts[i]];
+            uint256 nft = nfts[i];
+            UniV3PositionInfo memory position = _uniV3PositionInfo[nft];
 
-            uint256 token0LimitImpact = LiquidityAmounts.getAmount0ForLiquidity(
-                position.sqrtRatioAX96,
-                position.sqrtRatioBX96,
-                position.liquidity
-            );
-            uint256 token1LimitImpact = LiquidityAmounts.getAmount1ForLiquidity(
-                position.sqrtRatioAX96,
-                position.sqrtRatioBX96,
-                position.liquidity
-            );
+            maxCollateralSupply[position.token0] -= position.maxToken0Amount;
+            maxCollateralSupply[position.token1] -= position.maxToken1Amount;
 
-            maxCollateralSupply[position.token0] -= token0LimitImpact;
-            maxCollateralSupply[position.token1] -= token1LimitImpact;
+            delete _uniV3PositionInfo[nft];
 
-            delete _positionInfo[nfts[i]];
-
-            positionManager.transferFrom(address(this), nftsRecipient, nfts[i]);
+            positionManager.transferFrom(address(this), nftsRecipient, nft);
         }
 
         _ownedVaults[owner].remove(vaultId);
@@ -832,59 +723,49 @@ contract Vault is DefaultAccessControl {
             stabilisationFeeVaultSnapshot[vaultId] += debtDelta;
         }
         _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
-        _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] =
-            globalStabilisationFeePerUSDSnapshotD +
-            (stabilisationFeeRateD * (block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp)) /
-            YEAR;
+        _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = globalStabilisationFeePerUSDD();
     }
 
     // --------------------------  EVENTS  --------------------------
 
     /// @notice Emitted when a new vault is opened
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
-    event VaultOpened(address indexed origin, address indexed sender, uint256 vaultId);
+    event VaultOpened(address indexed sender, uint256 vaultId);
 
     /// @notice Emitted when a vault is liquidated
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
-    event VaultLiquidated(address indexed origin, address indexed sender, uint256 vaultId);
+    event VaultLiquidated(address indexed sender, uint256 vaultId);
 
     /// @notice Emitted when a vault is closed
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
-    event VaultClosed(address indexed origin, address indexed sender, uint256 vaultId);
+    event VaultClosed(address indexed sender, uint256 vaultId);
 
     /// @notice Emitted when a collateral is deposited
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
-    event CollateralDeposited(address indexed origin, address indexed sender, uint256 vaultId, uint256 tokenId);
+    event CollateralDeposited(address indexed sender, uint256 vaultId, uint256 tokenId);
 
     /// @notice Emitted when a collateral is withdrawn
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
-    event CollateralWithdrew(address indexed origin, address indexed sender, uint256 vaultId, uint256 tokenId);
+    event CollateralWithdrew(address indexed sender, uint256 vaultId, uint256 tokenId);
 
     /// @notice Emitted when a debt is minted
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param amount Debt amount
-    event DebtMinted(address indexed origin, address indexed sender, uint256 vaultId, uint256 amount);
+    event DebtMinted(address indexed sender, uint256 vaultId, uint256 amount);
 
     /// @notice Emitted when a debt is burnt
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param amount Debt amount
-    event DebtBurned(address indexed origin, address indexed sender, uint256 vaultId, uint256 amount);
+    event DebtBurned(address indexed sender, uint256 vaultId, uint256 amount);
 
     /// @notice Emitted when the stabilisation fee is updated
     /// @param origin Origin of the transaction (tx.origin)
