@@ -329,16 +329,8 @@ contract Vault is DefaultAccessControl {
                     vaultId: vaultId,
                     sqrtRatioAX96: sqrtRatioAX96,
                     sqrtRatioBX96: sqrtRatioBX96,
-                    maxToken0Amount: LiquidityAmounts.getAmount0ForLiquidity(
-                        sqrtRatioAX96,
-                        sqrtRatioBX96,
-                        liquidity
-                    ),
-                    maxToken1Amount: LiquidityAmounts.getAmount1ForLiquidity(
-                        sqrtRatioAX96,
-                        sqrtRatioBX96,
-                        liquidity
-                    )
+                    maxToken0Amount: LiquidityAmounts.getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, liquidity),
+                    maxToken1Amount: LiquidityAmounts.getAmount1ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, liquidity)
                 });
             }
 
