@@ -66,6 +66,8 @@ contract Vault is DefaultAccessControl {
         address token1;
         IUniswapV3Pool targetPool;
         uint256 vaultId;
+        uint160 sqrtRatioAX96;
+        uint160 sqrtRatioBX96;
         uint256 maxToken0Amount;
         uint256 maxToken1Amount;
     }
@@ -316,23 +318,29 @@ contract Vault is DefaultAccessControl {
             ) = positionManager.positions(nft);
 
             positionManager.transferFrom(msg.sender, address(this), nft);
+            {
+                uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickLower);
+                uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(tickUpper);
 
-            _uniV3PositionInfo[nft] = UniV3PositionInfo({
-                token0: token0,
-                token1: token1,
-                targetPool: IUniswapV3Pool(factory.getPool(token0, token1, fee)),
-                vaultId: vaultId,
-                maxToken0Amount: LiquidityAmounts.getAmount0ForLiquidity(
-                    TickMath.getSqrtRatioAtTick(tickLower),
-                    TickMath.getSqrtRatioAtTick(tickUpper),
-                    liquidity
-                ),
-                maxToken1Amount: LiquidityAmounts.getAmount1ForLiquidity(
-                    TickMath.getSqrtRatioAtTick(tickLower),
-                    TickMath.getSqrtRatioAtTick(tickUpper),
-                    liquidity
-                )
-            });
+                _uniV3PositionInfo[nft] = UniV3PositionInfo({
+                    token0: token0,
+                    token1: token1,
+                    targetPool: IUniswapV3Pool(factory.getPool(token0, token1, fee)),
+                    vaultId: vaultId,
+                    sqrtRatioAX96: sqrtRatioAX96,
+                    sqrtRatioBX96: sqrtRatioBX96,
+                    maxToken0Amount: LiquidityAmounts.getAmount0ForLiquidity(
+                        sqrtRatioAX96,
+                        sqrtRatioBX96,
+                        liquidity
+                    ),
+                    maxToken1Amount: LiquidityAmounts.getAmount1ForLiquidity(
+                        sqrtRatioAX96,
+                        sqrtRatioBX96,
+                        liquidity
+                    )
+                });
+            }
 
             if (
                 _calculateAdjustedCollateral(
@@ -626,8 +634,8 @@ contract Vault is DefaultAccessControl {
 
         (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
             sqrtRatioX96,
-            TickMath.getSqrtRatioAtTick(positionInfo.tickLower),
-            TickMath.getSqrtRatioAtTick(positionInfo.tickUpper),
+            position.sqrtRatioAX96,
+            position.sqrtRatioBX96,
             positionInfo.liquidity
         );
 
