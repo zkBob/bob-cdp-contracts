@@ -153,9 +153,9 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.withdrawCollateral(nftB);
 
         vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-        vault.closeVault(vaultA);
+        vault.closeVault(vaultA, address(this));
         vm.expectRevert(Vault.UnpaidDebt.selector);
-        vault.closeVault(vaultB);
+        vault.closeVault(vaultB, address(this));
     }
 
     function testOneUserClosesDebtOfSecond() public {
@@ -191,7 +191,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.stopPrank();
 
         vault.burnDebt(vaultId, token.balanceOf(firstAddress));
-        vault.closeVault(vaultId);
+        vault.closeVault(vaultId, address(this));
     }
 
     function testPriceDroppedAndGotBackNotLiquidated() public {
@@ -308,7 +308,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         deal(address(token), address(this), 820 * 10**18, true);
         vault.burnDebt(vaultId, 820 * 10**18);
-        vault.closeVault(vaultId);
+        vault.closeVault(vaultId, address(this));
     }
 
     function testFeesUpdatedAfterSecond() public {

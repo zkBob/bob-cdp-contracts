@@ -16,15 +16,15 @@ import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./utils/Utilities.sol";
 
 contract VaultTest is Test, SetupContract, Utilities {
-    event VaultOpened(address indexed origin, address indexed sender, uint256 vaultId);
-    event VaultLiquidated(address indexed origin, address indexed sender, uint256 vaultId);
-    event VaultClosed(address indexed origin, address indexed sender, uint256 vaultId);
+    event VaultOpened(address indexed sender, uint256 vaultId);
+    event VaultLiquidated(address indexed sender, uint256 vaultId);
+    event VaultClosed(address indexed sender, uint256 vaultId);
 
-    event CollateralDeposited(address indexed origin, address indexed sender, uint256 vaultId, uint256 nft);
-    event CollateralWithdrew(address indexed origin, address indexed sender, uint256 vaultId, uint256 nft);
+    event CollateralDeposited(address indexed sender, uint256 vaultId, uint256 nft);
+    event CollateralWithdrew(address indexed sender, uint256 vaultId, uint256 nft);
 
-    event DebtMinted(address indexed origin, address indexed sender, uint256 vaultId, uint256 amount);
-    event DebtBurned(address indexed origin, address indexed sender, uint256 vaultId, uint256 amount);
+    event DebtMinted(address indexed sender, uint256 vaultId, uint256 amount);
+    event DebtBurned(address indexed sender, uint256 vaultId, uint256 amount);
 
     event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
@@ -128,8 +128,8 @@ contract VaultTest is Test, SetupContract, Utilities {
     }
 
     function testOpenVaultEmit() public {
-        vm.expectEmit(false, true, false, true);
-        emit VaultOpened(getNextUserAddress(), address(this), vault.vaultCount() + 1);
+        vm.expectEmit(true, false, false, true);
+        emit VaultOpened(address(this), vault.vaultCount() + 1);
         vault.openVault();
     }
 
@@ -236,8 +236,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
 
-        vm.expectEmit(false, true, false, true);
-        emit CollateralDeposited(getNextUserAddress(), address(this), vaultId, tokenId);
+        vm.expectEmit(true, false, false, true);
+        emit CollateralDeposited(address(this), vaultId, tokenId);
         vault.depositCollateral(vaultId, tokenId);
     }
 
@@ -245,7 +245,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testCloseVaultSuccess() public {
         uint256 vaultId = vault.openVault();
-        vault.closeVault(vaultId);
+        vault.closeVault(vaultId, address(this));
         assertEq(getLength(vault.ownedVaultsByAddress(address(this))), 0);
     }
 
@@ -255,15 +255,28 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        vault.closeVault(vaultId);
+        vault.closeVault(vaultId, address(this));
 
         assertEq(getLength(vault.ownedVaultsByAddress(address(this))), 0);
         assertEq(positionManager.ownerOf(tokenId), address(this));
     }
 
+    function testCloseVaultSuccessWithCollateralsToAnotherRecipient() public {
+        uint256 vaultId = vault.openVault();
+
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+
+        address recipient = getNextUserAddress();
+        vault.closeVault(vaultId, recipient);
+
+        assertEq(getLength(vault.ownedVaultsByAddress(address(this))), 0);
+        assertEq(positionManager.ownerOf(tokenId), recipient);
+    }
+
     function testClosedVaultNotAcceptingAnything() public {
         uint256 vaultId = vault.openVault();
-        vault.closeVault(vaultId);
+        vault.closeVault(vaultId, address(this));
 
         vm.expectRevert(DefaultAccessControl.Forbidden.selector);
         vault.depositCollateral(vaultId, 123);
@@ -277,7 +290,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.mintDebt(vaultId, 10);
 
         vm.expectRevert(Vault.UnpaidDebt.selector);
-        vault.closeVault(vaultId);
+        vault.closeVault(vaultId, address(this));
     }
 
     function testCloseVaultWithUnpaidFees() public {
@@ -291,22 +304,22 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.burnDebt(vaultId, 1000 * 10**18);
 
         vm.expectRevert(Vault.UnpaidDebt.selector);
-        vault.closeVault(vaultId);
+        vault.closeVault(vaultId, address(this));
     }
 
     function testCloseVaultWrongOwner() public {
         uint256 vaultId = vault.openVault();
         vm.prank(getNextUserAddress());
         vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-        vault.closeVault(vaultId);
+        vault.closeVault(vaultId, address(this));
     }
 
     function testCloseVaultEmit() public {
         uint256 vaultId = vault.openVault();
 
-        vm.expectEmit(false, true, false, true);
-        emit VaultClosed(getNextUserAddress(), address(this), vaultId);
-        vault.closeVault(vaultId);
+        vm.expectEmit(true, false, false, true);
+        emit VaultClosed(address(this), vaultId);
+        vault.closeVault(vaultId, address(this));
     }
 
     // mintDebt
@@ -346,8 +359,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        vm.expectEmit(false, true, false, true);
-        emit DebtMinted(getNextUserAddress(), address(this), vaultId, 10);
+        vm.expectEmit(true, false, false, true);
+        emit DebtMinted(address(this), vaultId, 10);
 
         vault.mintDebt(vaultId, 10);
     }
@@ -440,9 +453,20 @@ contract VaultTest is Test, SetupContract, Utilities {
     }
 
     function testBurnDebtWhenPaused() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 300 * 10**18);
+        vm.warp(block.timestamp + YEAR);
+
+        deal(address(token), address(this), 303 * 10**18);
         vault.pause();
-        vm.expectRevert(Vault.Paused.selector);
-        vault.burnDebt(1, 1);
+        vault.burnDebt(vaultId, 302 * 10**18);
+
+        assertEq(token.balanceOf(address(this)), 1 * 10**18);
+        assertEq(token.balanceOf(treasury), 2 * 10**18);
+        assertEq(vault.stabilisationFeeVaultSnapshot(vaultId), 10**18);
+        assertEq(vault.vaultDebt(vaultId), 0);
     }
 
     function testBurnDebtWhenNotOwner() public {
@@ -459,8 +483,8 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         vault.mintDebt(vaultId, 10);
 
-        vm.expectEmit(false, true, false, true);
-        emit DebtBurned(getNextUserAddress(), address(this), vaultId, 10);
+        vm.expectEmit(true, false, false, true);
+        emit DebtBurned(address(this), vaultId, 10);
 
         vault.burnDebt(vaultId, 10);
     }
@@ -477,9 +501,13 @@ contract VaultTest is Test, SetupContract, Utilities {
     }
 
     function testWithdrawCollateralWhenPaused() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
         vault.pause();
-        vm.expectRevert(Vault.Paused.selector);
-        vault.withdrawCollateral(1);
+        vault.withdrawCollateral(tokenId);
+        assertEq(getLength(vault.vaultNftsById(vaultId)), 0);
+        assertEq(positionManager.ownerOf(tokenId), address(this));
     }
 
     function testWithdrawCollateralWhenNotOwner() public {
@@ -505,8 +533,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vm.expectEmit(false, true, false, true);
-        emit CollateralWithdrew(getNextUserAddress(), address(this), vaultId, tokenId);
+        vm.expectEmit(true, false, false, true);
+        emit CollateralWithdrew(address(this), vaultId, tokenId);
         vault.withdrawCollateral(tokenId);
     }
 
@@ -710,8 +738,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
 
-        vm.expectEmit(false, true, false, true);
-        emit VaultLiquidated(getNextUserAddress(), liquidator, vaultId);
+        vm.expectEmit(true, false, false, true);
+        emit VaultLiquidated(liquidator, vaultId);
         vault.liquidate(vaultId);
         vm.stopPrank();
     }
