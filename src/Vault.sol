@@ -19,9 +19,6 @@ contract Vault is DefaultAccessControl {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
-    /// @notice Thrown when a max token total value in the protocol would exceed max token capital limit (set in governance) after a deposit
-    error CollateralTokenOverflow(address token);
-
     /// @notice Thrown when a value of a deposited NFT is less than min single nft capital (set in governance)
     error CollateralUnderflow();
 
@@ -119,9 +116,6 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Mapping, returning last cumulative sum of time-weighted debt fees by vault id, generated during last deposit / withdraw / mint / burn
     mapping(uint256 => uint256) private _globalStabilisationFeePerUSDVaultSnapshotD;
-
-    /// @notice Mapping, returning current maximal possible supply in NFTs for a token (in token weis)
-    mapping(address => uint256) public maxCollateralSupply;
 
     /// @notice Mapping, returning position info by nft
     mapping(uint256 => UniV3PositionInfo) private _uniV3PositionInfo;
@@ -360,20 +354,6 @@ contract Vault is DefaultAccessControl {
             revert InvalidPool();
         }
 
-        uint256 newMaxCollateralSupplyToken0 = maxCollateralSupply[position.token0] + position.maxToken0Amount;
-
-        if (newMaxCollateralSupplyToken0 > protocolGovernance.getTokenLimit(position.token0)) {
-            revert CollateralTokenOverflow(position.token0);
-        }
-
-        uint256 newMaxCollateralSupplyToken1 = maxCollateralSupply[position.token1] + position.maxToken1Amount;
-
-        if (newMaxCollateralSupplyToken1 > protocolGovernance.getTokenLimit(position.token1)) {
-            revert CollateralTokenOverflow(position.token1);
-        }
-        maxCollateralSupply[position.token0] = newMaxCollateralSupplyToken0;
-        maxCollateralSupply[position.token1] = newMaxCollateralSupplyToken1;
-
         _vaultNfts[vaultId].add(nft);
 
         emit CollateralDeposited(msg.sender, vaultId, nft);
@@ -388,9 +368,6 @@ contract Vault is DefaultAccessControl {
         _vaultNfts[position.vaultId].remove(nft);
 
         positionManager.transferFrom(address(this), msg.sender, nft);
-
-        maxCollateralSupply[position.token0] -= position.maxToken0Amount;
-        maxCollateralSupply[position.token1] -= position.maxToken1Amount;
 
         delete _uniV3PositionInfo[nft];
 
@@ -693,10 +670,6 @@ contract Vault is DefaultAccessControl {
 
         for (uint256 i = 0; i < nfts.length; ++i) {
             uint256 nft = nfts[i];
-            UniV3PositionInfo memory position = _uniV3PositionInfo[nft];
-
-            maxCollateralSupply[position.token0] -= position.maxToken0Amount;
-            maxCollateralSupply[position.token1] -= position.maxToken1Amount;
 
             delete _uniV3PositionInfo[nft];
 

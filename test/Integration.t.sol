@@ -451,22 +451,4 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.liquidate(vaultId);
         vm.stopPrank();
     }
-
-    function testTokenLimitDecreasedAndIncreasedBack() public {
-        uint256 vaultId = vault.openVault();
-        uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); // 20000 USD
-
-        vault.depositCollateral(vaultId, nftA);
-        vault.mintDebt(vaultId, 1000 * (10**18)); // 1000 USD minted
-
-        protocolGovernance.setTokenLimit(usdc, 100 * (10**6)); // 100 USD limit set
-        vault.mintDebt(vaultId, 1000 * (10**18)); // can mint more anyway
-
-        uint256 nftB = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
-        vm.expectRevert(abi.encodeWithSelector(Vault.CollateralTokenOverflow.selector, usdc));
-        vault.depositCollateral(vaultId, nftB);
-
-        protocolGovernance.setTokenLimit(usdc, 100 * (10**12)); // 100mln USD limit set
-        vault.depositCollateral(vaultId, nftB);
-    }
 }
