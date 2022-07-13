@@ -10,6 +10,7 @@ import "../utils/DefaultAccessControl.sol";
 
 /// @notice Contract for getting chainlink data
 contract ChainlinkOracle is IOracle, DefaultAccessControl {
+    /// @notice Thrown when a value of a parameter is not valid
     error InvalidValue();
 
     using EnumerableSet for EnumerableSet.AddressSet;

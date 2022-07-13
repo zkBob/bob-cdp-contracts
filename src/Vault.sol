@@ -57,8 +57,12 @@ contract Vault is DefaultAccessControl {
     uint256 public constant Q96 = 2**96;
 
     /// @notice Information about a single UniV3 NFT
+    /// @param token0 First token in UniswapV3 pool
+    /// @param token1 Second token in UniswapV3 pool
     /// @param targetPool Address of UniswapV3 pool, which contains collateral position
     /// @param vaultId Id of Mellow Vault, which takes control over collateral nft
+    /// @param sqrtRatioAX96 A sqrt price representing the first tick boundary
+    /// @param sqrtRatioBX96 A sqrt price representing the second tick boundary
     /// @param maxToken0Amount The maximum amount of token 0 for this position
     /// @param maxToken1Amount The maximum amount of token 1 for this position
     struct UniV3PositionInfo {
@@ -123,7 +127,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Mapping, returning current maximal possible supply in NFTs for a token (in token weis)
     mapping(address => uint256) public maxCollateralSupply;
 
-    /// @notice Mapping, returning position info by nft
+    /// @notice Mapping, returning UniV3 position info by it`s nft
     mapping(uint256 => UniV3PositionInfo) private _uniV3PositionInfo;
 
     /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault)
@@ -235,7 +239,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Get all vaults with a given owner
     /// @param target Owner address
-    /// @return uint256[] Array of vaults, owned by address
+    /// @return uint256[] Array of vaults` ids, owned by address
     function ownedVaultsByAddress(address target) external view returns (uint256[] memory) {
         return _ownedVaults[target].values();
     }
@@ -277,7 +281,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Close a vault
     /// @param vaultId Id of the vault
-    /// @param collateralRecipient The recipient address of collateral
+    /// @param collateralRecipient The address of collateral recipient
     function closeVault(uint256 vaultId, address collateralRecipient) external {
         _requireUnpaused();
         _requireVaultOwner(vaultId);
