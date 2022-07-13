@@ -727,8 +727,6 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 oldBalanceTreasury = token.balanceOf(treasury);
         uint256 oldBalanceOwner = token.balanceOf(address(this));
 
-        console.log((vault.calculateVaultAdjustedCollateral(vaultId) / 6) * 10);
-
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
         vault.liquidate(vaultId);
@@ -736,9 +734,6 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         uint256 newBalanceTreasury = token.balanceOf(treasury);
         uint256 newBalanceOwner = token.balanceOf(address(this));
-
-        console.log(oldBalanceTreasury);
-        console.log(newBalanceTreasury);
 
         assertTrue(oldBalanceTreasury != newBalanceTreasury);
         assertEq(oldBalanceOwner, newBalanceOwner);
