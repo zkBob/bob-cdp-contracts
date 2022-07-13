@@ -678,7 +678,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         oracle.setPrice(weth, 1 << 96);
 
         address liquidator = getNextUserAddress();
-        uint256 nftPrice = vault.calculateVaultAdjustedCollateral(vaultId) / 6 * 10;
+        uint256 nftPrice = (vault.calculateVaultAdjustedCollateral(vaultId) / 6) * 10;
         deal(address(token), liquidator, nftPrice, true);
 
         vm.startPrank(liquidator);
@@ -727,7 +727,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 oldBalanceTreasury = token.balanceOf(treasury);
         uint256 oldBalanceOwner = token.balanceOf(address(this));
 
-        console.log(vault.calculateVaultAdjustedCollateral(vaultId) / 6 * 10);
+        console.log((vault.calculateVaultAdjustedCollateral(vaultId) / 6) * 10);
 
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
