@@ -11,11 +11,11 @@ library UniswapV3FeesCalculation {
     /// @notice Additional information about UniV3 position
     /// @param tickLower The lower tick boundary of the position
     /// @param tickUpper The upper tick boundary of the position
-    /// @param liquidity The amount of liquidity owned by this position
-    /// @param feeGrowthInside0LastX128 Fee growth of token0 inside the tick range as of the moment of the deposit
-    /// @param feeGrowthInside1LastX128 Fee growth of token1 inside the tick range as of the moment of the deposit
-    /// @param tokensOwed0 The computed amount of token0 owed to the position as of the moment of the deposit
-    /// @param tokensOwed1 The computed amount of token1 owed to the position as of the moment of the deposit
+    /// @param liquidity The amount of liquidity owned by this position (at the moment of the last mint/increaseLiquidity/decreseLiquidity/collect total fees)
+    /// @param feeGrowthInside0LastX128 Fee growth of token0 inside the tick range (at the moment of the last mint/increaseLiquidity/decreseLiquidity/collect total fees)
+    /// @param feeGrowthInside1LastX128 Fee growth of token1 inside the tick range (at the moment of the last mint/increaseLiquidity/decreseLiquidity/collect total fees)
+    /// @param tokensOwed0 The computed amount of token0 owed to the position (at the moment of the last mint/increaseLiquidity/decreseLiquidity/collect total fees)
+    /// @param tokensOwed1 The computed amount of token1 owed to the position (at the moment of the last mint/increaseLiquidity/decreseLiquidity/collect total fees)
     struct PositionInfo {
         int24 tickLower;
         int24 tickUpper;

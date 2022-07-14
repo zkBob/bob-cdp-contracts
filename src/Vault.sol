@@ -57,9 +57,9 @@ contract Vault is DefaultAccessControl {
     uint256 public constant Q96 = 2**96;
 
     /// @notice Information about a single UniV3 NFT
-    /// @param token0 First token in UniswapV3 pool
-    /// @param token1 Second token in UniswapV3 pool
-    /// @param targetPool Address of UniswapV3 pool, which contains collateral position
+    /// @param token0 The first token in the UniswapV3 pool
+    /// @param token1 The second token in the UniswapV3 pool
+    /// @param targetPool Address of the UniswapV3 pool, which contains collateral position
     /// @param vaultId Id of Mellow Vault, which takes control over collateral nft
     /// @param sqrtRatioAX96 A sqrt price representing the first tick boundary
     /// @param sqrtRatioBX96 A sqrt price representing the second tick boundary
@@ -127,7 +127,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Mapping, returning current maximal possible supply in NFTs for a token (in token weis)
     mapping(address => uint256) public maxCollateralSupply;
 
-    /// @notice Mapping, returning UniV3 position info by it`s nft
+    /// @notice Mapping, returning UniV3 position info by its nft
     mapping(uint256 => UniV3PositionInfo) private _uniV3PositionInfo;
 
     /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault)

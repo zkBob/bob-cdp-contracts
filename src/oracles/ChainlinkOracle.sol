@@ -10,8 +10,8 @@ import "../utils/DefaultAccessControl.sol";
 
 /// @notice Contract for getting chainlink data
 contract ChainlinkOracle is IOracle, DefaultAccessControl {
-    /// @notice Thrown when a value of a parameter is not valid
-    error InvalidValue();
+    /// @notice Thrown when tokens.length != oracles.length
+    error InvalidLength();
 
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -106,7 +106,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     /// @param oracles Array of new oracles
     function _addChainlinkOracles(address[] memory tokens, address[] memory oracles) internal {
         if (tokens.length != oracles.length) {
-            revert InvalidValue();
+            revert InvalidLength();
         }
         for (uint256 i = 0; i < tokens.length; i++) {
             address token = tokens[i];
