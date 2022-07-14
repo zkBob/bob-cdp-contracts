@@ -204,24 +204,6 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
     }
 
-    function testDepositCollateralWhenExceedsMaxCollateralSupplyToken0() public {
-        uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        protocolGovernance.setTokenLimit(weth, 10**10);
-
-        vm.expectRevert(abi.encodeWithSelector(Vault.CollateralTokenOverflow.selector, weth));
-        vault.depositCollateral(vaultId, tokenId);
-    }
-
-    function testDepositCollateralWhenExceedsMaxCollateralSupplyToken1() public {
-        uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        protocolGovernance.setTokenLimit(usdc, 10**3);
-
-        vm.expectRevert(abi.encodeWithSelector(Vault.CollateralTokenOverflow.selector, usdc));
-        vault.depositCollateral(vaultId, tokenId);
-    }
-
     function testDepositCollateralWhenPaused() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
@@ -684,6 +666,77 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         assertEq(vault.vaultDebt(vaultId), 0);
         assertEq(vault.stabilisationFeeVaultSnapshot(vaultId), 0);
+    }
+
+    function testFailLiquidateWithProfitWhenPricePlummets() public {
+        uint256 vaultId = vault.openVault();
+        // overall ~2000$ -> HF: ~1200$
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1100 * 10**18);
+        // eth 1000 -> 1
+        oracle.setPrice(weth, 1 << 96);
+
+        address liquidator = getNextUserAddress();
+        uint256 nftPrice = (vault.calculateVaultAdjustedCollateral(vaultId) / 6) * 10;
+        deal(address(token), liquidator, nftPrice, true);
+
+        vm.startPrank(liquidator);
+        token.approve(address(vault), type(uint256).max);
+        vault.liquidate(vaultId);
+    }
+
+    function testLiquidateSuccessWhenPricePlummets() public {
+        uint256 vaultId = vault.openVault();
+        // overall ~2000$ -> HF: ~1200$
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1100 * 10**18);
+        // eth 1000 -> 1
+        oracle.setPrice(weth, 1 << 96);
+
+        address liquidator = getNextUserAddress();
+        deal(address(token), liquidator, 1100 * 10**18, true);
+
+        uint256 oldBalanceTreasury = token.balanceOf(treasury);
+        uint256 oldBalanceOwner = token.balanceOf(address(this));
+
+        vm.startPrank(liquidator);
+        token.approve(address(vault), type(uint256).max);
+        vault.liquidate(vaultId);
+        vm.stopPrank();
+
+        uint256 newBalanceTreasury = token.balanceOf(treasury);
+        uint256 newBalanceOwner = token.balanceOf(address(this));
+
+        assertEq(oldBalanceTreasury, newBalanceTreasury);
+        assertEq(oldBalanceOwner, newBalanceOwner);
+    }
+
+    function testLiquidateSuccessWhenPricePlummetsButDaoReceiveSomething() public {
+        uint256 vaultId = vault.openVault();
+        // overall ~2000$ -> HF: ~1200$
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1100 * 10**18);
+        oracle.setPrice(weth, 170 << 96);
+
+        address liquidator = getNextUserAddress();
+        deal(address(token), liquidator, 20000 * 10**18, true);
+
+        uint256 oldBalanceTreasury = token.balanceOf(treasury);
+        uint256 oldBalanceOwner = token.balanceOf(address(this));
+
+        vm.startPrank(liquidator);
+        token.approve(address(vault), type(uint256).max);
+        vault.liquidate(vaultId);
+        vm.stopPrank();
+
+        uint256 newBalanceTreasury = token.balanceOf(treasury);
+        uint256 newBalanceOwner = token.balanceOf(address(this));
+
+        assertTrue(oldBalanceTreasury != newBalanceTreasury);
+        assertEq(oldBalanceOwner, newBalanceOwner);
     }
 
     function testFailLiquidateWithSmallAmount() public {
