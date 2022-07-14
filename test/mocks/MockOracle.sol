@@ -13,4 +13,8 @@ contract MockOracle is IOracle {
         success = true;
         priceX96 = prices[token];
     }
+
+    function hasOracle(address token) external view returns (bool) {
+        return (prices[token] > 0);
+    }
 }

@@ -187,6 +187,15 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
     }
 
+    function testDepositCollateralNotApprovedToken() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        oracle.setPrice(weth, 0);
+
+        vm.expectRevert(Vault.MissingOracle.selector);
+        vault.depositCollateral(vaultId, tokenId);
+    }
+
     function testDepositCollateralWhenPositionDoesNotExceedMinCapital() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**10, 10**5, address(vault));
