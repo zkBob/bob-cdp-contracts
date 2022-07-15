@@ -28,6 +28,9 @@ contract Vault is DefaultAccessControl {
     /// @notice Thrown when a value of a stabilization fee is incorrect
     error InvalidValue();
 
+    /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Uniswap V3 NFT
+    error MissingOracle();
+
     /// @notice Thrown when the system is paused
     error Paused();
 
@@ -352,6 +355,10 @@ contract Vault is DefaultAccessControl {
 
         if (!protocolGovernance.isPoolWhitelisted(address(position.targetPool))) {
             revert InvalidPool();
+        }
+
+        if (!oracle.hasOracle(position.token0) || !oracle.hasOracle(position.token1)) {
+            revert MissingOracle();
         }
 
         _vaultNfts[vaultId].add(nft);

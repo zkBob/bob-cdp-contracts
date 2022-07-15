@@ -40,9 +40,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     // -------------------------  EXTERNAL, VIEW  ------------------------------
 
-    /// @notice Returns if an oracle was approved for a token
-    /// @param token A given token address
-    /// @return bool True if an oracle was approved for a token, else - false
+    /// @inheritdoc IOracle
     function hasOracle(address token) external view returns (bool) {
         return _tokens.contains(token);
     }
