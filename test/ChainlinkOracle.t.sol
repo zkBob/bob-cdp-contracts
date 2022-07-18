@@ -76,7 +76,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
         currentTokens[0] = wbtc;
         address[] memory currentOracles = new address[](0);
 
-        vm.expectRevert(ChainlinkOracle.InvalidValue.selector);
+        vm.expectRevert(ChainlinkOracle.InvalidLength.selector);
         oracle.addChainlinkOracles(currentTokens, currentOracles);
     }
 
