@@ -37,12 +37,6 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @return bool True if pool is whitelisted, false if not
     function isPoolWhitelisted(address pool) external view returns (bool);
 
-    /// @notice Token capital limit in all the protocol for a given token (nominated in MUSD weis)
-    /// @dev Amount of a token of a certain position is calculated as a maximal amount of token possible in this position taken by all prices
-    /// @param token The given address of token
-    /// @return uint256 Token capital limit (nominated in MUSD weis) if limit is set, else uint256.max
-    function getTokenLimit(address token) external view returns (uint256);
-
     /// @notice Get a whitelisted pool by its index
     /// @param i Index of the pool
     /// @return address Address of the pool
@@ -78,9 +72,4 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @param pool Address of the pool
     /// @param liquidationThresholdD_ The new liquidation threshold (multiplied by DENOMINATOR)
     function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external;
-
-    /// @notice Set new capital limit for a given token (in token weis)
-    /// @param token Address of the token
-    /// @param newLimit The new token capital limit (in token weis)
-    function setTokenLimit(address token, uint256 newLimit) external;
 }

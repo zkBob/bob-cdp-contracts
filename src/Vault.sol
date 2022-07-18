@@ -63,8 +63,6 @@ contract Vault is DefaultAccessControl {
     /// @param vaultId Id of Mellow Vault, which takes control over collateral nft
     /// @param sqrtRatioAX96 A sqrt price representing the first tick boundary
     /// @param sqrtRatioBX96 A sqrt price representing the second tick boundary
-    /// @param maxToken0Amount The maximum amount of token 0 for this position
-    /// @param maxToken1Amount The maximum amount of token 1 for this position
     struct UniV3PositionInfo {
         address token0;
         address token1;
@@ -72,8 +70,6 @@ contract Vault is DefaultAccessControl {
         uint256 vaultId;
         uint160 sqrtRatioAX96;
         uint160 sqrtRatioBX96;
-        uint256 maxToken0Amount;
-        uint256 maxToken1Amount;
     }
 
     /// @notice UniswapV3 position manager
@@ -330,9 +326,7 @@ contract Vault is DefaultAccessControl {
                     targetPool: IUniswapV3Pool(factory.getPool(token0, token1, fee)),
                     vaultId: vaultId,
                     sqrtRatioAX96: sqrtRatioAX96,
-                    sqrtRatioBX96: sqrtRatioBX96,
-                    maxToken0Amount: LiquidityAmounts.getAmount0ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, liquidity),
-                    maxToken1Amount: LiquidityAmounts.getAmount1ForLiquidity(sqrtRatioAX96, sqrtRatioBX96, liquidity)
+                    sqrtRatioBX96: sqrtRatioBX96
                 });
             }
 
