@@ -72,32 +72,6 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
         assertTrue(!protocolGovernance.isPoolWhitelisted(pool));
     }
 
-    // getTokenLimit + setTokenLimit
-
-    function testTokenLimitSuccess() public {
-        address token = usdc;
-        uint256 limit = protocolGovernance.getTokenLimit(token);
-        assertEq(limit, type(uint256).max);
-    }
-
-    function testTokenLimitSet() public {
-        address token = usdc;
-        protocolGovernance.setTokenLimit(token, 1000);
-        uint256 limit = protocolGovernance.getTokenLimit(token);
-        assertEq(limit, 1000);
-    }
-
-    function testTokenRevokedAndReturned() public {
-        address token = usdc;
-        protocolGovernance.setTokenLimit(token, 1);
-        uint256 limit = protocolGovernance.getTokenLimit(token);
-        assertEq(limit, 1);
-
-        protocolGovernance.setTokenLimit(token, 10**50);
-        uint256 newLimit = protocolGovernance.getTokenLimit(token);
-        assertEq(newLimit, 10**50);
-    }
-
     // whitelistedPool
 
     function testGetWhitelistedPoolSuccess() public {
@@ -148,7 +122,6 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
 
         protocolGovernance.protocolParams();
         protocolGovernance.isPoolWhitelisted(pool);
-        protocolGovernance.getTokenLimit(usdc);
         protocolGovernance.liquidationThresholdD(usdc);
         protocolGovernance.whitelistedPool(0);
     }
@@ -305,30 +278,6 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
         vm.expectEmit(false, true, false, true);
         emit WhitelistedPoolRevoked(getNextUserAddress(), address(this), pool);
         protocolGovernance.revokeWhitelistedPool(pool);
-    }
-
-    // setTokenLimit
-
-    function testSetTokenLimitAccessControl() public {
-        address token = usdc;
-
-        address newAddress = getNextUserAddress();
-        vm.startPrank(newAddress);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-        protocolGovernance.setTokenLimit(token, 10**18);
-    }
-
-    function testSetZeroAddress() public {
-        vm.expectRevert(DefaultAccessControl.AddressZero.selector);
-        protocolGovernance.setTokenLimit(address(0), 10**18);
-    }
-
-    function testSetTokenLimitEmitted() public {
-        address token = usdc;
-
-        vm.expectEmit(false, true, false, true);
-        emit TokenLimitSet(getNextUserAddress(), address(this), token, 10**18);
-        protocolGovernance.setTokenLimit(token, 10**18);
     }
 
     // setLiquidationThreshold

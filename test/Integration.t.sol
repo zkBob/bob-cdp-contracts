@@ -408,30 +408,6 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.stopPrank();
     }
 
-    function testTokenGotScammedHenceLiquidated() public {
-        // usdc playing a role of scammed token here
-        uint256 vaultId = vault.openVault();
-
-        protocolGovernance.setTokenLimit(usdc, 100000 * 10**6); // 100000 USD
-
-        uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); //20000 USD
-        uint256 nftB = openUniV3Position(wbtc, weth, 10**8 / 2, 10**18 * 20, address(vault)); //20000 USD
-
-        vault.depositCollateral(vaultId, nftA);
-        vault.depositCollateral(vaultId, nftB);
-        vault.mintDebt(vaultId, 20000 * (10**18));
-
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
-        protocolGovernance.revokeWhitelistedPool(pool);
-
-        address liquidator = getNextUserAddress();
-        deal(address(token), liquidator, 100000 * 10**18, true);
-        vm.startPrank(liquidator);
-        token.approve(address(vault), type(uint256).max);
-        vault.liquidate(vaultId);
-        vm.stopPrank();
-    }
-
     function LiquidationThresholdChangedHenceLiquidated() public {
         uint256 vaultId = vault.openVault();
 

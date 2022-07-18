@@ -28,9 +28,6 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     /// @inheritdoc IProtocolGovernance
     mapping(address => uint256) public liquidationThresholdD;
 
-    /// @notice Mapping, returning token capital limit (in token weis)
-    mapping(address => uint256) private _tokenCapitalLimit;
-
     /// @notice Creates a new contract
     /// @param admin Protocol admin
     /// @param maxDebtPerVault Initial max possible debt to a one vault (nominated in MUSD weis)
@@ -48,15 +45,6 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     /// @inheritdoc IProtocolGovernance
     function isPoolWhitelisted(address pool) external view returns (bool) {
         return (_whitelistedPools.contains(pool));
-    }
-
-    /// @inheritdoc IProtocolGovernance
-    function getTokenLimit(address token) external view returns (uint256) {
-        uint256 limit = _tokenCapitalLimit[token];
-        if (limit == 0) {
-            return type(uint256).max;
-        }
-        return limit;
     }
 
     /// @inheritdoc IProtocolGovernance
@@ -145,17 +133,6 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         emit LiquidationThresholdSet(tx.origin, msg.sender, pool, liquidationThresholdD_);
     }
 
-    /// @inheritdoc IProtocolGovernance
-    function setTokenLimit(address token, uint256 newLimit) external {
-        _requireAdmin();
-        if (token == address(0)) {
-            revert AddressZero();
-        }
-
-        _tokenCapitalLimit[token] = newLimit;
-        emit TokenLimitSet(tx.origin, msg.sender, token, newLimit);
-    }
-
     // --------------------------  EVENTS  --------------------------
 
     /// @notice Emitted when liquidation fee is updated
@@ -205,11 +182,4 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The deleted whitelisted pool
     event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
-
-    /// @notice Emitted when token capital limit is set
-    /// @param origin Origin of the transaction (tx.origin)
-    /// @param sender Sender of the call (msg.sender)
-    /// @param token The token address
-    /// @param stagedLimit The new token capital limit
-    event TokenLimitSet(address indexed origin, address indexed sender, address token, uint256 stagedLimit);
 }
