@@ -3,7 +3,7 @@ pragma solidity ^0.8.13;
 
 import "./AbstractDeployment.sol";
 
-contract RinkebyDeployment is AbstractDeployment {
+contract PolygonDeployment is AbstractDeployment {
     function tokens()
         public
         pure
@@ -14,23 +14,23 @@ contract RinkebyDeployment is AbstractDeployment {
             address usdc
         )
     {
-        wbtc = address(0x577D296678535e4903D59A4C929B718e1D575e0A);
-        weth = address(0xc778417E063141139Fce010982780140Aa0cD5Ab);
-        usdc = address(0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b);
+        wbtc = address(0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6);
+        weth = address(0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619);
+        usdc = address(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174);
     }
 
     function oracleParams() public pure override returns (address[] memory oracleTokens, address[] memory oracles) {
         oracleTokens = new address[](3);
 
-        oracleTokens[0] = address(0x577D296678535e4903D59A4C929B718e1D575e0A); // wbtc
-        oracleTokens[1] = address(0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b); // usdc
-        oracleTokens[2] = address(0xc778417E063141139Fce010982780140Aa0cD5Ab); // weth
+        oracleTokens[0] = address(0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6); // wbtc
+        oracleTokens[1] = address(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174); // usdc
+        oracleTokens[2] = address(0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619); // weth
 
         oracles = new address[](3);
 
-        oracles[0] = address(0xECe365B379E1dD183B20fc5f022230C044d51404); // btc
-        oracles[1] = address(0xa24de01df22b63d23Ebc1882a5E3d4ec0d907bFB); // usdc
-        oracles[2] = address(0x8A753747A1Fa494EC906cE90E9f37563A8AF630e); // eth
+        oracles[0] = address(0xc907E116054Ad103354f2D350FD2514433D57F6f); // btc
+        oracles[1] = address(0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7); // usdc
+        oracles[2] = address(0xF9680D99D6C9589e2a93a78A04A279e509205945); // eth
     }
 
     function vaultParams()
