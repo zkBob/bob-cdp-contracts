@@ -186,10 +186,14 @@ contract Vault is DefaultAccessControl {
     function calculateVaultAdjustedCollateral(uint256 vaultId) public view returns (uint256) {
         uint256 result = 0;
         uint256[] memory nfts = _vaultNfts[vaultId].values();
+
+        INonfungiblePositionManager positionManager_ = positionManager;
+        IProtocolGovernance protocolGovernance_ = protocolGovernance;
+
         for (uint256 i = 0; i < nfts.length; ++i) {
             uint256 nft = nfts[i];
             UniV3PositionInfo memory position = _uniV3PositionInfo[nft];
-            uint256 liquidationThresholdD = protocolGovernance.liquidationThresholdD(address(position.targetPool));
+            uint256 liquidationThresholdD = protocolGovernance_.liquidationThresholdD(address(position.targetPool));
             UniswapV3FeesCalculation.PositionInfo memory positionInfo;
             (
                 ,
@@ -204,7 +208,7 @@ contract Vault is DefaultAccessControl {
                 positionInfo.feeGrowthInside1LastX128,
                 positionInfo.tokensOwed0,
                 positionInfo.tokensOwed1
-            ) = positionManager.positions(nft);
+            ) = positionManager_.positions(nft);
 
             result += _calculateAdjustedCollateral(position, liquidationThresholdD, positionInfo);
         }
@@ -394,8 +398,8 @@ contract Vault is DefaultAccessControl {
 
         token.mint(msg.sender, amount);
         vaultDebt[vaultId] += amount;
+        uint256 overallVaultDebt = stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId];
 
-        uint256 overallVaultDebt = getOverallDebt(vaultId);
         if (calculateVaultAdjustedCollateral(vaultId) < overallVaultDebt) {
             revert PositionUnhealthy();
         }
@@ -572,6 +576,8 @@ contract Vault is DefaultAccessControl {
     function _calculateVaultCollateral(uint256 vaultId) internal view returns (uint256) {
         uint256 result = 0;
         uint256[] memory nfts = _vaultNfts[vaultId].values();
+        INonfungiblePositionManager positionManager_ = positionManager;
+
         for (uint256 i = 0; i < nfts.length; ++i) {
             UniswapV3FeesCalculation.PositionInfo memory positionInfo;
             uint256 nft = nfts[i];
@@ -588,7 +594,7 @@ contract Vault is DefaultAccessControl {
                 positionInfo.feeGrowthInside1LastX128,
                 positionInfo.tokensOwed0,
                 positionInfo.tokensOwed1
-            ) = positionManager.positions(nft);
+            ) = positionManager_.positions(nft);
             result += _calculateAdjustedCollateral(_uniV3PositionInfo[nft], DENOMINATOR, positionInfo);
         }
         return result;
@@ -672,13 +678,14 @@ contract Vault is DefaultAccessControl {
         address nftsRecipient
     ) internal {
         uint256[] memory nfts = _vaultNfts[vaultId].values();
+        INonfungiblePositionManager positionManager_ = positionManager;
 
         for (uint256 i = 0; i < nfts.length; ++i) {
             uint256 nft = nfts[i];
 
             delete _uniV3PositionInfo[nft];
 
-            positionManager.transferFrom(address(this), nftsRecipient, nft);
+            positionManager_.transferFrom(address(this), nftsRecipient, nft);
         }
 
         _ownedVaults[owner].remove(vaultId);
