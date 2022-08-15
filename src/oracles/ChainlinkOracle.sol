@@ -54,15 +54,14 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     /// @inheritdoc IOracle
     function price(address token) external view returns (bool success, uint256 priceX96) {
-        priceX96 = 0;
         IAggregatorV3 chainlinkOracle = IAggregatorV3(oraclesIndex[token]);
         if (address(chainlinkOracle) == address(0)) {
-            return (false, priceX96);
+            return (false, 0);
         }
         uint256 oraclePrice;
         (success, oraclePrice) = _queryChainlinkOracle(chainlinkOracle);
         if (!success) {
-            return (false, priceX96);
+            return (false, 0);
         }
 
         success = true;
