@@ -593,18 +593,18 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         IUniswapV3Pool pool = IUniswapV3Pool(IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000));
 
-        (, int24 tickOld, , , , ,) = pool.slot0();
+        (, int24 tickOld, , , , , ) = pool.slot0();
         uint256 healthPreAction = vault.calculateVaultAdjustedCollateral(vaultId);
 
         makeSwap(usdc, weth, 10**13); //10M USD swap which is on 4.5% of price
 
-        (, int24 tickNew, , , , ,) = pool.slot0();
+        (, int24 tickNew, , , , , ) = pool.slot0();
         console.logInt(tickNew);
         console.logInt(tickOld);
         assertTrue(tickOld > tickNew); //swap passed
         uint256 healthPostAction = vault.calculateVaultAdjustedCollateral(vaultId);
 
-        assertApproxEqual(healthPreAction * 1001 / 1000, healthPostAction, 1); //with fees that means they're just equal
+        assertApproxEqual((healthPreAction * 1001) / 1000, healthPostAction, 1); //with fees that means they're just equal
     }
 
     function testHealthFactorAfterPoolChange() public {
