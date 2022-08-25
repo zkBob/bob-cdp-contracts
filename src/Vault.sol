@@ -612,8 +612,17 @@ contract Vault is DefaultAccessControl {
         uint256[] memory tokenAmounts = new uint256[](2);
 
         uint256[] memory pricesX96 = new uint256[](2);
-        (, pricesX96[0]) = oracle.price(position.token0);
-        (, pricesX96[1]) = oracle.price(position.token1);
+        {
+            bool successFirstOracle;
+            bool successSecondOracle;
+
+            (successFirstOracle, pricesX96[0]) = oracle.price(position.token0);
+            (successSecondOracle, pricesX96[1]) = oracle.price(position.token1);
+
+            if (!successFirstOracle || !successSecondOracle || pricesX96[1] == 0) {
+                return 0;
+            }
+        }
 
         uint256 ratioX96 = FullMath.mulDiv(pricesX96[0], Q96, pricesX96[1]);
         uint160 sqrtRatioX96 = uint160(FullMath.sqrt(ratioX96) * Q48);
