@@ -100,7 +100,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
         assertEq(priceX96, 0);
     }
 
-    function testPriceReturnsZeroForBrokenOracle() public {
+    function testOracleNotAddedForBrokenOracle() public {
         MockChainlinkOracle mockOracle = new MockChainlinkOracle();
 
         address[] memory currentTokens = new address[](1);
@@ -108,9 +108,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
         address[] memory currentOracles = new address[](1);
         currentOracles[0] = address(mockOracle);
 
+        vm.expectRevert(ChainlinkOracle.InvalidOracle.selector);
         oracle.addChainlinkOracles(currentTokens, currentOracles);
-        (bool success, uint256 priceX96) = oracle.price(ape);
-        assertEq(success, false);
-        assertEq(priceX96, 0);
     }
 }

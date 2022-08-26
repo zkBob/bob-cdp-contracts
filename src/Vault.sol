@@ -55,6 +55,7 @@ contract Vault is DefaultAccessControl {
     uint256 public constant DENOMINATOR = 10**9;
     uint256 public constant YEAR = 365 * 24 * 3600;
     uint256 public constant Q96 = 2**96;
+    uint256 public constant Q48 = 2**48;
 
     /// @notice Information about a single UniV3 NFT
     /// @param token0 The first token in the UniswapV3 pool
@@ -332,6 +333,14 @@ contract Vault is DefaultAccessControl {
                     sqrtRatioAX96: sqrtRatioAX96,
                     sqrtRatioBX96: sqrtRatioBX96
                 });
+
+                if (!protocolGovernance.isPoolWhitelisted(factory.getPool(token0, token1, fee))) {
+                    revert InvalidPool();
+                }
+
+                if (!oracle.hasOracle(token0) || !oracle.hasOracle(token1)) {
+                    revert MissingOracle();
+                }
             }
 
             if (
@@ -351,16 +360,6 @@ contract Vault is DefaultAccessControl {
             ) {
                 revert CollateralUnderflow();
             }
-        }
-
-        UniV3PositionInfo memory position = _uniV3PositionInfo[nft];
-
-        if (!protocolGovernance.isPoolWhitelisted(address(position.targetPool))) {
-            revert InvalidPool();
-        }
-
-        if (!oracle.hasOracle(position.token0) || !oracle.hasOracle(position.token1)) {
-            revert MissingOracle();
         }
 
         _vaultNfts[vaultId].add(nft);
@@ -611,7 +610,24 @@ contract Vault is DefaultAccessControl {
         UniswapV3FeesCalculation.PositionInfo memory positionInfo
     ) internal view returns (uint256) {
         uint256[] memory tokenAmounts = new uint256[](2);
-        (uint160 sqrtRatioX96, int24 tick, , , , , ) = position.targetPool.slot0();
+
+        uint256[] memory pricesX96 = new uint256[](2);
+        {
+            bool successFirstOracle;
+            bool successSecondOracle;
+
+            (successFirstOracle, pricesX96[0]) = oracle.price(position.token0);
+            (successSecondOracle, pricesX96[1]) = oracle.price(position.token1);
+
+            if (!successFirstOracle || !successSecondOracle || pricesX96[1] == 0) {
+                return 0;
+            }
+        }
+
+        uint256 ratioX96 = FullMath.mulDiv(pricesX96[0], Q96, pricesX96[1]);
+        uint160 sqrtRatioX96 = uint160(FullMath.sqrt(ratioX96) * Q48);
+
+        (, int24 tick, , , , , ) = position.targetPool.slot0();
 
         (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
             sqrtRatioX96,
@@ -628,10 +644,6 @@ contract Vault is DefaultAccessControl {
 
         tokenAmounts[0] += actualTokensOwed0;
         tokenAmounts[1] += actualTokensOwed1;
-
-        uint256[] memory pricesX96 = new uint256[](2);
-        (, pricesX96[0]) = oracle.price(position.token0);
-        (, pricesX96[1]) = oracle.price(position.token1);
 
         uint256 result = 0;
         for (uint256 i = 0; i < 2; ++i) {

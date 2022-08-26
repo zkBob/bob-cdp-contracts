@@ -173,21 +173,20 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         positionManager.transferFrom(address(this), secondAddress, secondNft);
         vault.depositCollateral(vaultId, tokenId);
 
-        vault.mintDebt(vaultId, 1100 * 10**18);
+        vault.mintDebt(vaultId, 1020 * 10**18);
         vm.startPrank(secondAddress);
 
         positionManager.approve(address(vault), secondNft);
         uint256 secondVault = vault.openVault();
         vault.depositCollateral(secondVault, secondNft);
-        vault.mintDebt(secondVault, 300 * 10**18);
+        vault.mintDebt(secondVault, 230 * 10**18);
 
         vm.stopPrank();
         vm.warp(block.timestamp + 4 * YEAR);
         assertTrue(vault.getOverallDebt(vaultId) > vault.calculateVaultAdjustedCollateral(vaultId));
 
         vm.startPrank(secondAddress);
-        console.log(token.balanceOf(secondAddress));
-        token.transfer(firstAddress, 300 * 10**18);
+        token.transfer(firstAddress, 230 * 10**18);
         vm.stopPrank();
 
         vault.burnDebt(vaultId, token.balanceOf(firstAddress));
@@ -199,7 +198,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 1100 * 10**18);
+        vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
@@ -245,7 +244,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
             uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
             vault.depositCollateral(vaultId, tokenId);
             vault.mintDebt(vaultId, 1000 * 10**18);
-            oracle.setPrice(weth, 400 << 96);
+            oracle.setPrice(weth, 800 << 96);
 
             address liquidator = getNextUserAddress();
             deal(address(token), liquidator, 10000 * 10**18, true);
@@ -396,8 +395,9 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         makeSwap(usdc, weth, amountOut);
 
         uint256 healthAfterSwaps = vault.calculateVaultAdjustedCollateral(vaultId);
+
         assertTrue(healthBeforeSwaps * 100001 <= healthAfterSwaps * 100000);
-        assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 2); // difference < 0.2% though
+        assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 3); // difference < 0.3% though
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 10000 * 10**18, true);

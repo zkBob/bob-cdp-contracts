@@ -13,6 +13,9 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     /// @notice Thrown when tokens.length != oracles.length
     error InvalidLength();
 
+    /// @notice Thrown when price feed doesn't work by some reason
+    error InvalidOracle();
+
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 public constant DECIMALS = 18;
@@ -90,6 +93,9 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     /// @return success Query to chainlink oracle (if oracle.latestRoundData call works correctly => the answer can be received), answer Result of the query
     function _queryChainlinkOracle(IAggregatorV3 oracle) internal view returns (bool success, uint256 answer) {
         try oracle.latestRoundData() returns (uint80, int256 ans, uint256, uint256, uint80) {
+            if (ans <= 0) {
+                return (true, 0);
+            }
             return (true, uint256(ans));
         } catch (bytes memory) {
             return (false, 0);
@@ -108,13 +114,21 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
         for (uint256 i = 0; i < tokens.length; i++) {
             address token = tokens[i];
             address oracle = oracles[i];
+
+            IAggregatorV3 chainlinkOracle = IAggregatorV3(oracle);
+            (bool flag, ) = _queryChainlinkOracle(chainlinkOracle);
+
+            if (!flag) {
+                revert InvalidOracle(); // hence a token for this 'oracle' can not be added
+            }
+
             _tokens.add(token);
             oraclesIndex[token] = oracle;
 
             uint256 decimals = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
             if (DECIMALS > decimals) {
                 priceMultiplier[token] = (10**(DECIMALS - decimals)) * Q96;
-            } else if (decimals > DECIMALS) {
+            } else {
                 priceMultiplier[token] = Q96 / 10**(decimals - DECIMALS);
             }
         }

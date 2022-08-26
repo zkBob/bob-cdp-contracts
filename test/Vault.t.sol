@@ -540,8 +540,8 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testHealthFactorAfterDeposit() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        uint256 lowCapitalBound = 10**18 * 1100;
-        uint256 upCapitalBound = 10**18 * 1300; // health apparently ~1200USD
+        uint256 lowCapitalBound = 10**18 * 1000;
+        uint256 upCapitalBound = 10**18 * 1200; // health apparently ~1100USD
         vault.depositCollateral(vaultId, tokenId);
         uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
         assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
@@ -584,6 +584,27 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         assertTrue(healthLowPrice < healthPreAction);
         assertTrue(healthPreAction < healthHighPrice);
+    }
+
+    function testHealthFactorOkayInCaseOfManipulation() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+
+        IUniswapV3Pool pool = IUniswapV3Pool(IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000));
+
+        (, int24 tickOld, , , , , ) = pool.slot0();
+        uint256 healthPreAction = vault.calculateVaultAdjustedCollateral(vaultId);
+
+        makeSwap(usdc, weth, 10**13); //10M USD swap which is on 4.5% of price
+
+        (, int24 tickNew, , , , , ) = pool.slot0();
+        console.logInt(tickNew);
+        console.logInt(tickOld);
+        assertTrue(tickOld > tickNew); //swap passed
+        uint256 healthPostAction = vault.calculateVaultAdjustedCollateral(vaultId);
+
+        assertApproxEqual((healthPreAction * 1001) / 1000, healthPostAction, 1); //with fees that means they're just equal
     }
 
     function testHealthFactorAfterPoolChange() public {
@@ -635,9 +656,9 @@ contract VaultTest is Test, SetupContract, Utilities {
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 1100 * 10**18);
+        vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 800
-        oracle.setPrice(weth, 800 << 96);
+        oracle.setPrice(weth, 700 << 96);
 
         address randomAddress = getNextUserAddress();
         token.transfer(randomAddress, vault.vaultDebt(vaultId));
@@ -661,7 +682,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         uint256 liquidatorSpent = oldLiquidatorBalance - token.balanceOf(liquidator);
 
-        uint256 targetTreasuryBalance = (1600 * 10**18 * protocolGovernance.protocolParams().liquidationFeeD) / 10**9;
+        uint256 targetTreasuryBalance = (1400 * 10**18 * protocolGovernance.protocolParams().liquidationFeeD) / 10**9;
         uint256 treasuryGot = token.balanceOf(address(treasury));
 
         assertApproxEqual(targetTreasuryBalance, treasuryGot, 150);
@@ -682,7 +703,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 1100 * 10**18);
+        vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 1
         oracle.setPrice(weth, 1 << 96);
 
@@ -700,7 +721,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 1100 * 10**18);
+        vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 1
         oracle.setPrice(weth, 1 << 96);
 
@@ -727,8 +748,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 1100 * 10**18);
-        oracle.setPrice(weth, 170 << 96);
+        vault.mintDebt(vaultId, 1000 * 10**18);
+        oracle.setPrice(weth, 600 << 96);
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 20000 * 10**18, true);
@@ -784,7 +805,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 1100 * 10**18);
+        vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
