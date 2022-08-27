@@ -619,7 +619,7 @@ contract Vault is DefaultAccessControl {
             (successFirstOracle, pricesX96[0]) = oracle.price(position.token0);
             (successSecondOracle, pricesX96[1]) = oracle.price(position.token1);
 
-            if (!successFirstOracle || !successSecondOracle || pricesX96[1] == 0) {
+            if (!successFirstOracle || !successSecondOracle) {
                 return 0;
             }
         }
