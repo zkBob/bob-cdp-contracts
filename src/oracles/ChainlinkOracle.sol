@@ -22,7 +22,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     uint256 public constant Q96 = 2**96;
 
     /// @notice Mapping, returning oracle for token
-    mapping(address => address) public oraclesIndex;
+    mapping(address => IAggregatorV3) public oraclesIndex;
 
     /// @notice Mapping, returning price multiplier for each  token
     mapping(address => uint256) public priceMultiplier;
@@ -57,7 +57,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     /// @inheritdoc IOracle
     function price(address token) external view returns (bool success, uint256 priceX96) {
-        IAggregatorV3 chainlinkOracle = IAggregatorV3(oraclesIndex[token]);
+        IAggregatorV3 chainlinkOracle = oraclesIndex[token];
         if (address(chainlinkOracle) == address(0)) {
             return (false, 0);
         }
@@ -94,7 +94,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     function _queryChainlinkOracle(IAggregatorV3 oracle) internal view returns (bool success, uint256 answer) {
         try oracle.latestRoundData() returns (uint80, int256 ans, uint256, uint256, uint80) {
             if (ans <= 0) {
-                return (true, 0);
+                return (false, 0);
             }
             return (true, uint256(ans));
         } catch (bytes memory) {
@@ -123,7 +123,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
             }
 
             _tokens.add(token);
-            oraclesIndex[token] = oracle;
+            oraclesIndex[token] = chainlinkOracle;
 
             uint256 decimals = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
             if (DECIMALS > decimals) {
