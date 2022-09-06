@@ -714,7 +714,7 @@ contract Vault is DefaultAccessControl {
     /// @param vaultId Id of the vault
     function _updateVaultStabilisationFee(uint256 vaultId) internal {
         uint256 currentVaultDebt = vaultDebt[vaultId];
-        if (block.timestamp == _stabilisationFeeVaultSnapshotTimestamp[vaultId] || currentVaultDebt == 0) {
+        if (block.timestamp == _stabilisationFeeVaultSnapshotTimestamp[vaultId]) {
             return;
         }
 
