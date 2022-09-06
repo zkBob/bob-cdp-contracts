@@ -356,6 +356,20 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.mintDebt(vaultId, 10);
     }
 
+    function testCorrectFeesWhenMintAfterTimeComes() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+
+        vm.warp(block.timestamp + YEAR);
+
+        vault.mintDebt(vaultId, 10**18);
+        vm.warp(block.timestamp + 1000);
+
+        uint256 debt = vault.getOverallDebt(vaultId);
+        assertTrue(debt < 10**14 * 10001); // surely < 0.01%
+    }
+
     // burnDebt
 
     function testBurnDebtSuccess() public {
