@@ -370,6 +370,51 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertTrue(debt < 10**14 * 10001); // surely < 0.01%
     }
 
+    // mintDebtFromScratch
+
+    function testMintDebtFromScratchSuccess() public {
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 vaultId = vault.mintDebtFromScratch(tokenId, 10**18);
+
+        console2.log(vault.calculateVaultAdjustedCollateral(vaultId));
+
+        assertTrue(vault.vaultDebt(vaultId) == 10**18);
+        uint256[] memory nfts = vault.vaultNftsById(vaultId);
+
+        assertTrue(nfts.length == 1);
+        assertTrue(nfts[0] == tokenId);
+    }
+
+    function testMintDebtFromScratchWhenTooMuchDebtTried() public {
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
+        vault.mintDebtFromScratch(tokenId, 10**22);
+    }
+
+    // depositAndMint
+
+    function testDepositAndMintSuccess() public {
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 vaultId = vault.openVault();
+
+        vault.depositAndMint(vaultId, tokenId, 10**18);
+
+        assertTrue(vault.vaultDebt(vaultId) == 10**18);
+        uint256[] memory nfts = vault.vaultNftsById(vaultId);
+
+        assertTrue(nfts.length == 1);
+        assertTrue(nfts[0] == tokenId);
+    }
+
+    function testDepositAndMintWhenTooMuchDebtTried() public {
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 vaultId = vault.openVault();
+
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
+        vault.depositAndMint(vaultId, tokenId, 10**22);
+    }
+
     // burnDebt
 
     function testBurnDebtSuccess() public {

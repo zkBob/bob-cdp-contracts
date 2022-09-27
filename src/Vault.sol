@@ -259,7 +259,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Open a new Vault
     /// @return vaultId Id of the new vault
-    function openVault() external returns (uint256 vaultId) {
+    function openVault() public returns (uint256 vaultId) {
         _requireUnpaused();
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
@@ -296,7 +296,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Deposit collateral to a given vault
     /// @param vaultId Id of the vault
     /// @param nft UniV3 NFT to be deposited
-    function depositCollateral(uint256 vaultId, uint256 nft) external {
+    function depositCollateral(uint256 vaultId, uint256 nft) public {
         _requireUnpaused();
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
@@ -390,7 +390,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Mint debt on a given vault
     /// @param vaultId Id of the vault
     /// @param amount The debt amount to be mited
-    function mintDebt(uint256 vaultId, uint256 amount) external {
+    function mintDebt(uint256 vaultId, uint256 amount) public {
         _requireUnpaused();
         _requireVaultOwner(vaultId);
         _updateVaultStabilisationFee(vaultId);
@@ -471,6 +471,21 @@ contract Vault is DefaultAccessControl {
         _closeVault(vaultId, owner, msg.sender);
 
         emit VaultLiquidated(msg.sender, vaultId);
+    }
+
+    function mintDebtFromScratch(uint256 nft, uint256 amount) external returns (uint256 vaultId) {
+        vaultId = openVault();
+        depositCollateral(vaultId, nft);
+        mintDebt(vaultId, amount);
+    }
+
+    function depositAndMint(
+        uint256 vaultId,
+        uint256 nft,
+        uint256 amount
+    ) external {
+        depositCollateral(vaultId, nft);
+        mintDebt(vaultId, amount);
     }
 
     /// @notice Set a new price oracle
