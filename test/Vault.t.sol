@@ -404,6 +404,40 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.mintDebtFromScratch(tokenId, 10**22);
     }
 
+    // deposit collateral via safeTransferFrom
+
+    function testSafeTransferFromSuccess() public {
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 vaultId = vault.openVault();
+        bytes memory data = abi.encode(vaultId);
+
+        positionManager.safeTransferFrom(address(this), address(vault), tokenId, data);
+
+        uint256[] memory nfts = vault.vaultNftsById(vaultId);
+
+        assertTrue(nfts.length == 1);
+        assertTrue(nfts[0] == tokenId);
+    }
+
+    function testSafeTransferFromWhenCallingDirectly() public {
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 vaultId = vault.openVault();
+        bytes memory data = abi.encode(vaultId);
+
+        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vault.onERC721Received(address(positionManager), address(this), tokenId, data);
+    }
+
+    function testSafeTransferFromEmit() public {
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 vaultId = vault.openVault();
+        bytes memory data = abi.encode(vaultId);
+
+        vm.expectEmit(true, false, false, true);
+        emit CollateralDeposited(address(this), vaultId, tokenId);
+        positionManager.safeTransferFrom(address(this), address(vault), tokenId, data);
+    }
+
     // depositAndMint
 
     function testDepositAndMintSuccess() public {
