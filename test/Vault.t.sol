@@ -753,7 +753,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         uint256 liquidatorSpent = oldLiquidatorBalance - token.balanceOf(liquidator);
 
-        uint256 targetTreasuryBalance = (1400 * 10**18 * protocolGovernance.protocolParams().liquidationFeeD) / 10**9;
+        uint256 targetTreasuryBalance = (1400 * 10**18 * uint256(protocolGovernance.protocolParams().liquidationFeeD)) / 10**9;
         uint256 treasuryGot = token.balanceOf(address(treasury));
 
         assertApproxEqual(targetTreasuryBalance, treasuryGot, 150);

@@ -262,8 +262,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Open a new Vault
     /// @return vaultId Id of the new vault
-    function openVault() public returns (uint256 vaultId) {
-        _requireUnpaused();
+    function openVault() public onlyUnpaused returns (uint256 vaultId) {
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
         }
@@ -283,8 +282,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Close a vault
     /// @param vaultId Id of the vault
     /// @param collateralRecipient The address of collateral recipient
-    function closeVault(uint256 vaultId, address collateralRecipient) external {
-        _requireUnpaused();
+    function closeVault(uint256 vaultId, address collateralRecipient) external onlyUnpaused {
         _requireVaultOwner(vaultId);
 
         if (vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] != 0) {
@@ -299,8 +297,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Deposit collateral to a given vault
     /// @param vaultId Id of the vault
     /// @param nft UniV3 NFT to be deposited
-    function depositCollateral(uint256 vaultId, uint256 nft) public {
-        _requireUnpaused();
+    function depositCollateral(uint256 vaultId, uint256 nft) public onlyUnpaused {
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
         }
@@ -397,8 +394,7 @@ contract Vault is DefaultAccessControl {
     /// @notice Mint debt on a given vault
     /// @param vaultId Id of the vault
     /// @param amount The debt amount to be mited
-    function mintDebt(uint256 vaultId, uint256 amount) public {
-        _requireUnpaused();
+    function mintDebt(uint256 vaultId, uint256 amount) public onlyUnpaused {
         _requireVaultOwner(vaultId);
         _updateVaultStabilisationFee(vaultId);
 
@@ -497,8 +493,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Set a new price oracle
     /// @param oracle_ The new oracle
-    function setOracle(IOracle oracle_) external {
-        _requireAdmin();
+    function setOracle(IOracle oracle_) external onlyAdmin {
         if (address(oracle_) == address(0)) {
             revert AddressZero();
         }
@@ -509,8 +504,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Set MUSD token
     /// @param token_ MUSD token
-    function setToken(IMUSD token_) external {
-        _requireAdmin();
+    function setToken(IMUSD token_) external onlyAdmin {
         if (address(token_) == address(0)) {
             revert AddressZero();
         }
@@ -523,32 +517,28 @@ contract Vault is DefaultAccessControl {
     }
 
     /// @notice Pause the system
-    function pause() external {
-        _requireAtLeastOperator();
+    function pause() external onlyAtLeastOperator {
         isPaused = true;
 
         emit SystemPaused(tx.origin, msg.sender);
     }
 
     /// @notice Unpause the system
-    function unpause() external {
-        _requireAdmin();
+    function unpause() external onlyAdmin {
         isPaused = false;
 
         emit SystemUnpaused(tx.origin, msg.sender);
     }
 
     /// @notice Make the system private
-    function makePrivate() external {
-        _requireAdmin();
+    function makePrivate() external onlyAdmin {
         isPrivate = true;
 
         emit SystemPrivate(tx.origin, msg.sender);
     }
 
     /// @notice Make the system public
-    function makePublic() external {
-        _requireAdmin();
+    function makePublic() external onlyAdmin {
         isPrivate = false;
 
         emit SystemPublic(tx.origin, msg.sender);
@@ -556,8 +546,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Add an array of new depositors to the allow list
     /// @param depositors Array of new depositors
-    function addDepositorsToAllowlist(address[] calldata depositors) external {
-        _requireAdmin();
+    function addDepositorsToAllowlist(address[] calldata depositors) external onlyAdmin {
         for (uint256 i = 0; i < depositors.length; i++) {
             _depositorsAllowlist.add(depositors[i]);
         }
@@ -565,8 +554,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Remove an array of depositors from the allow list
     /// @param depositors Array of new depositors
-    function removeDepositorsFromAllowlist(address[] calldata depositors) external {
-        _requireAdmin();
+    function removeDepositorsFromAllowlist(address[] calldata depositors) external onlyAdmin {
         for (uint256 i = 0; i < depositors.length; i++) {
             _depositorsAllowlist.remove(depositors[i]);
         }
@@ -574,8 +562,7 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Update stabilisation fee (multiplied by DENOMINATOR) and calculate global stabilisation fee per USD up to current timestamp using previous stabilisation fee
     /// @param stabilisationFeeRateD_ New stabilisation fee multiplied by DENOMINATOR
-    function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external {
-        _requireAdmin();
+    function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external onlyAdmin {
         if (stabilisationFeeRateD_ > DENOMINATOR) {
             revert InvalidValue();
         }
@@ -743,6 +730,23 @@ contract Vault is DefaultAccessControl {
         stabilisationFeeVaultSnapshot[vaultId] += _accruedStabilisationFee(vaultId, currentVaultDebt);
         _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
         _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = globalStabilisationFeePerUSDD();
+    }
+
+    // -----------------------  MODIFIERS  --------------------------
+
+    modifier onlyAdmin() {
+        _requireAdmin();
+        _;
+    }
+
+    modifier onlyAtLeastOperator {
+        _requireAtLeastOperator();
+        _;
+    }
+
+    modifier onlyUnpaused {
+        _requireUnpaused();
+        _;
     }
 
     // --------------------------  EVENTS  --------------------------
