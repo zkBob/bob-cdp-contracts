@@ -739,12 +739,12 @@ contract Vault is DefaultAccessControl {
         _;
     }
 
-    modifier onlyAtLeastOperator {
+    modifier onlyAtLeastOperator() {
         _requireAtLeastOperator();
         _;
     }
 
-    modifier onlyUnpaused {
+    modifier onlyUnpaused() {
         _requireUnpaused();
         _;
     }
