@@ -29,6 +29,9 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     /// @notice Thrown when a value of a stabilization fee is incorrect
     error InvalidValue();
 
+    /// @notice Thrown when a vault does not exist
+    error InvalidVault();
+
     /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Uniswap V3 NFT
     error MissingOracle();
 
@@ -310,8 +313,14 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
             revert NFTLimitExceeded();
         }
 
+        if (vaultOwner[vaultId] == address(0)) {
+            revert InvalidVault();
+        }
+
         positionManager.transferFrom(msg.sender, address(this), nft);
         _depositCollateral(vaultId, nft);
+
+        emit CollateralDeposited(msg.sender, vaultId, nft);
     }
 
     /// @notice Withdraw collateral from a given vault
@@ -449,6 +458,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
         _depositCollateral(vaultId, tokenId);
 
+        emit CollateralDeposited(from, vaultId, tokenId);
         return this.onERC721Received.selector;
     }
 
@@ -721,7 +731,6 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
         }
 
         _vaultNfts[vaultId].add(nft);
-        emit CollateralDeposited(from, vaultId, tokenId);
     }
 
     /// @notice Close a vault (internal)

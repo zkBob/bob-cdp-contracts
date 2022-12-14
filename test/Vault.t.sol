@@ -173,12 +173,6 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(21, 22);
     }
 
-    function testDepositCollateralWhenNotOwner() public {
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-
-        vault.depositCollateral(21, 22);
-    }
-
     function testDepositCollateralInvalidPool() public {
         uint256 vaultId = vault.openVault();
 
@@ -281,7 +275,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         vault.closeVault(vaultId, address(this));
 
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(Vault.InvalidVault.selector);
         vault.depositCollateral(vaultId, 123);
     }
 
