@@ -54,6 +54,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);
         protocolGovernance.changeMinSingleNftCollateral(10**17);
+        protocolGovernance.changeMaxNftsPerVault(20);
 
         setPools(IProtocolGovernance(protocolGovernance));
         setApprovals();

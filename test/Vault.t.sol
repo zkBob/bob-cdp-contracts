@@ -74,6 +74,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);
         protocolGovernance.changeMinSingleNftCollateral(10**17);
+        protocolGovernance.changeMaxNftsPerVault(12);
 
         setPools(IProtocolGovernance(protocolGovernance));
         setApprovals();
@@ -210,6 +211,17 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**15, 10**6, address(vault));
 
+        vault.depositCollateral(vaultId, tokenId);
+    }
+
+    function testDepositCollateralNFTLimitExceeded() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        protocolGovernance.changeMaxNftsPerVault(1);
+
+        vm.expectRevert(Vault.NFTLimitExceeded.selector);
         vault.depositCollateral(vaultId, tokenId);
     }
 
