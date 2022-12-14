@@ -310,12 +310,8 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
             revert NFTLimitExceeded();
         }
 
-        _requireVaultOwner(vaultId);
-
         positionManager.transferFrom(msg.sender, address(this), nft);
         _depositCollateral(vaultId, nft);
-
-        emit CollateralDeposited(msg.sender, vaultId, nft);
     }
 
     /// @notice Withdraw collateral from a given vault
@@ -451,13 +447,8 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
         }
         uint256 vaultId = abi.decode(data, (uint256));
 
-        if (vaultOwner[vaultId] != from) {
-            revert Forbidden();
-        }
-
         _depositCollateral(vaultId, tokenId);
 
-        emit CollateralDeposited(from, vaultId, tokenId);
         return this.onERC721Received.selector;
     }
 
@@ -730,6 +721,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
         }
 
         _vaultNfts[vaultId].add(nft);
+        emit CollateralDeposited(from, vaultId, tokenId);
     }
 
     /// @notice Close a vault (internal)
