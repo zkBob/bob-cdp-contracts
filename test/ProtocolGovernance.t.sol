@@ -14,6 +14,7 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
     event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremiumD);
     event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
     event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
+    event MaxNftsPerVaultChanged(address indexed origin, address indexed sender, uint8 maxNftsPerVault);
     event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
     event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
     event TokenLimitSet(address indexed origin, address indexed sender, address token, uint256 stagedLimit);
@@ -227,6 +228,27 @@ contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
         vm.expectEmit(false, true, false, true);
         emit MinSingleNftCollateralChanged(getNextUserAddress(), address(this), 10**20);
         protocolGovernance.changeMinSingleNftCollateral(10**20);
+    }
+
+    // changeMaxNftsPerVault
+
+    function testChangeMaxNftsPerVault() public {
+        protocolGovernance.changeMaxNftsPerVault(20);
+        IProtocolGovernance.ProtocolParams memory newParams = protocolGovernance.protocolParams();
+        assertEq(newParams.maxNftsPerVault, 20);
+    }
+
+    function testChangeMaxNftsPerVaultAccessControl() public {
+        address newAddress = getNextUserAddress();
+        vm.startPrank(newAddress);
+        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        protocolGovernance.changeMaxNftsPerVault(20);
+    }
+
+    function testChangeMaxNftsPerVaultEmitted() public {
+        vm.expectEmit(false, true, false, true);
+        emit MaxNftsPerVaultChanged(getNextUserAddress(), address(this), 20);
+        protocolGovernance.changeMaxNftsPerVault(20);
     }
 
     // setWhitelistedPool

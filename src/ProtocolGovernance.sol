@@ -99,6 +99,13 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     }
 
     /// @inheritdoc IProtocolGovernance
+    function changeMaxNftsPerVault(uint8 maxNftsPerVault) external {
+        _requireAdmin();
+        _protocolParams.maxNftsPerVault = maxNftsPerVault;
+        emit MaxNftsPerVaultChanged(tx.origin, msg.sender, maxNftsPerVault);
+    }
+
+    /// @inheritdoc IProtocolGovernance
     function setWhitelistedPool(address pool) external {
         _requireAdmin();
         if (pool == address(0)) {
@@ -158,6 +165,12 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     /// @param sender Sender of the call (msg.sender)
     /// @param minSingleNftCollateral The new min nft collateral (nominated in MUSD weis)
     event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
+
+    /// @notice Emitted when min nft collateral is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param maxNftsPerVault The new max possible amount of NFTs for one vault
+    event MaxNftsPerVaultChanged(address indexed origin, address indexed sender, uint8 maxNftsPerVault);
 
     /// @notice Emitted when liquidation threshold for a specific pool is updated
     /// @param origin Origin of the transaction (tx.origin)

@@ -10,11 +10,13 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @param liquidationPremium Share of the MUSD value of assets of a vault, due to be awarded to a liquidator after a liquidation (multiplied by DENOMINATOR)
     /// @param maxDebtPerVault Max possible debt for one vault (nominated in MUSD weis)
     /// @param minSingleNftCapital Min possible MUSD NFT value allowed to deposit (nominated in MUSD weis)
+    /// @param maxNftsPerVault Max possible amount of NFTs for one vault
     struct ProtocolParams {
         uint256 liquidationFeeD;
         uint256 liquidationPremiumD;
         uint256 maxDebtPerVault;
         uint256 minSingleNftCollateral;
+        uint8 maxNftsPerVault;
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
@@ -59,6 +61,10 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @notice Change min single nft collateral to a given value (nominated in MUSD weis)
     /// @param minSingleNftCollateral The new min possible nft collateral (nominated in MUSD weis)
     function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external;
+
+    /// @notice Change max possible amount of NFTs for one vault
+    /// @param maxNftsPerVault The new max possible amount of NFTs for one vault
+    function changeMaxNftsPerVault(uint8 maxNftsPerVault) external;
 
     /// @notice Add a new pool to the whitelist
     /// @param pool Address of the new whitelisted pool

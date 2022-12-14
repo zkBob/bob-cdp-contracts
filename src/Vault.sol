@@ -31,6 +31,9 @@ contract Vault is DefaultAccessControl {
     /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Uniswap V3 NFT
     error MissingOracle();
 
+    /// @notice Thrown when the nft limit for one vault would have been exceeded after the deposit
+    error NFTLimitExceeded();
+
     /// @notice Thrown when the system is paused
     error Paused();
 
@@ -300,6 +303,10 @@ contract Vault is DefaultAccessControl {
         _requireUnpaused();
         if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
+        }
+
+        if (protocolGovernance.protocolParams().maxNftsPerVault <= _vaultNfts[vaultId].length()) {
+            revert NFTLimitExceeded();
         }
 
         _requireVaultOwner(vaultId);
