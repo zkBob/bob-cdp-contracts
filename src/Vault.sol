@@ -305,22 +305,9 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     /// @param nft UniV3 NFT to be deposited
     function depositCollateral(uint256 vaultId, uint256 nft) public {
         _requireUnpaused();
-        if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
-            revert AllowList();
-        }
 
-        if (protocolGovernance.protocolParams().maxNftsPerVault <= _vaultNfts[vaultId].length()) {
-            revert NFTLimitExceeded();
-        }
-
-        if (vaultOwner[vaultId] == address(0)) {
-            revert InvalidVault();
-        }
-
-        positionManager.transferFrom(msg.sender, address(this), nft);
-        _depositCollateral(vaultId, nft);
-
-        emit CollateralDeposited(msg.sender, vaultId, nft);
+        positionManager.safeTransferFrom(msg.sender, address(this), nft, abi.encode(vaultId));
+        _depositCollateral(msg.sender, vaultId, nft);
     }
 
     /// @notice Withdraw collateral from a given vault
@@ -456,9 +443,8 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
         }
         uint256 vaultId = abi.decode(data, (uint256));
 
-        _depositCollateral(vaultId, tokenId);
+        _depositCollateral(from, vaultId, tokenId);
 
-        emit CollateralDeposited(from, vaultId, tokenId);
         return this.onERC721Received.selector;
     }
 
@@ -670,9 +656,22 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     // -------------------  INTERNAL, MUTATING  -------------------
 
     /// @notice Completes deposit of a collateral to vault
+    /// @param caller Caller address
     /// @param vaultId Id of the vault
     /// @param nft UniV3 NFT to be deposited
-    function _depositCollateral(uint256 vaultId, uint256 nft) internal {
+    function _depositCollateral(address caller, uint256 vaultId, uint256 nft) internal {
+        if (isPrivate && !_depositorsAllowlist.contains(caller)) {
+            revert AllowList();
+        }
+
+        if (protocolGovernance.protocolParams().maxNftsPerVault <= _vaultNfts[vaultId].length()) {
+            revert NFTLimitExceeded();
+        }
+
+        if (vaultOwner[vaultId] == address(0)) {
+            revert InvalidVault();
+        }
+
         {
             (
                 ,
@@ -731,6 +730,8 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
         }
 
         _vaultNfts[vaultId].add(nft);
+
+        emit CollateralDeposited(caller, vaultId, nft);
     }
 
     /// @notice Close a vault (internal)

@@ -167,10 +167,24 @@ contract VaultTest is Test, SetupContract, Utilities {
     }
 
     function testDepositCollateralWhenForbidden() public {
-        vm.expectRevert(Vault.AllowList.selector);
+        address newAddress = getNextUserAddress();
+        address[] memory addresses = new address[](1);
+        addresses[0] = newAddress;
+        vault.addDepositorsToAllowlist(addresses);
 
-        vm.prank(getNextUserAddress());
-        vault.depositCollateral(21, 22);
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        positionManager.transferFrom(address(this), newAddress, tokenId);
+
+        vm.startPrank(newAddress);
+        uint256 vaultId = vault.openVault();
+        vm.stopPrank();
+
+        vault.removeDepositorsFromAllowlist(addresses);
+
+        vm.startPrank(newAddress);
+        positionManager.approve(address(vault), tokenId);
+        vm.expectRevert(Vault.AllowList.selector);
+        vault.depositCollateral(vaultId, tokenId);
     }
 
     function testDepositCollateralInvalidPool() public {
@@ -273,10 +287,11 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testClosedVaultNotAcceptingAnything() public {
         uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.closeVault(vaultId, address(this));
 
         vm.expectRevert(Vault.InvalidVault.selector);
-        vault.depositCollateral(vaultId, 123);
+        vault.depositCollateral(vaultId, tokenId);
     }
 
     function testCloseWithUnpaidDebt() public {
