@@ -41,10 +41,11 @@ abstract contract AbstractDeployment is Script {
         public
         view
         returns (
-            uint256 liquidationFeeD,
-            uint256 liquidationPremiumD,
             uint256 minSingleNftCollateral,
             uint256 maxDebtPerVault,
+            uint32 liquidationFeeD,
+            uint32 liquidationPremiumD,
+            uint8 maxNftsPerVault,
             address[] memory pools,
             uint256[] memory liquidationThresholds
         )
@@ -53,6 +54,7 @@ abstract contract AbstractDeployment is Script {
         liquidationPremiumD = 3 * 10**7;
         minSingleNftCollateral = 10**17;
         maxDebtPerVault = type(uint256).max;
+        maxNftsPerVault = 20;
 
         pools = new address[](3);
 
@@ -103,10 +105,11 @@ abstract contract AbstractDeployment is Script {
 
     function setupGovernance(IProtocolGovernance governance, address factory) public {
         (
-            uint256 liquidationFeeD,
-            uint256 liquidationPremiumD,
             uint256 minSingleNftCollateral,
             uint256 maxDebtPerVault,
+            uint32 liquidationFeeD,
+            uint32 liquidationPremiumD,
+            uint8 maxNftsPerVault,
             address[] memory pools,
             uint256[] memory liquidationThresholds
         ) = governanceParams(factory);
@@ -115,6 +118,7 @@ abstract contract AbstractDeployment is Script {
         governance.changeLiquidationPremium(liquidationPremiumD);
         governance.changeMinSingleNftCollateral(minSingleNftCollateral);
         governance.changeMaxDebtPerVault(maxDebtPerVault);
+        governance.changeMaxNftsPerVault(maxNftsPerVault);
 
         for (uint256 i = 0; i < pools.length; ++i) {
             governance.setWhitelistedPool(pools[i]);

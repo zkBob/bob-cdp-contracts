@@ -65,8 +65,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     // -------------------  EXTERNAL, MUTATING  -------------------
 
     /// @inheritdoc IProtocolGovernance
-    function changeLiquidationFee(uint256 liquidationFeeD) external {
-        _requireAdmin();
+    function changeLiquidationFee(uint32 liquidationFeeD) external onlyAdmin {
         if (liquidationFeeD > DENOMINATOR) {
             revert InvalidValue();
         }
@@ -75,8 +74,7 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     }
 
     /// @inheritdoc IProtocolGovernance
-    function changeLiquidationPremium(uint256 liquidationPremiumD) external {
-        _requireAdmin();
+    function changeLiquidationPremium(uint32 liquidationPremiumD) external onlyAdmin {
         if (liquidationPremiumD > DENOMINATOR) {
             revert InvalidValue();
         }
@@ -85,29 +83,25 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     }
 
     /// @inheritdoc IProtocolGovernance
-    function changeMaxDebtPerVault(uint256 maxDebtPerVault) external {
-        _requireAdmin();
+    function changeMaxDebtPerVault(uint256 maxDebtPerVault) external onlyAdmin {
         _protocolParams.maxDebtPerVault = maxDebtPerVault;
         emit MaxDebtPerVaultChanged(tx.origin, msg.sender, maxDebtPerVault);
     }
 
     /// @inheritdoc IProtocolGovernance
-    function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external {
-        _requireAdmin();
+    function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external onlyAdmin {
         _protocolParams.minSingleNftCollateral = minSingleNftCollateral;
         emit MinSingleNftCollateralChanged(tx.origin, msg.sender, minSingleNftCollateral);
     }
 
     /// @inheritdoc IProtocolGovernance
-    function changeMaxNftsPerVault(uint8 maxNftsPerVault) external {
-        _requireAdmin();
+    function changeMaxNftsPerVault(uint8 maxNftsPerVault) external onlyAdmin {
         _protocolParams.maxNftsPerVault = maxNftsPerVault;
         emit MaxNftsPerVaultChanged(tx.origin, msg.sender, maxNftsPerVault);
     }
 
     /// @inheritdoc IProtocolGovernance
-    function setWhitelistedPool(address pool) external {
-        _requireAdmin();
+    function setWhitelistedPool(address pool) external onlyAdmin {
         if (pool == address(0)) {
             revert AddressZero();
         }
@@ -116,16 +110,14 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
     }
 
     /// @inheritdoc IProtocolGovernance
-    function revokeWhitelistedPool(address pool) external {
-        _requireAdmin();
+    function revokeWhitelistedPool(address pool) external onlyAdmin {
         _whitelistedPools.remove(pool);
         liquidationThresholdD[pool] = 0;
         emit WhitelistedPoolRevoked(tx.origin, msg.sender, pool);
     }
 
     /// @inheritdoc IProtocolGovernance
-    function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external {
-        _requireAdmin();
+    function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external onlyAdmin {
         if (pool == address(0)) {
             revert AddressZero();
         }
@@ -140,19 +132,26 @@ contract ProtocolGovernance is IProtocolGovernance, ERC165, DefaultAccessControl
         emit LiquidationThresholdSet(tx.origin, msg.sender, pool, liquidationThresholdD_);
     }
 
+    // -----------------------  MODIFIERS  --------------------------
+
+    modifier onlyAdmin() {
+        _requireAdmin();
+        _;
+    }
+
     // --------------------------  EVENTS  --------------------------
 
     /// @notice Emitted when liquidation fee is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param liquidationFeeD The new liquidation fee (multiplied by DENOMINATOR)
-    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFeeD);
+    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint32 liquidationFeeD);
 
     /// @notice Emitted when liquidation premium is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param liquidationPremiumD The new liquidation premium (multiplied by DENOMINATOR)
-    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremiumD);
+    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint32 liquidationPremiumD);
 
     /// @notice Emitted when max debt per vault is updated
     /// @param origin Origin of the transaction (tx.origin)
