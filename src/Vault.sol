@@ -303,7 +303,6 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     /// @param nft UniV3 NFT to be deposited
     function depositCollateral(uint256 vaultId, uint256 nft) public {
         positionManager.safeTransferFrom(msg.sender, address(this), nft, abi.encode(vaultId));
-        _depositCollateral(msg.sender, vaultId, nft);
     }
 
     /// @notice Withdraw collateral from a given vault
