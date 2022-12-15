@@ -659,7 +659,11 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     /// @param caller Caller address
     /// @param vaultId Id of the vault
     /// @param nft UniV3 NFT to be deposited
-    function _depositCollateral(address caller, uint256 vaultId, uint256 nft) internal {
+    function _depositCollateral(
+        address caller,
+        uint256 vaultId,
+        uint256 nft
+    ) internal {
         if (isPrivate && !_depositorsAllowlist.contains(caller)) {
             revert AllowList();
         }
