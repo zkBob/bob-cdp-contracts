@@ -167,16 +167,24 @@ contract VaultTest is Test, SetupContract, Utilities {
     }
 
     function testDepositCollateralWhenForbidden() public {
+        address newAddress = getNextUserAddress();
+        address[] memory addresses = new address[](1);
+        addresses[0] = newAddress;
+        vault.addDepositorsToAllowlist(addresses);
+
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        positionManager.transferFrom(address(this), newAddress, tokenId);
+
+        vm.startPrank(newAddress);
+        uint256 vaultId = vault.openVault();
+        vm.stopPrank();
+
+        vault.removeDepositorsFromAllowlist(addresses);
+
+        vm.startPrank(newAddress);
+        positionManager.approve(address(vault), tokenId);
         vm.expectRevert(Vault.AllowList.selector);
-
-        vm.prank(getNextUserAddress());
-        vault.depositCollateral(21, 22);
-    }
-
-    function testDepositCollateralWhenNotOwner() public {
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-
-        vault.depositCollateral(21, 22);
+        vault.depositCollateral(vaultId, tokenId);
     }
 
     function testDepositCollateralInvalidPool() public {
@@ -279,10 +287,11 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testClosedVaultNotAcceptingAnything() public {
         uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.closeVault(vaultId, address(this));
 
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-        vault.depositCollateral(vaultId, 123);
+        vm.expectRevert(Vault.InvalidVault.selector);
+        vault.depositCollateral(vaultId, tokenId);
     }
 
     function testCloseWithUnpaidDebt() public {
@@ -402,6 +411,40 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebtFromScratch(tokenId, 10**22);
+    }
+
+    // deposit collateral via safeTransferFrom
+
+    function testSafeTransferFromSuccess() public {
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 vaultId = vault.openVault();
+        bytes memory data = abi.encode(vaultId);
+
+        positionManager.safeTransferFrom(address(this), address(vault), tokenId, data);
+
+        uint256[] memory nfts = vault.vaultNftsById(vaultId);
+
+        assertTrue(nfts.length == 1);
+        assertTrue(nfts[0] == tokenId);
+    }
+
+    function testSafeTransferFromWhenCallingDirectly() public {
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 vaultId = vault.openVault();
+        bytes memory data = abi.encode(vaultId);
+
+        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vault.onERC721Received(address(positionManager), address(this), tokenId, data);
+    }
+
+    function testSafeTransferFromEmit() public {
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 vaultId = vault.openVault();
+        bytes memory data = abi.encode(vaultId);
+
+        vm.expectEmit(true, false, false, true);
+        emit CollateralDeposited(address(this), vaultId, tokenId);
+        positionManager.safeTransferFrom(address(this), address(vault), tokenId, data);
     }
 
     // depositAndMint

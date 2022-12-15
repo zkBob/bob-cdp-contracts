@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: BSL-1.1
 pragma solidity 0.8.13;
 
+import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./interfaces/IMUSD.sol";
 import "./interfaces/IProtocolGovernance.sol";
@@ -15,7 +16,7 @@ import "./libraries/UniswapV3FeesCalculation.sol";
 import "./utils/DefaultAccessControl.sol";
 
 /// @notice Contract of the system vault manager
-contract Vault is DefaultAccessControl {
+contract Vault is DefaultAccessControl, IERC721Receiver {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
@@ -27,6 +28,9 @@ contract Vault is DefaultAccessControl {
 
     /// @notice Thrown when a value of a stabilization fee is incorrect
     error InvalidValue();
+
+    /// @notice Thrown when a vault does not exist
+    error InvalidVault();
 
     /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Uniswap V3 NFT
     error MissingOracle();
@@ -297,78 +301,8 @@ contract Vault is DefaultAccessControl {
     /// @notice Deposit collateral to a given vault
     /// @param vaultId Id of the vault
     /// @param nft UniV3 NFT to be deposited
-    function depositCollateral(uint256 vaultId, uint256 nft) public onlyUnpaused {
-        if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
-            revert AllowList();
-        }
-
-        if (protocolGovernance.protocolParams().maxNftsPerVault <= _vaultNfts[vaultId].length()) {
-            revert NFTLimitExceeded();
-        }
-
-        _requireVaultOwner(vaultId);
-
-        {
-            (
-                ,
-                ,
-                address token0,
-                address token1,
-                uint24 fee,
-                int24 tickLower,
-                int24 tickUpper,
-                uint128 liquidity,
-                uint256 feeGrowthInside0LastX128,
-                uint256 feeGrowthInside1LastX128,
-                uint128 tokensOwed0,
-                uint128 tokensOwed1
-            ) = positionManager.positions(nft);
-
-            positionManager.transferFrom(msg.sender, address(this), nft);
-            {
-                uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickLower);
-                uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(tickUpper);
-
-                _uniV3PositionInfo[nft] = UniV3PositionInfo({
-                    token0: token0,
-                    token1: token1,
-                    targetPool: IUniswapV3Pool(factory.getPool(token0, token1, fee)),
-                    vaultId: vaultId,
-                    sqrtRatioAX96: sqrtRatioAX96,
-                    sqrtRatioBX96: sqrtRatioBX96
-                });
-
-                if (!protocolGovernance.isPoolWhitelisted(factory.getPool(token0, token1, fee))) {
-                    revert InvalidPool();
-                }
-
-                if (!oracle.hasOracle(token0) || !oracle.hasOracle(token1)) {
-                    revert MissingOracle();
-                }
-            }
-
-            if (
-                _calculateAdjustedCollateral(
-                    _uniV3PositionInfo[nft],
-                    DENOMINATOR,
-                    UniswapV3FeesCalculation.PositionInfo({
-                        tickLower: tickLower,
-                        tickUpper: tickUpper,
-                        liquidity: liquidity,
-                        feeGrowthInside0LastX128: feeGrowthInside0LastX128,
-                        feeGrowthInside1LastX128: feeGrowthInside1LastX128,
-                        tokensOwed0: tokensOwed0,
-                        tokensOwed1: tokensOwed1
-                    })
-                ) < protocolGovernance.protocolParams().minSingleNftCollateral
-            ) {
-                revert CollateralUnderflow();
-            }
-        }
-
-        _vaultNfts[vaultId].add(nft);
-
-        emit CollateralDeposited(msg.sender, vaultId, nft);
+    function depositCollateral(uint256 vaultId, uint256 nft) public {
+        positionManager.safeTransferFrom(msg.sender, address(this), nft, abi.encode(vaultId));
     }
 
     /// @notice Withdraw collateral from a given vault
@@ -489,6 +423,23 @@ contract Vault is DefaultAccessControl {
     ) external {
         depositCollateral(vaultId, nft);
         mintDebt(vaultId, amount);
+    }
+
+    /// @inheritdoc IERC721Receiver
+    function onERC721Received(
+        address operator,
+        address from,
+        uint256 tokenId,
+        bytes memory data
+    ) external onlyUnpaused returns (bytes4) {
+        if (msg.sender != address(positionManager)) {
+            revert Forbidden();
+        }
+        uint256 vaultId = abi.decode(data, (uint256));
+
+        _depositCollateral(from, vaultId, tokenId);
+
+        return this.onERC721Received.selector;
     }
 
     /// @notice Set a new price oracle
@@ -688,6 +639,89 @@ contract Vault is DefaultAccessControl {
     }
 
     // -------------------  INTERNAL, MUTATING  -------------------
+
+    /// @notice Completes deposit of a collateral to vault
+    /// @param caller Caller address
+    /// @param vaultId Id of the vault
+    /// @param nft UniV3 NFT to be deposited
+    function _depositCollateral(
+        address caller,
+        uint256 vaultId,
+        uint256 nft
+    ) internal {
+        if (isPrivate && !_depositorsAllowlist.contains(caller)) {
+            revert AllowList();
+        }
+
+        if (protocolGovernance.protocolParams().maxNftsPerVault <= _vaultNfts[vaultId].length()) {
+            revert NFTLimitExceeded();
+        }
+
+        if (vaultOwner[vaultId] == address(0)) {
+            revert InvalidVault();
+        }
+
+        {
+            (
+                ,
+                ,
+                address token0,
+                address token1,
+                uint24 fee,
+                int24 tickLower,
+                int24 tickUpper,
+                uint128 liquidity,
+                uint256 feeGrowthInside0LastX128,
+                uint256 feeGrowthInside1LastX128,
+                uint128 tokensOwed0,
+                uint128 tokensOwed1
+            ) = positionManager.positions(nft);
+
+            {
+                uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickLower);
+                uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(tickUpper);
+
+                _uniV3PositionInfo[nft] = UniV3PositionInfo({
+                    token0: token0,
+                    token1: token1,
+                    targetPool: IUniswapV3Pool(factory.getPool(token0, token1, fee)),
+                    vaultId: vaultId,
+                    sqrtRatioAX96: sqrtRatioAX96,
+                    sqrtRatioBX96: sqrtRatioBX96
+                });
+
+                if (!protocolGovernance.isPoolWhitelisted(factory.getPool(token0, token1, fee))) {
+                    revert InvalidPool();
+                }
+
+                if (!oracle.hasOracle(token0) || !oracle.hasOracle(token1)) {
+                    revert MissingOracle();
+                }
+            }
+
+            if (
+                _calculateAdjustedCollateral(
+                    _uniV3PositionInfo[nft],
+                    DENOMINATOR,
+                    UniswapV3FeesCalculation.PositionInfo({
+                        tickLower: tickLower,
+                        tickUpper: tickUpper,
+                        liquidity: liquidity,
+                        feeGrowthInside0LastX128: feeGrowthInside0LastX128,
+                        feeGrowthInside1LastX128: feeGrowthInside1LastX128,
+                        tokensOwed0: tokensOwed0,
+                        tokensOwed1: tokensOwed1
+                    })
+                ) < protocolGovernance.protocolParams().minSingleNftCollateral
+            ) {
+                revert CollateralUnderflow();
+            }
+        }
+
+        _vaultNfts[vaultId].add(nft);
+
+        emit CollateralDeposited(caller, vaultId, nft);
+    }
 
     /// @notice Close a vault (internal)
     /// @param vaultId Id of the vault
