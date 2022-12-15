@@ -6,16 +6,16 @@ import "@openzeppelin/contracts/utils/introspection/IERC165.sol";
 
 interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
     /// @notice Global protocol params
-    /// @param liquidationFee Share of the MUSD value of assets of a vault, due to be transferred to the Protocol Treasury after a liquidation (multiplied by DENOMINATOR)
-    /// @param liquidationPremium Share of the MUSD value of assets of a vault, due to be awarded to a liquidator after a liquidation (multiplied by DENOMINATOR)
     /// @param maxDebtPerVault Max possible debt for one vault (nominated in MUSD weis)
     /// @param minSingleNftCapital Min possible MUSD NFT value allowed to deposit (nominated in MUSD weis)
+    /// @param liquidationFee Share of the MUSD value of assets of a vault, due to be transferred to the Protocol Treasury after a liquidation (multiplied by DENOMINATOR)
+    /// @param liquidationPremium Share of the MUSD value of assets of a vault, due to be awarded to a liquidator after a liquidation (multiplied by DENOMINATOR)
     /// @param maxNftsPerVault Max possible amount of NFTs for one vault
     struct ProtocolParams {
-        uint256 liquidationFeeD;
-        uint256 liquidationPremiumD;
         uint256 maxDebtPerVault;
         uint256 minSingleNftCollateral;
+        uint32 liquidationFeeD;
+        uint32 liquidationPremiumD;
         uint8 maxNftsPerVault;
     }
 
@@ -48,11 +48,11 @@ interface IProtocolGovernance is IDefaultAccessControl, IERC165 {
 
     /// @notice Change liquidation fee (multiplied by DENOMINATOR) to a given value
     /// @param liquidationFeeD The new liquidation fee (multiplied by DENOMINATOR)
-    function changeLiquidationFee(uint256 liquidationFeeD) external;
+    function changeLiquidationFee(uint32 liquidationFeeD) external;
 
     /// @notice Change liquidation premium (multiplied by DENOMINATOR) to a given value
     /// @param liquidationPremiumD The new liquidation premium (multiplied by DENOMINATOR)
-    function changeLiquidationPremium(uint256 liquidationPremiumD) external;
+    function changeLiquidationPremium(uint32 liquidationPremiumD) external;
 
     /// @notice Change max debt per vault (nominated in MUSD weis) to a given value
     /// @param maxDebtPerVault The new max possible debt per vault (nominated in MUSD weis)

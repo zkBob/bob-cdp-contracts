@@ -10,8 +10,8 @@ import "./utils/Utilities.sol";
 import "src/interfaces/IProtocolGovernance.sol";
 
 contract ProtocolGovernanceTest is Test, SetupContract, Utilities {
-    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint256 liquidationFeeD);
-    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint256 liquidationPremiumD);
+    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint32 liquidationFeeD);
+    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint32 liquidationPremiumD);
     event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
     event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
     event MaxNftsPerVaultChanged(address indexed origin, address indexed sender, uint8 maxNftsPerVault);
