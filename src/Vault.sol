@@ -13,10 +13,11 @@ import "./libraries/external/LiquidityAmounts.sol";
 import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
+import "./proxy/EIP1967Admin.sol";
 import "./utils/DefaultAccessControl.sol";
 
 /// @notice Contract of the system vault manager
-contract Vault is DefaultAccessControl, IERC721Receiver {
+contract Vault is EIP1967Admin, DefaultAccessControl, IERC721Receiver {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
@@ -444,7 +445,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
     /// @notice Set a new price oracle
     /// @param oracle_ The new oracle
-    function setOracle(IOracle oracle_) external onlyAdmin {
+    function setOracle(IOracle oracle_) external onlyVaultAdmin {
         if (address(oracle_) == address(0)) {
             revert AddressZero();
         }
@@ -455,7 +456,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
     /// @notice Set MUSD token
     /// @param token_ MUSD token
-    function setToken(IMUSD token_) external onlyAdmin {
+    function setToken(IMUSD token_) external onlyVaultAdmin {
         if (address(token_) == address(0)) {
             revert AddressZero();
         }
@@ -475,21 +476,21 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     }
 
     /// @notice Unpause the system
-    function unpause() external onlyAdmin {
+    function unpause() external onlyVaultAdmin {
         isPaused = false;
 
         emit SystemUnpaused(tx.origin, msg.sender);
     }
 
     /// @notice Make the system private
-    function makePrivate() external onlyAdmin {
+    function makePrivate() external onlyVaultAdmin {
         isPrivate = true;
 
         emit SystemPrivate(tx.origin, msg.sender);
     }
 
     /// @notice Make the system public
-    function makePublic() external onlyAdmin {
+    function makePublic() external onlyVaultAdmin {
         isPrivate = false;
 
         emit SystemPublic(tx.origin, msg.sender);
@@ -497,7 +498,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
     /// @notice Add an array of new depositors to the allow list
     /// @param depositors Array of new depositors
-    function addDepositorsToAllowlist(address[] calldata depositors) external onlyAdmin {
+    function addDepositorsToAllowlist(address[] calldata depositors) external onlyVaultAdmin {
         for (uint256 i = 0; i < depositors.length; i++) {
             _depositorsAllowlist.add(depositors[i]);
         }
@@ -505,7 +506,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
     /// @notice Remove an array of depositors from the allow list
     /// @param depositors Array of new depositors
-    function removeDepositorsFromAllowlist(address[] calldata depositors) external onlyAdmin {
+    function removeDepositorsFromAllowlist(address[] calldata depositors) external onlyVaultAdmin {
         for (uint256 i = 0; i < depositors.length; i++) {
             _depositorsAllowlist.remove(depositors[i]);
         }
@@ -513,7 +514,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
     /// @notice Update stabilisation fee (multiplied by DENOMINATOR) and calculate global stabilisation fee per USD up to current timestamp using previous stabilisation fee
     /// @param stabilisationFeeRateD_ New stabilisation fee multiplied by DENOMINATOR
-    function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external onlyAdmin {
+    function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external onlyVaultAdmin {
         if (stabilisationFeeRateD_ > DENOMINATOR) {
             revert InvalidValue();
         }
@@ -768,7 +769,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
     // -----------------------  MODIFIERS  --------------------------
 
-    modifier onlyAdmin() {
+    modifier onlyVaultAdmin() {
         _requireAdmin();
         _;
     }

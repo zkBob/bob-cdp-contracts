@@ -14,6 +14,7 @@ import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./utils/Utilities.sol";
+import "../src/proxy/EIP1967Proxy.sol";
 
 contract VaultTest is Test, SetupContract, Utilities {
     event VaultOpened(address indexed sender, uint256 vaultId);
@@ -36,6 +37,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     event SystemPrivate(address indexed origin, address indexed sender);
     event SystemPublic(address indexed origin, address indexed sender);
 
+    EIP1967Proxy vaultProxy;
     MockOracle oracle;
     ProtocolGovernance protocolGovernance;
     MUSD token;
@@ -67,6 +69,9 @@ contract VaultTest is Test, SetupContract, Utilities {
             treasury,
             10**7
         );
+
+        vaultProxy = new EIP1967Proxy(address(this), address(vault), "");
+        vault = Vault(address(vaultProxy));
 
         token = new MUSD("Mellow USD", "MUSD", address(vault));
         vault.setToken(IMUSD(address(token)));
