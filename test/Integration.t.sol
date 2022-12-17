@@ -14,12 +14,14 @@ import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./utils/Utilities.sol";
+import "../src/proxy/EIP1967Proxy.sol";
 
 contract IntegrationTestForVault is Test, SetupContract, Utilities {
     MockOracle oracle;
     ProtocolGovernance protocolGovernance;
     MUSD token;
     Vault vault;
+    EIP1967Proxy vaultProxy;
     INonfungiblePositionManager positionManager;
     address treasury;
 
@@ -39,14 +41,15 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         treasury = getNextUserAddress();
 
         vault = new Vault(
-            address(this),
             INonfungiblePositionManager(UniV3PositionManager),
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
-            IOracle(oracle),
-            treasury,
-            10**7
+            treasury
         );
+
+        bytes memory initData = abi.encodeWithSelector(Vault.initialize.selector, address(this), IOracle(oracle), 10**7);
+        vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
+        vault = Vault(address(vaultProxy));
 
         token = new MUSD("Mellow USD", "MUSD", address(vault));
         vault.setToken(IMUSD(address(token)));

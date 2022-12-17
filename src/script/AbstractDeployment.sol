@@ -12,6 +12,7 @@ import "../interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "../ProtocolGovernance.sol";
 import "../MUSD.sol";
+import "../proxy/EIP1967Proxy.sol";
 
 abstract contract AbstractDeployment is Script {
     function tokens()
@@ -85,14 +86,15 @@ abstract contract AbstractDeployment is Script {
         setupGovernance(IProtocolGovernance(protocolGovernance), factory);
 
         Vault vault = new Vault(
-            msg.sender,
             INonfungiblePositionManager(positionManager),
             IUniswapV3Factory(factory),
             IProtocolGovernance(protocolGovernance),
-            IOracle(oracle),
-            treasury,
-            stabilisationFee
+            treasury
         );
+
+        bytes memory initData = abi.encodeWithSelector(Vault.initialize.selector, msg.sender, IOracle(oracle), stabilisationFee);
+        EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
+        vault = Vault(address(vaultProxy));
 
         console2.log("Vault", address(vault));
 

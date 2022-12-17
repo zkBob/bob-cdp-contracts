@@ -14,10 +14,10 @@ import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
 import "./proxy/EIP1967Admin.sol";
-import "./utils/DefaultAccessControl.sol";
+import "./utils/DefaultAccessControlLateInit.sol";
 
 /// @notice Contract of the system vault manager
-contract Vault is EIP1967Admin, DefaultAccessControl, IERC721Receiver {
+contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
@@ -100,10 +100,10 @@ contract Vault is EIP1967Admin, DefaultAccessControl, IERC721Receiver {
     address public immutable treasury;
 
     /// @notice State variable, which shows if Vault is paused or not
-    bool public isPaused = false;
+    bool public isPaused;
 
-    /// @notice State variable, which shows if Vault is private or not
-    bool public isPrivate = true;
+    /// @notice State variable, which shows if Vault is public or not
+    bool public isPublic;
 
     /// @notice Address set, containing only accounts, which are allowed to make deposits
     EnumerableSet.AddressSet private _depositorsAllowlist;
@@ -145,29 +145,43 @@ contract Vault is EIP1967Admin, DefaultAccessControl, IERC721Receiver {
     uint256 public globalStabilisationFeePerUSDSnapshotD = 0;
 
     /// @notice Creates a new contract
-    /// @param admin Protocol admin
     /// @param positionManager_ UniswapV3 position manager
     /// @param factory_ UniswapV3 factory
     /// @param protocolGovernance_ UniswapV3 protocol governance
-    /// @param oracle_ Oracle
     /// @param treasury_ Vault fees treasury
-    /// @param stabilisationFee_ MUSD initial stabilisation fee
-    constructor(
-        address admin,
+    constructor (
         INonfungiblePositionManager positionManager_,
         IUniswapV3Factory factory_,
         IProtocolGovernance protocolGovernance_,
-        IOracle oracle_,
-        address treasury_,
-        uint256 stabilisationFee_
-    ) DefaultAccessControl(admin) {
+        address treasury_
+    ) {
         if (
             address(positionManager_) == address(0) ||
             address(factory_) == address(0) ||
             address(protocolGovernance_) == address(0) ||
-            address(oracle_) == address(0) ||
             address(treasury_) == address(0)
         ) {
+            revert AddressZero();
+        }
+
+        positionManager = positionManager_;
+        factory = factory_;
+        protocolGovernance = protocolGovernance_;
+        treasury = treasury_;
+    }
+
+    /// @notice Initialized a new contract.
+    /// @param admin Protocol admin
+    /// @param oracle_ Oracle
+    /// @param stabilisationFee_ MUSD initial stabilisation fee
+    function initialize(
+        address admin,
+        IOracle oracle_,
+        uint256 stabilisationFee_
+    ) external {
+        DefaultAccessControlLateInit.init(admin);
+
+        if (address(oracle_) == address(0)) {
             revert AddressZero();
         }
 
@@ -175,14 +189,9 @@ contract Vault is EIP1967Admin, DefaultAccessControl, IERC721Receiver {
             revert InvalidValue();
         }
 
-        positionManager = positionManager_;
-        factory = factory_;
-        protocolGovernance = protocolGovernance_;
         oracle = oracle_;
-        treasury = treasury_;
 
         // initial value
-
         stabilisationFeeRateD = stabilisationFee_;
         globalStabilisationFeePerUSDSnapshotTimestamp = block.timestamp;
     }
@@ -268,7 +277,7 @@ contract Vault is EIP1967Admin, DefaultAccessControl, IERC721Receiver {
     /// @notice Open a new Vault
     /// @return vaultId Id of the new vault
     function openVault() public onlyUnpaused returns (uint256 vaultId) {
-        if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
+        if (!isPublic && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
         }
 
@@ -484,14 +493,14 @@ contract Vault is EIP1967Admin, DefaultAccessControl, IERC721Receiver {
 
     /// @notice Make the system private
     function makePrivate() external onlyVaultAdmin {
-        isPrivate = true;
+        isPublic = false;
 
         emit SystemPrivate(tx.origin, msg.sender);
     }
 
     /// @notice Make the system public
     function makePublic() external onlyVaultAdmin {
-        isPrivate = false;
+        isPublic = true;
 
         emit SystemPublic(tx.origin, msg.sender);
     }
@@ -650,7 +659,7 @@ contract Vault is EIP1967Admin, DefaultAccessControl, IERC721Receiver {
         uint256 vaultId,
         uint256 nft
     ) internal {
-        if (isPrivate && !_depositorsAllowlist.contains(caller)) {
+        if (!isPublic && !_depositorsAllowlist.contains(caller)) {
             revert AllowList();
         }
 

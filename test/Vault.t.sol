@@ -61,16 +61,14 @@ contract VaultTest is Test, SetupContract, Utilities {
         treasury = getNextUserAddress();
 
         vault = new Vault(
-            address(this),
             INonfungiblePositionManager(UniV3PositionManager),
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
-            IOracle(oracle),
-            treasury,
-            10**7
+            treasury
         );
 
-        vaultProxy = new EIP1967Proxy(address(this), address(vault), "");
+        bytes memory initData = abi.encodeWithSelector(Vault.initialize.selector, address(this), IOracle(oracle), 10**7);
+        vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
         token = new MUSD("Mellow USD", "MUSD", address(vault));
@@ -951,7 +949,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testMakePublicSuccess() public {
         vault.makePublic();
-        assertEq(vault.isPrivate(), false);
+        assertEq(vault.isPublic(), true);
     }
 
     function testMakePublicWhenNotAdmin() public {
@@ -970,7 +968,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testMakePrivateSuccess() public {
         vault.makePrivate();
-        assertEq(vault.isPrivate(), true);
+        assertEq(vault.isPublic(), false);
     }
 
     function testMakePrivateWhenNotAdmin() public {
@@ -1046,14 +1044,16 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testSetTokenSuccess() public {
         Vault newVault = new Vault(
-            address(this),
             INonfungiblePositionManager(UniV3PositionManager),
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
-            IOracle(oracle),
-            treasury,
-            10**7
+            treasury
         );
+
+        bytes memory initData = abi.encodeWithSelector(Vault.initialize.selector, address(this), IOracle(oracle), 10**7);
+        EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
+        newVault = Vault(address(newVaultProxy));
+
         address newAddress = getNextUserAddress();
         newVault.setToken(IMUSD(newAddress));
         assertEq(address(newVault.token()), newAddress);
@@ -1077,14 +1077,16 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testSetTokenEmit() public {
         Vault newVault = new Vault(
-            address(this),
             INonfungiblePositionManager(UniV3PositionManager),
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
-            IOracle(oracle),
-            treasury,
-            10**7
+            treasury
         );
+
+        bytes memory initData = abi.encodeWithSelector(Vault.initialize.selector, address(this), IOracle(oracle), 10**7);
+        EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
+        newVault = Vault(address(newVaultProxy));
+
         address newAddress = getNextUserAddress();
         vm.expectEmit(false, true, false, true);
         emit TokenSet(tx.origin, address(this), newAddress);
