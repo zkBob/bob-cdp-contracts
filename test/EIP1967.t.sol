@@ -30,8 +30,11 @@ contract EIP1967Test is Test, Utilities {
         emit AdminChanged(address(0), address(this));
         vm.expectEmit(true, false, false, false);
         emit Upgraded(address(impl));
-        EIP1967Proxy proxy =
-            new EIP1967Proxy(address(this), address(impl), abi.encodeWithSelector(DummyImpl.initialize.selector));
+        EIP1967Proxy proxy = new EIP1967Proxy(
+            address(this),
+            address(impl),
+            abi.encodeWithSelector(DummyImpl.initialize.selector)
+        );
 
         DummyImpl target = DummyImpl(address(proxy));
 

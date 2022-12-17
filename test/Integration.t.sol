@@ -47,7 +47,12 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
             treasury
         );
 
-        bytes memory initData = abi.encodeWithSelector(Vault.initialize.selector, address(this), IOracle(oracle), 10**7);
+        bytes memory initData = abi.encodeWithSelector(
+            Vault.initialize.selector,
+            address(this),
+            IOracle(oracle),
+            10**7
+        );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
