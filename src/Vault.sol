@@ -149,7 +149,7 @@ contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
     /// @param factory_ UniswapV3 factory
     /// @param protocolGovernance_ UniswapV3 protocol governance
     /// @param treasury_ Vault fees treasury
-    constructor (
+    constructor(
         INonfungiblePositionManager positionManager_,
         IUniswapV3Factory factory_,
         IProtocolGovernance protocolGovernance_,

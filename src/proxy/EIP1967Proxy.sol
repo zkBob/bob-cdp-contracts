@@ -17,7 +17,11 @@ contract EIP1967Proxy is EIP1967Admin {
     event Upgraded(address indexed implementation);
     event AdminChanged(address previousAdmin, address newAdmin);
 
-    constructor(address _admin, address _implementation, bytes memory _data) payable {
+    constructor(
+        address _admin,
+        address _implementation,
+        bytes memory _data
+    ) payable {
         _setAdmin(_admin);
         _setImplementation(_implementation);
         if (_data.length > 0) {
@@ -73,7 +77,7 @@ contract EIP1967Proxy is EIP1967Admin {
      */
     function upgradeToAndCall(address _implementation, bytes calldata _data) external payable onlyAdmin {
         _setImplementation(_implementation);
-        (bool status,) = address(this).call{value: msg.value}(_data);
+        (bool status, ) = address(this).call{value: msg.value}(_data);
         require(status, "EIP1967Proxy: update call failed");
     }
 
@@ -99,8 +103,12 @@ contract EIP1967Proxy is EIP1967Admin {
 
             switch result
             // delegatecall returns 0 on error.
-            case 0 { revert(0, returndatasize()) }
-            default { return(0, returndatasize()) }
+            case 0 {
+                revert(0, returndatasize())
+            }
+            default {
+                return(0, returndatasize())
+            }
         }
     }
 

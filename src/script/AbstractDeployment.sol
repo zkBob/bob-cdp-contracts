@@ -92,7 +92,12 @@ abstract contract AbstractDeployment is Script {
             treasury
         );
 
-        bytes memory initData = abi.encodeWithSelector(Vault.initialize.selector, msg.sender, IOracle(oracle), stabilisationFee);
+        bytes memory initData = abi.encodeWithSelector(
+            Vault.initialize.selector,
+            msg.sender,
+            IOracle(oracle),
+            stabilisationFee
+        );
         EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
         vault = Vault(address(vaultProxy));
 
