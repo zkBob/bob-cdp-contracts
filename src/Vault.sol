@@ -94,7 +94,7 @@ contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
     IOracle public oracle;
 
     /// @notice Mellow Stable Token
-    IMUSD public token;
+    IMUSD public immutable token;
 
     /// @notice Vault fees treasury address
     address public immutable treasury;
@@ -153,13 +153,15 @@ contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
         INonfungiblePositionManager positionManager_,
         IUniswapV3Factory factory_,
         IProtocolGovernance protocolGovernance_,
-        address treasury_
+        address treasury_,
+        address token_
     ) {
         if (
             address(positionManager_) == address(0) ||
             address(factory_) == address(0) ||
             address(protocolGovernance_) == address(0) ||
-            address(treasury_) == address(0)
+            address(treasury_) == address(0) ||
+            address(token_) == address(0)
         ) {
             revert AddressZero();
         }
@@ -168,6 +170,7 @@ contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
         factory = factory_;
         protocolGovernance = protocolGovernance_;
         treasury = treasury_;
+        token = IMUSD(token_);
     }
 
     /// @notice Initialized a new contract.
@@ -461,20 +464,6 @@ contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
         oracle = oracle_;
 
         emit OracleUpdated(tx.origin, msg.sender, address(oracle));
-    }
-
-    /// @notice Set MUSD token
-    /// @param token_ MUSD token
-    function setToken(IMUSD token_) external onlyVaultAdmin {
-        if (address(token_) == address(0)) {
-            revert AddressZero();
-        }
-        if (address(token) != address(0)) {
-            revert TokenAlreadySet();
-        }
-        token = token_;
-
-        emit TokenSet(tx.origin, msg.sender, address(token));
     }
 
     /// @notice Pause the system
@@ -845,12 +834,6 @@ contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
     /// @param sender Sender of the call (msg.sender)
     /// @param oracleAddress New oracle address
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
-
-    /// @notice Emitted when the token is updated
-    /// @param origin Origin of the transaction (tx.origin)
-    /// @param sender Sender of the call (msg.sender)
-    /// @param tokenAddress New token address
-    event TokenSet(address indexed origin, address indexed sender, address tokenAddress);
 
     /// @notice Emitted when the system is set to paused
     /// @param origin Origin of the transaction (tx.origin)

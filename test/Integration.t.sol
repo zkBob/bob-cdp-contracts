@@ -8,7 +8,7 @@ import "../lib/forge-std/src/Test.sol";
 import "./ConfigContract.sol";
 import "./SetupContract.sol";
 import "../src/Vault.sol";
-import "../src/MUSD.sol";
+import "./mocks/MUSD.sol";
 import "./mocks/MockOracle.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
@@ -40,11 +40,14 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         treasury = getNextUserAddress();
 
+        token = new MUSD("Mock USD", "MUSD");
+
         vault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
-            treasury
+            treasury,
+            address(token)
         );
 
         bytes memory initData = abi.encodeWithSelector(
@@ -55,9 +58,6 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
-
-        token = new MUSD("Mellow USD", "MUSD", address(vault));
-        vault.setToken(IMUSD(address(token)));
 
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);

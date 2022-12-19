@@ -9,7 +9,7 @@ import "../lib/forge-std/src/Test.sol";
 import "./ConfigContract.sol";
 import "./SetupContract.sol";
 import "../src/Vault.sol";
-import "../src/MUSD.sol";
+import "./mocks/MUSD.sol";
 import "./mocks/MockOracle.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";

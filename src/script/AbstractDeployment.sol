@@ -11,7 +11,6 @@ import "../interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "../ProtocolGovernance.sol";
-import "../MUSD.sol";
 import "../proxy/EIP1967Proxy.sol";
 
 abstract contract AbstractDeployment is Script {
@@ -37,6 +36,8 @@ abstract contract AbstractDeployment is Script {
             address treasury,
             uint256 stabilisationFee
         );
+
+    function targetToken() public pure virtual returns (address token);
 
     function governanceParams(address factory)
         public
@@ -76,6 +77,7 @@ abstract contract AbstractDeployment is Script {
 
         (address positionManager, address factory, address treasury, uint256 stabilisationFee) = vaultParams();
         (address[] memory oracleTokens, address[] memory oracles) = oracleParams();
+        address token = targetToken();
 
         ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, msg.sender);
         console2.log("Oracle", address(oracle));
@@ -89,7 +91,8 @@ abstract contract AbstractDeployment is Script {
             INonfungiblePositionManager(positionManager),
             IUniswapV3Factory(factory),
             IProtocolGovernance(protocolGovernance),
-            treasury
+            treasury,
+            token
         );
 
         bytes memory initData = abi.encodeWithSelector(
@@ -102,10 +105,6 @@ abstract contract AbstractDeployment is Script {
         vault = Vault(address(vaultProxy));
 
         console2.log("Vault", address(vault));
-
-        MUSD token = new MUSD("Mellow USD", "MUSD", address(vault));
-        vault.setToken(IMUSD(address(token)));
-        console2.log("Token", address(token));
 
         vm.stopBroadcast();
     }

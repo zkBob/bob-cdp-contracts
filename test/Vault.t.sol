@@ -8,7 +8,7 @@ import "../lib/forge-std/src/Test.sol";
 import "./ConfigContract.sol";
 import "./SetupContract.sol";
 import "../src/Vault.sol";
-import "../src/MUSD.sol";
+import "./mocks/MUSD.sol";
 import "./mocks/MockOracle.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
@@ -29,7 +29,6 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
-    event TokenSet(address indexed origin, address indexed sender, address oracleAddress);
 
     event SystemPaused(address indexed origin, address indexed sender);
     event SystemUnpaused(address indexed origin, address indexed sender);
@@ -60,11 +59,14 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         treasury = getNextUserAddress();
 
+        token = new MUSD("Mock USD", "MUSD");
+
         vault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
-            treasury
+            treasury,
+            address(token)
         );
 
         bytes memory initData = abi.encodeWithSelector(
@@ -75,9 +77,6 @@ contract VaultTest is Test, SetupContract, Utilities {
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
-
-        token = new MUSD("Mellow USD", "MUSD", address(vault));
-        vault.setToken(IMUSD(address(token)));
 
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);
@@ -1043,69 +1042,6 @@ contract VaultTest is Test, SetupContract, Utilities {
         vm.expectEmit(false, true, false, false);
         emit SystemUnpaused(getNextUserAddress(), address(this));
         vault.unpause();
-    }
-
-    // setToken
-
-    function testSetTokenSuccess() public {
-        Vault newVault = new Vault(
-            INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
-            IProtocolGovernance(protocolGovernance),
-            treasury
-        );
-
-        bytes memory initData = abi.encodeWithSelector(
-            Vault.initialize.selector,
-            address(this),
-            IOracle(oracle),
-            10**7
-        );
-        EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
-        newVault = Vault(address(newVaultProxy));
-
-        address newAddress = getNextUserAddress();
-        newVault.setToken(IMUSD(newAddress));
-        assertEq(address(newVault.token()), newAddress);
-    }
-
-    function testSetTokenWhenNotAdmin() public {
-        vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-        vault.setToken(IMUSD(getNextUserAddress()));
-    }
-
-    function testSetTokenWhenAddressZero() public {
-        vm.expectRevert(DefaultAccessControl.AddressZero.selector);
-        vault.setToken(IMUSD(address(0)));
-    }
-
-    function testSetTokenWhenTokenAlreadySet() public {
-        vm.expectRevert(Vault.TokenAlreadySet.selector);
-        vault.setToken(IMUSD(getNextUserAddress()));
-    }
-
-    function testSetTokenEmit() public {
-        Vault newVault = new Vault(
-            INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
-            IProtocolGovernance(protocolGovernance),
-            treasury
-        );
-
-        bytes memory initData = abi.encodeWithSelector(
-            Vault.initialize.selector,
-            address(this),
-            IOracle(oracle),
-            10**7
-        );
-        EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
-        newVault = Vault(address(newVaultProxy));
-
-        address newAddress = getNextUserAddress();
-        vm.expectEmit(false, true, false, true);
-        emit TokenSet(tx.origin, address(this), newAddress);
-        newVault.setToken(IMUSD(newAddress));
     }
 
     // setOracle
