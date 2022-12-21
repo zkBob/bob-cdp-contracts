@@ -119,12 +119,12 @@ contract VaultTest is Test, SetupContract, Utilities {
     // openVault
 
     function testOpenVaultSuccess() public {
-        uint256 oldLen = getLength(vault.ownedVaultsByAddress(address(this)));
+        uint256 oldLen = vault.balanceOf(address(this));
         vault.openVault();
-        uint256 currentLen = getLength(vault.ownedVaultsByAddress(address(this)));
+        uint256 currentLen = vault.balanceOf(address(this));
         assertEq(oldLen + 1, currentLen);
         vault.openVault();
-        uint256 finalLen = getLength(vault.ownedVaultsByAddress(address(this)));
+        uint256 finalLen = vault.balanceOf(address(this));
         assertEq(oldLen + 2, finalLen);
     }
 
@@ -266,7 +266,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testCloseVaultSuccess() public {
         uint256 vaultId = vault.openVault();
         vault.closeVault(vaultId, address(this));
-        assertEq(getLength(vault.ownedVaultsByAddress(address(this))), 0);
+        assertEq(vault.balanceOf(address(this)), 0);
     }
 
     function testCloseVaultSuccessWithCollaterals() public {
@@ -277,7 +277,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         vault.closeVault(vaultId, address(this));
 
-        assertEq(getLength(vault.ownedVaultsByAddress(address(this))), 0);
+        assertEq(vault.balanceOf(address(this)), 0);
         assertEq(positionManager.ownerOf(tokenId), address(this));
     }
 
@@ -290,7 +290,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         address recipient = getNextUserAddress();
         vault.closeVault(vaultId, recipient);
 
-        assertEq(getLength(vault.ownedVaultsByAddress(address(this))), 0);
+        assertEq(vault.balanceOf(address(this)), 0);
         assertEq(positionManager.ownerOf(tokenId), recipient);
     }
 
@@ -1070,16 +1070,6 @@ contract VaultTest is Test, SetupContract, Utilities {
         vm.expectEmit(false, true, false, true);
         emit OracleUpdated(tx.origin, address(this), newAddress);
         vault.setOracle(IOracle(newAddress));
-    }
-
-    // ownedVaultsByAddress
-
-    function testOwnedVaultsByAddress() public {
-        assertEq(getLength(vault.ownedVaultsByAddress(address(this))), 0);
-        uint256 vaultId = vault.openVault();
-        uint256[] memory vaults = vault.ownedVaultsByAddress(address(this));
-        assertEq(getLength(vaults), 1);
-        assertEq(vaults[0], vaultId);
     }
 
     // vaultNftsById

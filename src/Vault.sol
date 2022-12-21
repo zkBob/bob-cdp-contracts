@@ -281,17 +281,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
 
     // -------------------  EXTERNAL, VIEW  -------------------
 
-    /// @notice Get all vaults with a given owner
-    /// @param target Owner address
-    /// @return result Array of vaults` ids, owned by address
-    function ownedVaultsByAddress(address target) external view returns (uint256[] memory result) {
-        uint256 nftsCount = balanceOf(target);
-        result = new uint256[](nftsCount);
-        for (uint256 i = 0; i < nftsCount; ++i) {
-            result[i] = tokenOfOwnerByIndex(target, i);
-        }
-    }
-
     /// @notice Get all NFTs, managed by vault with given id
     /// @param vaultId Id of the vault
     /// @return uint256[] Array of NFTs, managed by vault
@@ -424,7 +413,31 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
 
         address owner = ownerOf(vaultId);
 
-        uint256 vaultAmount = _calculateVaultCollateral(vaultId);
+        uint256 vaultAmount = 0;
+
+        uint256[] memory nfts = _vaultNfts[vaultId].values();
+        INonfungiblePositionManager positionManager_ = positionManager;
+
+        for (uint256 i = 0; i < nfts.length; ++i) {
+            UniswapV3FeesCalculation.PositionInfo memory positionInfo;
+            uint256 nft = nfts[i];
+            (
+                ,
+                ,
+                ,
+                ,
+                ,
+                positionInfo.tickLower,
+                positionInfo.tickUpper,
+                positionInfo.liquidity,
+                positionInfo.feeGrowthInside0LastX128,
+                positionInfo.feeGrowthInside1LastX128,
+                positionInfo.tokensOwed0,
+                positionInfo.tokensOwed1
+            ) = positionManager_.positions(nft);
+            vaultAmount += _calculateAdjustedCollateral(_uniV3PositionInfo[nft], DENOMINATOR, positionInfo);
+        }
+
         uint256 returnAmount = FullMath.mulDiv(
             DENOMINATOR - protocolGovernance.protocolParams().liquidationPremiumD,
             vaultAmount,
@@ -556,36 +569,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
     }
 
     // -------------------  INTERNAL, VIEW  -----------------------
-
-    /// @notice Calculate the vault capital total amount (nominated in MUSD weis)
-    /// @param vaultId Vault id
-    /// @return uint256 Vault capital (nominated in MUSD weis)
-    function _calculateVaultCollateral(uint256 vaultId) internal view returns (uint256) {
-        uint256 result = 0;
-        uint256[] memory nfts = _vaultNfts[vaultId].values();
-        INonfungiblePositionManager positionManager_ = positionManager;
-
-        for (uint256 i = 0; i < nfts.length; ++i) {
-            UniswapV3FeesCalculation.PositionInfo memory positionInfo;
-            uint256 nft = nfts[i];
-            (
-                ,
-                ,
-                ,
-                ,
-                ,
-                positionInfo.tickLower,
-                positionInfo.tickUpper,
-                positionInfo.liquidity,
-                positionInfo.feeGrowthInside0LastX128,
-                positionInfo.feeGrowthInside1LastX128,
-                positionInfo.tokensOwed0,
-                positionInfo.tokensOwed1
-            ) = positionManager_.positions(nft);
-            result += _calculateAdjustedCollateral(_uniV3PositionInfo[nft], DENOMINATOR, positionInfo);
-        }
-        return result;
-    }
 
     /// @notice Calculate total capital of the specific collateral (nominated in MUSD weis)
     /// @param position Position info
