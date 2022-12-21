@@ -13,15 +13,19 @@ import "./libraries/external/LiquidityAmounts.sol";
 import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
-import "./utils/DefaultAccessControl.sol";
+import "./proxy/EIP1967Admin.sol";
+import "./utils/VaultAccessControl.sol";
 
 /// @notice Contract of the system vault manager
-contract Vault is DefaultAccessControl, IERC721Receiver {
+contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
     /// @notice Thrown when a value of a deposited NFT is less than min single nft capital (set in governance)
     error CollateralUnderflow();
+
+    /// @notice Thrown when a vault has already been initialized
+    error Initialized();
 
     /// @notice Thrown when a pool of NFT is not in the whitelist
     error InvalidPool();
@@ -93,16 +97,19 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     IOracle public oracle;
 
     /// @notice Mellow Stable Token
-    IMUSD public token;
+    IMUSD public immutable token;
 
     /// @notice Vault fees treasury address
     address public immutable treasury;
 
-    /// @notice State variable, which shows if Vault is paused or not
-    bool public isPaused = false;
+    /// @notice State variable, which shows if Vault is initialized or not
+    bool public isInitialized;
 
-    /// @notice State variable, which shows if Vault is private or not
-    bool public isPrivate = true;
+    /// @notice State variable, which shows if Vault is paused or not
+    bool public isPaused;
+
+    /// @notice State variable, which shows if Vault is public or not
+    bool public isPublic;
 
     /// @notice Address set, containing only accounts, which are allowed to make deposits
     EnumerableSet.AddressSet private _depositorsAllowlist;
@@ -144,29 +151,53 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     uint256 public globalStabilisationFeePerUSDSnapshotD = 0;
 
     /// @notice Creates a new contract
-    /// @param admin Protocol admin
     /// @param positionManager_ UniswapV3 position manager
     /// @param factory_ UniswapV3 factory
     /// @param protocolGovernance_ UniswapV3 protocol governance
-    /// @param oracle_ Oracle
     /// @param treasury_ Vault fees treasury
-    /// @param stabilisationFee_ MUSD initial stabilisation fee
     constructor(
-        address admin,
         INonfungiblePositionManager positionManager_,
         IUniswapV3Factory factory_,
         IProtocolGovernance protocolGovernance_,
-        IOracle oracle_,
         address treasury_,
-        uint256 stabilisationFee_
-    ) DefaultAccessControl(admin) {
+        address token_
+    ) {
         if (
             address(positionManager_) == address(0) ||
             address(factory_) == address(0) ||
             address(protocolGovernance_) == address(0) ||
-            address(oracle_) == address(0) ||
-            address(treasury_) == address(0)
+            address(treasury_) == address(0) ||
+            address(token_) == address(0)
         ) {
+            revert AddressZero();
+        }
+
+        positionManager = positionManager_;
+        factory = factory_;
+        protocolGovernance = protocolGovernance_;
+        treasury = treasury_;
+        token = IMUSD(token_);
+        isInitialized = true;
+    }
+
+    /// @notice Initialized a new contract.
+    /// @param admin Protocol admin
+    /// @param oracle_ Oracle
+    /// @param stabilisationFee_ MUSD initial stabilisation fee
+    function initialize(
+        address admin,
+        IOracle oracle_,
+        uint256 stabilisationFee_
+    ) external {
+        if (isInitialized) {
+            revert Initialized();
+        }
+
+        if (admin == address(0)) {
+            revert AddressZero();
+        }
+
+        if (address(oracle_) == address(0)) {
             revert AddressZero();
         }
 
@@ -174,16 +205,19 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
             revert InvalidValue();
         }
 
-        positionManager = positionManager_;
-        factory = factory_;
-        protocolGovernance = protocolGovernance_;
+        _setupRole(OPERATOR, admin);
+        _setupRole(ADMIN_ROLE, admin);
+
+        _setRoleAdmin(ADMIN_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(ADMIN_DELEGATE_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(OPERATOR, ADMIN_DELEGATE_ROLE);
+
         oracle = oracle_;
-        treasury = treasury_;
 
         // initial value
-
         stabilisationFeeRateD = stabilisationFee_;
         globalStabilisationFeePerUSDSnapshotTimestamp = block.timestamp;
+        isInitialized = true;
     }
 
     // -------------------   PUBLIC, VIEW   -------------------
@@ -267,7 +301,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     /// @notice Open a new Vault
     /// @return vaultId Id of the new vault
     function openVault() public onlyUnpaused returns (uint256 vaultId) {
-        if (isPrivate && !_depositorsAllowlist.contains(msg.sender)) {
+        if (!isPublic && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
         }
 
@@ -444,27 +478,13 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
     /// @notice Set a new price oracle
     /// @param oracle_ The new oracle
-    function setOracle(IOracle oracle_) external onlyAdmin {
+    function setOracle(IOracle oracle_) external onlyVaultAdmin {
         if (address(oracle_) == address(0)) {
             revert AddressZero();
         }
         oracle = oracle_;
 
         emit OracleUpdated(tx.origin, msg.sender, address(oracle));
-    }
-
-    /// @notice Set MUSD token
-    /// @param token_ MUSD token
-    function setToken(IMUSD token_) external onlyAdmin {
-        if (address(token_) == address(0)) {
-            revert AddressZero();
-        }
-        if (address(token) != address(0)) {
-            revert TokenAlreadySet();
-        }
-        token = token_;
-
-        emit TokenSet(tx.origin, msg.sender, address(token));
     }
 
     /// @notice Pause the system
@@ -475,29 +495,29 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     }
 
     /// @notice Unpause the system
-    function unpause() external onlyAdmin {
+    function unpause() external onlyVaultAdmin {
         isPaused = false;
 
         emit SystemUnpaused(tx.origin, msg.sender);
     }
 
     /// @notice Make the system private
-    function makePrivate() external onlyAdmin {
-        isPrivate = true;
+    function makePrivate() external onlyVaultAdmin {
+        isPublic = false;
 
         emit SystemPrivate(tx.origin, msg.sender);
     }
 
     /// @notice Make the system public
-    function makePublic() external onlyAdmin {
-        isPrivate = false;
+    function makePublic() external onlyVaultAdmin {
+        isPublic = true;
 
         emit SystemPublic(tx.origin, msg.sender);
     }
 
     /// @notice Add an array of new depositors to the allow list
     /// @param depositors Array of new depositors
-    function addDepositorsToAllowlist(address[] calldata depositors) external onlyAdmin {
+    function addDepositorsToAllowlist(address[] calldata depositors) external onlyVaultAdmin {
         for (uint256 i = 0; i < depositors.length; i++) {
             _depositorsAllowlist.add(depositors[i]);
         }
@@ -505,7 +525,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
     /// @notice Remove an array of depositors from the allow list
     /// @param depositors Array of new depositors
-    function removeDepositorsFromAllowlist(address[] calldata depositors) external onlyAdmin {
+    function removeDepositorsFromAllowlist(address[] calldata depositors) external onlyVaultAdmin {
         for (uint256 i = 0; i < depositors.length; i++) {
             _depositorsAllowlist.remove(depositors[i]);
         }
@@ -513,7 +533,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
     /// @notice Update stabilisation fee (multiplied by DENOMINATOR) and calculate global stabilisation fee per USD up to current timestamp using previous stabilisation fee
     /// @param stabilisationFeeRateD_ New stabilisation fee multiplied by DENOMINATOR
-    function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external onlyAdmin {
+    function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external onlyVaultAdmin {
         if (stabilisationFeeRateD_ > DENOMINATOR) {
             revert InvalidValue();
         }
@@ -649,7 +669,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
         uint256 vaultId,
         uint256 nft
     ) internal {
-        if (isPrivate && !_depositorsAllowlist.contains(caller)) {
+        if (!isPublic && !_depositorsAllowlist.contains(caller)) {
             revert AllowList();
         }
 
@@ -768,7 +788,7 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
 
     // -----------------------  MODIFIERS  --------------------------
 
-    modifier onlyAdmin() {
+    modifier onlyVaultAdmin() {
         _requireAdmin();
         _;
     }
@@ -835,12 +855,6 @@ contract Vault is DefaultAccessControl, IERC721Receiver {
     /// @param sender Sender of the call (msg.sender)
     /// @param oracleAddress New oracle address
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
-
-    /// @notice Emitted when the token is updated
-    /// @param origin Origin of the transaction (tx.origin)
-    /// @param sender Sender of the call (msg.sender)
-    /// @param tokenAddress New token address
-    event TokenSet(address indexed origin, address indexed sender, address tokenAddress);
 
     /// @notice Emitted when the system is set to paused
     /// @param origin Origin of the transaction (tx.origin)

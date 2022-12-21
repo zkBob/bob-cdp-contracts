@@ -49,4 +49,8 @@ contract PolygonDeployment is AbstractDeployment {
         treasury = address(0x07883EbD6f178420f24969279BD425Ab0B99F10B);
         stabilisationFee = 10**7;
     }
+
+    function targetToken() public pure override returns (address token) {
+        token = address(0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B);
+    }
 }

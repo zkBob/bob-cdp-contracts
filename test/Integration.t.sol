@@ -8,18 +8,20 @@ import "../lib/forge-std/src/Test.sol";
 import "./ConfigContract.sol";
 import "./SetupContract.sol";
 import "../src/Vault.sol";
-import "../src/MUSD.sol";
+import "./mocks/MUSD.sol";
 import "./mocks/MockOracle.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./utils/Utilities.sol";
+import "../src/proxy/EIP1967Proxy.sol";
 
 contract IntegrationTestForVault is Test, SetupContract, Utilities {
     MockOracle oracle;
     ProtocolGovernance protocolGovernance;
     MUSD token;
     Vault vault;
+    EIP1967Proxy vaultProxy;
     INonfungiblePositionManager positionManager;
     address treasury;
 
@@ -38,18 +40,24 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         treasury = getNextUserAddress();
 
+        token = new MUSD("Mock USD", "MUSD");
+
         vault = new Vault(
-            address(this),
             INonfungiblePositionManager(UniV3PositionManager),
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
-            IOracle(oracle),
             treasury,
-            10**7
+            address(token)
         );
 
-        token = new MUSD("Mellow USD", "MUSD", address(vault));
-        vault.setToken(IMUSD(address(token)));
+        bytes memory initData = abi.encodeWithSelector(
+            Vault.initialize.selector,
+            address(this),
+            IOracle(oracle),
+            10**7
+        );
+        vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
+        vault = Vault(address(vaultProxy));
 
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);

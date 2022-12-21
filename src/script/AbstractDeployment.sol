@@ -11,7 +11,7 @@ import "../interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "../ProtocolGovernance.sol";
-import "../MUSD.sol";
+import "../proxy/EIP1967Proxy.sol";
 
 abstract contract AbstractDeployment is Script {
     function tokens()
@@ -36,6 +36,8 @@ abstract contract AbstractDeployment is Script {
             address treasury,
             uint256 stabilisationFee
         );
+
+    function targetToken() public pure virtual returns (address token);
 
     function governanceParams(address factory)
         public
@@ -75,6 +77,7 @@ abstract contract AbstractDeployment is Script {
 
         (address positionManager, address factory, address treasury, uint256 stabilisationFee) = vaultParams();
         (address[] memory oracleTokens, address[] memory oracles) = oracleParams();
+        address token = targetToken();
 
         ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, msg.sender);
         console2.log("Oracle", address(oracle));
@@ -85,20 +88,23 @@ abstract contract AbstractDeployment is Script {
         setupGovernance(IProtocolGovernance(protocolGovernance), factory);
 
         Vault vault = new Vault(
-            msg.sender,
             INonfungiblePositionManager(positionManager),
             IUniswapV3Factory(factory),
             IProtocolGovernance(protocolGovernance),
-            IOracle(oracle),
             treasury,
-            stabilisationFee
+            token
         );
 
-        console2.log("Vault", address(vault));
+        bytes memory initData = abi.encodeWithSelector(
+            Vault.initialize.selector,
+            msg.sender,
+            IOracle(oracle),
+            stabilisationFee
+        );
+        EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
+        vault = Vault(address(vaultProxy));
 
-        MUSD token = new MUSD("Mellow USD", "MUSD", address(vault));
-        vault.setToken(IMUSD(address(token)));
-        console2.log("Token", address(token));
+        console2.log("Vault", address(vault));
 
         vm.stopBroadcast();
     }
