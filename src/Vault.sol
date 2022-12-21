@@ -177,6 +177,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         protocolGovernance = protocolGovernance_;
         treasury = treasury_;
         token = IMUSD(token_);
+        isInitialized = true;
     }
 
     /// @notice Initialized a new contract.
