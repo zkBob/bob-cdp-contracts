@@ -187,7 +187,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
             revert Initialized();
         }
 
-        VaultAccessControl.init(admin);
+        if (admin == address(0)) {
+            revert AddressZero();
+        }
 
         if (address(oracle_) == address(0)) {
             revert AddressZero();
@@ -196,6 +198,13 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
         if (stabilisationFee_ > DENOMINATOR) {
             revert InvalidValue();
         }
+
+        _setupRole(OPERATOR, admin);
+        _setupRole(ADMIN_ROLE, admin);
+
+        _setRoleAdmin(ADMIN_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(ADMIN_DELEGATE_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(OPERATOR, ADMIN_DELEGATE_ROLE);
 
         oracle = oracle_;
 
