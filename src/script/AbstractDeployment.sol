@@ -88,6 +88,8 @@ abstract contract AbstractDeployment is Script {
         setupGovernance(IProtocolGovernance(protocolGovernance), factory);
 
         Vault vault = new Vault(
+            "BOB Vault Token",
+            "BVT",
             INonfungiblePositionManager(positionManager),
             IUniswapV3Factory(factory),
             IProtocolGovernance(protocolGovernance),

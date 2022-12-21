@@ -43,6 +43,8 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         token = new MUSD("Mock USD", "MUSD");
 
         vault = new Vault(
+            "BOB Vault Token",
+            "BVT",
             INonfungiblePositionManager(UniV3PositionManager),
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
@@ -161,7 +163,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.withdrawCollateral(nftB);
 
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(bytes("ERC721: invalid token ID"));
         vault.closeVault(vaultA, address(this));
         vm.expectRevert(Vault.UnpaidDebt.selector);
         vault.closeVault(vaultB, address(this));
