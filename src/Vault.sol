@@ -14,15 +14,18 @@ import "./libraries/external/FullMath.sol";
 import "./libraries/external/TickMath.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
 import "./proxy/EIP1967Admin.sol";
-import "./utils/DefaultAccessControlLateInit.sol";
+import "./utils/VaultAccessControl.sol";
 
 /// @notice Contract of the system vault manager
-contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
+contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
     /// @notice Thrown when a value of a deposited NFT is less than min single nft capital (set in governance)
     error CollateralUnderflow();
+
+    /// @notice Thrown when a vault has already been initialized
+    error Initialized();
 
     /// @notice Thrown when a pool of NFT is not in the whitelist
     error InvalidPool();
@@ -98,6 +101,9 @@ contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
 
     /// @notice Vault fees treasury address
     address public immutable treasury;
+
+    /// @notice State variable, which shows if Vault is initialized or not
+    bool public isInitialized;
 
     /// @notice State variable, which shows if Vault is paused or not
     bool public isPaused;
@@ -182,7 +188,11 @@ contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
         IOracle oracle_,
         uint256 stabilisationFee_
     ) external {
-        DefaultAccessControlLateInit.init(admin);
+        if (isInitialized) {
+            revert Initialized();
+        }
+
+        VaultAccessControl.init(admin);
 
         if (address(oracle_) == address(0)) {
             revert AddressZero();
@@ -197,6 +207,7 @@ contract Vault is EIP1967Admin, DefaultAccessControlLateInit, IERC721Receiver {
         // initial value
         stabilisationFeeRateD = stabilisationFee_;
         globalStabilisationFeePerUSDSnapshotTimestamp = block.timestamp;
+        isInitialized = true;
     }
 
     // -------------------   PUBLIC, VIEW   -------------------

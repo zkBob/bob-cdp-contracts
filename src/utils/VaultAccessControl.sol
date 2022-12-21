@@ -9,12 +9,9 @@ import "../interfaces/utils/IDefaultAccessControl.sol";
 /// - ADMIN: allowed to do anything
 /// - ADMIN_DELEGATE: allowed to do anything except assigning ADMIN and ADMIN_DELEGATE roles
 /// - OPERATOR: low-privileged role, generally keeper or some other bot
-contract DefaultAccessControlLateInit is IDefaultAccessControl, AccessControlEnumerable {
+contract VaultAccessControl is IDefaultAccessControl, AccessControlEnumerable {
     error AddressZero();
     error Forbidden();
-    error Initialized();
-
-    bool public initialized;
 
     bytes32 public constant OPERATOR = keccak256("operator");
     bytes32 public constant ADMIN_ROLE = keccak256("admin");
@@ -32,29 +29,6 @@ contract DefaultAccessControlLateInit is IDefaultAccessControl, AccessControlEnu
         return hasRole(OPERATOR, sender);
     }
 
-    // -------------------------  EXTERNAL, MUTATING  ------------------------------
-
-    /// @notice Initializes a new contract with roles and single ADMIN.
-    /// @param admin Admin of the contract
-    function init(address admin) public {
-        if (admin == address(0)) {
-            revert AddressZero();
-        }
-
-        if (initialized) {
-            revert Initialized();
-        }
-
-        _setupRole(OPERATOR, admin);
-        _setupRole(ADMIN_ROLE, admin);
-
-        _setRoleAdmin(ADMIN_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(ADMIN_DELEGATE_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(OPERATOR, ADMIN_DELEGATE_ROLE);
-
-        initialized = true;
-    }
-
     // -------------------------  INTERNAL, VIEW  ------------------------------
 
     function _requireAdmin() internal view {
@@ -67,5 +41,22 @@ contract DefaultAccessControlLateInit is IDefaultAccessControl, AccessControlEnu
         if (!isAdmin(msg.sender) && !isOperator(msg.sender)) {
             revert Forbidden();
         }
+    }
+
+    // -------------------------  INTERNAL, MUTATING  ------------------------------
+
+    /// @notice Initializes a new contract with roles and single ADMIN.
+    /// @param admin Admin of the contract
+    function init(address admin) internal {
+        if (admin == address(0)) {
+            revert AddressZero();
+        }
+
+        _setupRole(OPERATOR, admin);
+        _setupRole(ADMIN_ROLE, admin);
+
+        _setRoleAdmin(ADMIN_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(ADMIN_DELEGATE_ROLE, ADMIN_ROLE);
+        _setRoleAdmin(OPERATOR, ADMIN_DELEGATE_ROLE);
     }
 }
