@@ -42,21 +42,4 @@ contract VaultAccessControl is IDefaultAccessControl, AccessControlEnumerable {
             revert Forbidden();
         }
     }
-
-    // -------------------------  INTERNAL, MUTATING  ------------------------------
-
-    /// @notice Initializes a new contract with roles and single ADMIN.
-    /// @param admin Admin of the contract
-    function init(address admin) internal {
-        if (admin == address(0)) {
-            revert AddressZero();
-        }
-
-        _setupRole(OPERATOR, admin);
-        _setupRole(ADMIN_ROLE, admin);
-
-        _setRoleAdmin(ADMIN_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(ADMIN_DELEGATE_ROLE, ADMIN_ROLE);
-        _setRoleAdmin(OPERATOR, ADMIN_DELEGATE_ROLE);
-    }
 }
