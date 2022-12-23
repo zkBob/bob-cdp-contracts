@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: BSL-1.1
 pragma solidity 0.8.13;
 
-import "@openzeppelin/contracts/token/ERC721/extensions/ERC721Enumerable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./interfaces/IMUSD.sol";
@@ -16,9 +15,10 @@ import "./libraries/external/TickMath.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
 import "./proxy/EIP1967Admin.sol";
 import "./utils/VaultAccessControl.sol";
+import "./interfaces/IVaultRegistry.sol";
 
 /// @notice Contract of the system vault manager
-contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Receiver {
+contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
@@ -33,6 +33,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
 
     /// @notice Thrown when a value of a stabilization fee is incorrect
     error InvalidValue();
+
+    /// @notice Thrown when a vault id does not exist
+    error InvalidVault();
 
     /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Uniswap V3 NFT
     error MissingOracle();
@@ -49,8 +52,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
     /// @notice Thrown when a position is unhealthy
     error PositionUnhealthy();
 
-    /// @notice Thrown when the MUSD token contract has already been set
-    error TokenAlreadySet();
+    /// @notice Thrown when the VaultRegistry has already been set
+    error VaultRegistryAlreadySet();
 
     /// @notice Thrown when a vault is tried to be closed and debt has not been paid yet
     error UnpaidDebt();
@@ -100,6 +103,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
     /// @notice Vault fees treasury address
     address public immutable treasury;
 
+    /// @notice Vault Registry
+    IVaultRegistry public vaultRegistry;
+
     /// @notice State variable, which shows if Vault is initialized or not
     bool public isInitialized;
 
@@ -147,15 +153,14 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
     /// @param factory_ UniswapV3 factory
     /// @param protocolGovernance_ UniswapV3 protocol governance
     /// @param treasury_ Vault fees treasury
+    /// @param token_ Address of token
     constructor(
-        string memory name,
-        string memory symbol,
         INonfungiblePositionManager positionManager_,
         IUniswapV3Factory factory_,
         IProtocolGovernance protocolGovernance_,
         address treasury_,
         address token_
-    ) ERC721(name, symbol) {
+    ) {
         if (
             address(positionManager_) == address(0) ||
             address(factory_) == address(0) ||
@@ -221,7 +226,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
         public
         view
         virtual
-        override(AccessControlEnumerable, ERC721Enumerable)
+        override(AccessControlEnumerable)
         returns (bool)
     {
         return super.supportsInterface(interfaceId) || type(IERC721Receiver).interfaceId == interfaceId;
@@ -309,7 +314,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
         _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
         _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = globalStabilisationFeePerUSDD();
 
-        _mint(msg.sender, vaultId);
+        vaultRegistry.mint(msg.sender, vaultId);
 
         emit VaultOpened(msg.sender, vaultId);
     }
@@ -412,7 +417,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
             revert PositionHealthy();
         }
 
-        address owner = ownerOf(vaultId);
+        address owner = vaultRegistry.ownerOf(vaultId);
 
         uint256 vaultAmount = 0;
 
@@ -507,6 +512,22 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
         oracle = oracle_;
 
         emit OracleUpdated(tx.origin, msg.sender, address(oracle));
+    }
+
+    /// @notice Set a new vault registry
+    /// @param vaultRegistry_ The new vault registry address
+    function setVaultRegistry(IVaultRegistry vaultRegistry_) external onlyVaultAdmin {
+        if (address(vaultRegistry) != address(0)) {
+            revert VaultRegistryAlreadySet();
+        }
+
+        if (address(vaultRegistry_) == address(0)) {
+            revert AddressZero();
+        }
+
+        vaultRegistry = vaultRegistry_;
+
+        emit VaultRegistrySet(tx.origin, msg.sender, address(vaultRegistry_));
     }
 
     /// @notice Pause the system
@@ -629,7 +650,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
     /// @notice Check if the caller is the vault owner
     /// @param vaultId Vault id
     function _requireVaultOwner(uint256 vaultId) internal view {
-        if (ownerOf(vaultId) != msg.sender) {
+        if (vaultRegistry.ownerOf(vaultId) != msg.sender) {
             revert Forbidden();
         }
     }
@@ -669,7 +690,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
             revert NFTLimitExceeded();
         }
 
-        _requireMinted(vaultId);
+        if (vaultRegistry.ownerOf(vaultId) == address(0)) {
+            revert InvalidVault();
+        }
 
         {
             (
@@ -753,8 +776,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
         delete _vaultNfts[vaultId];
         delete _stabilisationFeeVaultSnapshotTimestamp[vaultId];
         delete _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
-
-        _burn(vaultId);
     }
 
     /// @notice Update stabilisation fee for a given vault (in MUSD weis)
@@ -839,6 +860,12 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
     /// @param sender Sender of the call (msg.sender)
     /// @param oracleAddress New oracle address
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
+
+    /// @notice Emitted when the VaultRegistry is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param vaultRegistryAddress New vaultRegistry address
+    event VaultRegistrySet(address indexed origin, address indexed sender, address vaultRegistryAddress);
 
     /// @notice Emitted when the system is set to paused
     /// @param origin Origin of the transaction (tx.origin)

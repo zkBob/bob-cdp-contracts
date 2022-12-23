@@ -12,6 +12,7 @@ import "../interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "../ProtocolGovernance.sol";
 import "../proxy/EIP1967Proxy.sol";
+import "../VaultRegistry.sol";
 
 abstract contract AbstractDeployment is Script {
     function tokens()
@@ -88,8 +89,6 @@ abstract contract AbstractDeployment is Script {
         setupGovernance(IProtocolGovernance(protocolGovernance), factory);
 
         Vault vault = new Vault(
-            "BOB Vault Token",
-            "BVT",
             INonfungiblePositionManager(positionManager),
             IUniswapV3Factory(factory),
             IProtocolGovernance(protocolGovernance),
@@ -107,6 +106,20 @@ abstract contract AbstractDeployment is Script {
         vault = Vault(address(vaultProxy));
 
         console2.log("Vault", address(vault));
+
+        VaultRegistry vaultRegistry = new VaultRegistry(
+            address(vault),
+            "BOB Vault Token",
+            "BVT",
+            ""
+        );
+
+        EIP1967Proxy vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
+        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+
+        vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
+
+        console2.log("VaultRegistry", address(vaultRegistry));
 
         vm.stopBroadcast();
     }

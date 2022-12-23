@@ -15,13 +15,16 @@ import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./utils/Utilities.sol";
 import "../src/proxy/EIP1967Proxy.sol";
+import "../src/VaultRegistry.sol";
 
 contract IntegrationTestForVault is Test, SetupContract, Utilities {
     MockOracle oracle;
     ProtocolGovernance protocolGovernance;
     MUSD token;
     Vault vault;
+    VaultRegistry vaultRegistry;
     EIP1967Proxy vaultProxy;
+    EIP1967Proxy vaultRegistryProxy;
     INonfungiblePositionManager positionManager;
     address treasury;
 
@@ -43,8 +46,6 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         token = new MUSD("Mock USD", "MUSD");
 
         vault = new Vault(
-            "BOB Vault Token",
-            "BVT",
             INonfungiblePositionManager(UniV3PositionManager),
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
@@ -60,6 +61,19 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
+
+        vaultRegistry = new VaultRegistry(
+            address(vault),
+            "BOB Vault Token",
+            "BVT",
+            ""
+        );
+
+        vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
+        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+
+        vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
+
         token.approve(address(vault), type(uint256).max);
 
         protocolGovernance.changeLiquidationFee(3 * 10**7);
@@ -164,10 +178,22 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.withdrawCollateral(nftB);
 
-        vm.expectRevert(bytes("ERC721: invalid token ID"));
         vault.closeVault(vaultA, address(this));
         vm.expectRevert(Vault.UnpaidDebt.selector);
         vault.closeVault(vaultB, address(this));
+    }
+
+    function testCorrectNumerationOfVaultsPerAddress() public {
+        uint256 firstVaultId = vault.openVault();
+        uint256 secondVaultId = vault.openVault();
+        assertEq(vaultRegistry.tokenOfOwnerByIndex(address(this), 0), firstVaultId);
+        assertEq(vaultRegistry.tokenOfOwnerByIndex(address(this), 1), secondVaultId);
+
+        vm.expectRevert("ERC721Enumerable: owner index out of bounds");
+        vaultRegistry.tokenOfOwnerByIndex(address(this), 2);
+
+        vaultRegistry.transferFrom(address(this), getNextUserAddress(), firstVaultId);
+        assertEq(vaultRegistry.tokenOfOwnerByIndex(address(this), 0), secondVaultId);
     }
 
     function testOneUserClosesDebtOfSecond() public {

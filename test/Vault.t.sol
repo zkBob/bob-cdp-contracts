@@ -15,6 +15,7 @@ import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./utils/Utilities.sol";
 import "../src/proxy/EIP1967Proxy.sol";
+import "../src/VaultRegistry.sol";
 
 contract VaultTest is Test, SetupContract, Utilities {
     event VaultOpened(address indexed sender, uint256 vaultId);
@@ -29,6 +30,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
+    event VaultRegistrySet(address indexed origin, address indexed sender, address vaultRegistryAddress);
 
     event SystemPaused(address indexed origin, address indexed sender);
     event SystemUnpaused(address indexed origin, address indexed sender);
@@ -37,10 +39,12 @@ contract VaultTest is Test, SetupContract, Utilities {
     event SystemPublic(address indexed origin, address indexed sender);
 
     EIP1967Proxy vaultProxy;
+    EIP1967Proxy vaultRegistryProxy;
     MockOracle oracle;
     ProtocolGovernance protocolGovernance;
     MUSD token;
     Vault vault;
+    VaultRegistry vaultRegistry;
     INonfungiblePositionManager positionManager;
     address treasury;
 
@@ -62,8 +66,6 @@ contract VaultTest is Test, SetupContract, Utilities {
         token = new MUSD("Mock USD", "MUSD");
 
         vault = new Vault(
-            "BOB Vault Token",
-            "BVT",
             INonfungiblePositionManager(UniV3PositionManager),
             IUniswapV3Factory(UniV3Factory),
             IProtocolGovernance(protocolGovernance),
@@ -79,6 +81,19 @@ contract VaultTest is Test, SetupContract, Utilities {
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
+
+        vaultRegistry = new VaultRegistry(
+            address(vault),
+            "BOB Vault Token",
+            "BVT",
+            ""
+        );
+
+        vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
+        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+
+        vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
+
         token.approve(address(vault), type(uint256).max);
 
         protocolGovernance.changeLiquidationFee(3 * 10**7);
@@ -120,12 +135,12 @@ contract VaultTest is Test, SetupContract, Utilities {
     // openVault
 
     function testOpenVaultSuccess() public {
-        uint256 oldLen = vault.balanceOf(address(this));
+        uint256 oldLen = vaultRegistry.balanceOf(address(this));
         vault.openVault();
-        uint256 currentLen = vault.balanceOf(address(this));
+        uint256 currentLen = vaultRegistry.balanceOf(address(this));
         assertEq(oldLen + 1, currentLen);
         vault.openVault();
-        uint256 finalLen = vault.balanceOf(address(this));
+        uint256 finalLen = vaultRegistry.balanceOf(address(this));
         assertEq(oldLen + 2, finalLen);
     }
 
@@ -266,8 +281,10 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testCloseVaultSuccess() public {
         uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
         vault.closeVault(vaultId, address(this));
-        assertEq(vault.balanceOf(address(this)), 0);
+        assertEq(vaultRegistry.balanceOf(address(this)), 1);
     }
 
     function testCloseVaultSuccessWithCollaterals() public {
@@ -278,7 +295,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         vault.closeVault(vaultId, address(this));
 
-        assertEq(vault.balanceOf(address(this)), 0);
+        assertEq(vaultRegistry.balanceOf(address(this)), 1);
         assertEq(positionManager.ownerOf(tokenId), address(this));
     }
 
@@ -291,17 +308,17 @@ contract VaultTest is Test, SetupContract, Utilities {
         address recipient = getNextUserAddress();
         vault.closeVault(vaultId, recipient);
 
-        assertEq(vault.balanceOf(address(this)), 0);
+        assertEq(vaultRegistry.balanceOf(address(this)), 1);
         assertEq(positionManager.ownerOf(tokenId), recipient);
     }
 
-    function testClosedVaultNotAcceptingAnything() public {
+    function testClosedVaultAcceptingCollateral() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.closeVault(vaultId, address(this));
 
-        vm.expectRevert(bytes("ERC721: invalid token ID"));
         vault.depositCollateral(vaultId, tokenId);
+        assertEq(getLength(vault.vaultNftsById(vaultId)), 1);
     }
 
     function testCloseWithUnpaidDebt() public {
@@ -1071,6 +1088,88 @@ contract VaultTest is Test, SetupContract, Utilities {
         vm.expectEmit(false, true, false, true);
         emit OracleUpdated(tx.origin, address(this), newAddress);
         vault.setOracle(IOracle(newAddress));
+    }
+
+    // setVaultRegistry
+
+    function testSetVaultRegistrySuccess() public {
+        Vault newVault = new Vault(
+            INonfungiblePositionManager(UniV3PositionManager),
+            IUniswapV3Factory(UniV3Factory),
+            IProtocolGovernance(protocolGovernance),
+            treasury,
+            address(token)
+        );
+
+        bytes memory initData = abi.encodeWithSelector(
+            Vault.initialize.selector,
+            address(this),
+            IOracle(oracle),
+            10**7
+        );
+        EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
+        newVault = Vault(address(newVaultProxy));
+
+        address newAddress = getNextUserAddress();
+        newVault.setVaultRegistry(IVaultRegistry(newAddress));
+        assertEq(address(newVault.vaultRegistry()), newAddress);
+    }
+
+    function testSetVaultRegistryWhenNotAdmin() public {
+        vm.prank(getNextUserAddress());
+        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vault.setVaultRegistry(IVaultRegistry(getNextUserAddress()));
+    }
+
+    function testSetVaultRegistryWhenItHasAlreadyBeenSet() public {
+        vm.expectRevert(Vault.VaultRegistryAlreadySet.selector);
+        vault.setVaultRegistry(IVaultRegistry(getNextUserAddress()));
+    }
+
+    function testSetVaultRegistryWhenAddressZero() public {
+        Vault newVault = new Vault(
+            INonfungiblePositionManager(UniV3PositionManager),
+            IUniswapV3Factory(UniV3Factory),
+            IProtocolGovernance(protocolGovernance),
+            treasury,
+            address(token)
+        );
+
+        bytes memory initData = abi.encodeWithSelector(
+            Vault.initialize.selector,
+            address(this),
+            IOracle(oracle),
+            10**7
+        );
+        EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
+        newVault = Vault(address(newVaultProxy));
+
+        vm.expectRevert(DefaultAccessControl.AddressZero.selector);
+        newVault.setVaultRegistry(IVaultRegistry(address(0)));
+    }
+
+    function testSetVaultRegistryEmit() public {
+        Vault newVault = new Vault(
+            INonfungiblePositionManager(UniV3PositionManager),
+            IUniswapV3Factory(UniV3Factory),
+            IProtocolGovernance(protocolGovernance),
+            treasury,
+            address(token)
+        );
+
+        bytes memory initData = abi.encodeWithSelector(
+            Vault.initialize.selector,
+            address(this),
+            IOracle(oracle),
+            10**7
+        );
+        EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
+        newVault = Vault(address(newVaultProxy));
+
+        address newAddress = getNextUserAddress();
+        vm.expectEmit(false, true, false, true);
+        emit VaultRegistrySet(tx.origin, address(this), newAddress);
+        newVault.setVaultRegistry(IVaultRegistry(newAddress));
     }
 
     // vaultNftsById
