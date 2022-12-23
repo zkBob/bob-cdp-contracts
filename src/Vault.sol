@@ -15,6 +15,7 @@ import "./libraries/external/TickMath.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
 import "./proxy/EIP1967Admin.sol";
 import "./utils/VaultAccessControl.sol";
+import "./interfaces/IVaultRegistry.sol";
 
 /// @notice Contract of the system vault manager
 contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
@@ -33,7 +34,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Thrown when a value of a stabilization fee is incorrect
     error InvalidValue();
 
-    /// @notice Thrown when a vault does not exist
+    /// @notice Thrown when a vault id does not exist
     error InvalidVault();
 
     /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Uniswap V3 NFT
@@ -51,8 +52,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Thrown when a position is unhealthy
     error PositionUnhealthy();
 
-    /// @notice Thrown when the MUSD token contract has already been set
-    error TokenAlreadySet();
+    /// @notice Thrown when the VaultRegistry has already been set
+    error VaultRegistryAlreadySet();
 
     /// @notice Thrown when a vault is tried to be closed and debt has not been paid yet
     error UnpaidDebt();
@@ -102,6 +103,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Vault fees treasury address
     address public immutable treasury;
 
+    /// @notice Vault Registry
+    IVaultRegistry public vaultRegistry;
+
     /// @notice State variable, which shows if Vault is initialized or not
     bool public isInitialized;
 
@@ -114,14 +118,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Address set, containing only accounts, which are allowed to make deposits
     EnumerableSet.AddressSet private _depositorsAllowlist;
 
-    /// @notice Mapping, returning set of all vault ids owed by a user
-    mapping(address => EnumerableSet.UintSet) private _ownedVaults;
-
     /// @notice Mapping, returning set of all nfts, managed by vault
     mapping(uint256 => EnumerableSet.UintSet) private _vaultNfts;
-
-    /// @notice Mapping, returning vault owner by vault id
-    mapping(uint256 => address) public vaultOwner;
 
     /// @notice Mapping, returning debt by vault id (in MUSD weis)
     mapping(uint256 => uint256) public vaultDebt;
@@ -155,6 +153,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @param factory_ UniswapV3 factory
     /// @param protocolGovernance_ UniswapV3 protocol governance
     /// @param treasury_ Vault fees treasury
+    /// @param token_ Address of token
     constructor(
         INonfungiblePositionManager positionManager_,
         IUniswapV3Factory factory_,
@@ -222,6 +221,17 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
     // -------------------   PUBLIC, VIEW   -------------------
 
+    /// @inheritdoc IERC165
+    function supportsInterface(bytes4 interfaceId)
+        public
+        view
+        virtual
+        override(AccessControlEnumerable)
+        returns (bool)
+    {
+        return super.supportsInterface(interfaceId) || type(IERC721Receiver).interfaceId == interfaceId;
+    }
+
     /// @notice Calculate adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis)
     /// @param vaultId Id of the vault
     /// @return uint256 Adjusted collateral
@@ -276,13 +286,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
     // -------------------  EXTERNAL, VIEW  -------------------
 
-    /// @notice Get all vaults with a given owner
-    /// @param target Owner address
-    /// @return uint256[] Array of vaults` ids, owned by address
-    function ownedVaultsByAddress(address target) external view returns (uint256[] memory) {
-        return _ownedVaults[target].values();
-    }
-
     /// @notice Get all NFTs, managed by vault with given id
     /// @param vaultId Id of the vault
     /// @return uint256[] Array of NFTs, managed by vault
@@ -308,11 +311,10 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         vaultId = vaultCount + 1;
         vaultCount = vaultId;
 
-        _ownedVaults[msg.sender].add(vaultId);
-        vaultOwner[vaultId] = msg.sender;
-
         _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
         _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = globalStabilisationFeePerUSDD();
+
+        vaultRegistry.mint(msg.sender, vaultId);
 
         emit VaultOpened(msg.sender, vaultId);
     }
@@ -327,7 +329,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
             revert UnpaidDebt();
         }
 
-        _closeVault(vaultId, msg.sender, collateralRecipient);
+        _closeVault(vaultId, collateralRecipient);
 
         emit VaultClosed(msg.sender, vaultId);
     }
@@ -415,9 +417,33 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
             revert PositionHealthy();
         }
 
-        address owner = vaultOwner[vaultId];
+        address owner = vaultRegistry.ownerOf(vaultId);
 
-        uint256 vaultAmount = _calculateVaultCollateral(vaultId);
+        uint256 vaultAmount = 0;
+
+        uint256[] memory nfts = _vaultNfts[vaultId].values();
+        INonfungiblePositionManager positionManager_ = positionManager;
+
+        for (uint256 i = 0; i < nfts.length; ++i) {
+            UniswapV3FeesCalculation.PositionInfo memory positionInfo;
+            uint256 nft = nfts[i];
+            (
+                ,
+                ,
+                ,
+                ,
+                ,
+                positionInfo.tickLower,
+                positionInfo.tickUpper,
+                positionInfo.liquidity,
+                positionInfo.feeGrowthInside0LastX128,
+                positionInfo.feeGrowthInside1LastX128,
+                positionInfo.tokensOwed0,
+                positionInfo.tokensOwed1
+            ) = positionManager_.positions(nft);
+            vaultAmount += _calculateAdjustedCollateral(_uniV3PositionInfo[nft], DENOMINATOR, positionInfo);
+        }
+
         uint256 returnAmount = FullMath.mulDiv(
             DENOMINATOR - protocolGovernance.protocolParams().liquidationPremiumD,
             vaultAmount,
@@ -440,7 +466,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         token.transfer(owner, returnAmount - currentDebt - daoReceiveAmount);
         token.transfer(treasury, daoReceiveAmount);
 
-        _closeVault(vaultId, owner, msg.sender);
+        _closeVault(vaultId, msg.sender);
 
         emit VaultLiquidated(msg.sender, vaultId);
     }
@@ -486,6 +512,22 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         oracle = oracle_;
 
         emit OracleUpdated(tx.origin, msg.sender, address(oracle));
+    }
+
+    /// @notice Set a new vault registry
+    /// @param vaultRegistry_ The new vault registry address
+    function setVaultRegistry(IVaultRegistry vaultRegistry_) external onlyVaultAdmin {
+        if (address(vaultRegistry) != address(0)) {
+            revert VaultRegistryAlreadySet();
+        }
+
+        if (address(vaultRegistry_) == address(0)) {
+            revert AddressZero();
+        }
+
+        vaultRegistry = vaultRegistry_;
+
+        emit VaultRegistrySet(tx.origin, msg.sender, address(vaultRegistry_));
     }
 
     /// @notice Pause the system
@@ -550,36 +592,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
     // -------------------  INTERNAL, VIEW  -----------------------
 
-    /// @notice Calculate the vault capital total amount (nominated in MUSD weis)
-    /// @param vaultId Vault id
-    /// @return uint256 Vault capital (nominated in MUSD weis)
-    function _calculateVaultCollateral(uint256 vaultId) internal view returns (uint256) {
-        uint256 result = 0;
-        uint256[] memory nfts = _vaultNfts[vaultId].values();
-        INonfungiblePositionManager positionManager_ = positionManager;
-
-        for (uint256 i = 0; i < nfts.length; ++i) {
-            UniswapV3FeesCalculation.PositionInfo memory positionInfo;
-            uint256 nft = nfts[i];
-            (
-                ,
-                ,
-                ,
-                ,
-                ,
-                positionInfo.tickLower,
-                positionInfo.tickUpper,
-                positionInfo.liquidity,
-                positionInfo.feeGrowthInside0LastX128,
-                positionInfo.feeGrowthInside1LastX128,
-                positionInfo.tokensOwed0,
-                positionInfo.tokensOwed1
-            ) = positionManager_.positions(nft);
-            result += _calculateAdjustedCollateral(_uniV3PositionInfo[nft], DENOMINATOR, positionInfo);
-        }
-        return result;
-    }
-
     /// @notice Calculate total capital of the specific collateral (nominated in MUSD weis)
     /// @param position Position info
     /// @param liquidationThresholdD Liquidation threshold of the corresponding pool, set in the protocol governance (multiplied by DENOMINATOR)
@@ -638,7 +650,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Check if the caller is the vault owner
     /// @param vaultId Vault id
     function _requireVaultOwner(uint256 vaultId) internal view {
-        if (vaultOwner[vaultId] != msg.sender) {
+        if (vaultRegistry.ownerOf(vaultId) != msg.sender) {
             revert Forbidden();
         }
     }
@@ -678,7 +690,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
             revert NFTLimitExceeded();
         }
 
-        if (vaultOwner[vaultId] == address(0)) {
+        if (vaultRegistry.ownerOf(vaultId) == address(0)) {
             revert InvalidVault();
         }
 
@@ -746,13 +758,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
     /// @notice Close a vault (internal)
     /// @param vaultId Id of the vault
-    /// @param owner Vault owner
     /// @param nftsRecipient Address to receive nft of the positions in the closed vault
-    function _closeVault(
-        uint256 vaultId,
-        address owner,
-        address nftsRecipient
-    ) internal {
+    function _closeVault(uint256 vaultId, address nftsRecipient) internal {
         uint256[] memory nfts = _vaultNfts[vaultId].values();
         INonfungiblePositionManager positionManager_ = positionManager;
 
@@ -764,11 +771,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
             positionManager_.transferFrom(address(this), nftsRecipient, nft);
         }
 
-        _ownedVaults[owner].remove(vaultId);
-
         delete vaultDebt[vaultId];
         delete stabilisationFeeVaultSnapshot[vaultId];
-        delete vaultOwner[vaultId];
         delete _vaultNfts[vaultId];
         delete _stabilisationFeeVaultSnapshotTimestamp[vaultId];
         delete _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
@@ -856,6 +860,12 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @param sender Sender of the call (msg.sender)
     /// @param oracleAddress New oracle address
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
+
+    /// @notice Emitted when the VaultRegistry is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param vaultRegistryAddress New vaultRegistry address
+    event VaultRegistrySet(address indexed origin, address indexed sender, address vaultRegistryAddress);
 
     /// @notice Emitted when the system is set to paused
     /// @param origin Origin of the transaction (tx.origin)
