@@ -82,7 +82,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
-        vaultRegistry = new VaultRegistry(address(vault), "BOB Vault Token", "BVT", "");
+        vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
 
         vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));

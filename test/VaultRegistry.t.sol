@@ -6,21 +6,79 @@ import "./SetupContract.sol";
 import "./utils/Utilities.sol";
 import "../src/VaultRegistry.sol";
 import "../src/proxy/EIP1967Proxy.sol";
+import "./mocks/MockOracle.sol";
+import "./mocks/MUSD.sol";
+import "../src/Vault.sol";
 
 contract VaultRegistryTest is Test, SetupContract, Utilities {
-    VaultRegistry vaultRegistry;
+    EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
+    MockOracle oracle;
+    ProtocolGovernance protocolGovernance;
+    MUSD token;
+    Vault vault;
+    VaultRegistry vaultRegistry;
+    INonfungiblePositionManager positionManager;
+    address treasury;
 
     function setUp() public {
-        vaultRegistry = new VaultRegistry(address(this), "BOB Vault Token", "BVT", "baseURI/");
+        positionManager = INonfungiblePositionManager(UniV3PositionManager);
+
+        oracle = new MockOracle();
+
+        oracle.setPrice(wbtc, uint256(20000 << 96) * uint256(10**10));
+        oracle.setPrice(weth, uint256(1000 << 96));
+        oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
+
+        protocolGovernance = new ProtocolGovernance(address(this), type(uint256).max);
+
+        treasury = getNextUserAddress();
+
+        token = new MUSD("Mock USD", "MUSD");
+
+        vault = new Vault(
+            INonfungiblePositionManager(UniV3PositionManager),
+            IUniswapV3Factory(UniV3Factory),
+            IProtocolGovernance(protocolGovernance),
+            treasury,
+            address(token)
+        );
+
+        bytes memory initData = abi.encodeWithSelector(
+            Vault.initialize.selector,
+            address(this),
+            IOracle(oracle),
+            10**7
+        );
+        vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
+        vault = Vault(address(vaultProxy));
+
+        vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "baseURI/");
 
         vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+
+        vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
+
+        token.approve(address(vault), type(uint256).max);
+
+        protocolGovernance.changeLiquidationFee(3 * 10**7);
+        protocolGovernance.changeLiquidationPremium(3 * 10**7);
+        protocolGovernance.changeMinSingleNftCollateral(10**17);
+        protocolGovernance.changeMaxNftsPerVault(12);
+
+        setPools(IProtocolGovernance(protocolGovernance));
+        setApprovals();
+
+        address[] memory depositors = new address[](1);
+        depositors[0] = address(this);
+        vault.addDepositorsToAllowlist(depositors);
     }
 
     // mint
 
     function testMintSuccess() public {
+        vm.prank(address(vault));
         address userAddress = getNextUserAddress();
         vaultRegistry.mint(userAddress, 1);
         assertEq(vaultRegistry.ownerOf(1), userAddress);
@@ -30,6 +88,30 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
         vm.prank(getNextUserAddress());
         vm.expectRevert(VaultRegistry.Forbidden.selector);
         vaultRegistry.mint(getNextUserAddress(), 1);
+    }
+
+    // burn
+
+    function testBurnSuccess() public {
+        uint256 vaultId = vault.openVault();
+        assertEq(vaultRegistry.balanceOf(address(this)), 1);
+        vaultRegistry.burn(vaultId);
+        assertEq(vaultRegistry.balanceOf(address(this)), 0);
+    }
+
+    function testBurnWhenNotOwner() public {
+        uint256 vaultId = vault.openVault();
+        vm.expectRevert(VaultRegistry.Forbidden.selector);
+        vm.prank(getNextUserAddress());
+        vaultRegistry.burn(vaultId);
+    }
+
+    function testBurnWhenNonEmptyCollateral() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vm.expectRevert(VaultRegistry.NonEmptyCollateral.selector);
+        vaultRegistry.burn(vaultId);
     }
 
     // name
@@ -47,6 +129,7 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
     // baseURI
 
     function testBaseURI() public {
+        vm.prank(address(vault));
         vaultRegistry.mint(getNextUserAddress(), 1);
         assertEq(vaultRegistry.tokenURI(1), "baseURI/1");
     }

@@ -8,4 +8,8 @@ interface IVaultRegistry is IERC721Enumerable {
     /// @param to Token receiver
     /// @param tokenId Id of a token
     function mint(address to, uint256 tokenId) external;
+
+    /// @notice Burns an existent token
+    /// @param tokenId Id of a token
+    function burn(uint256 tokenId) external;
 }

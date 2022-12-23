@@ -107,7 +107,7 @@ abstract contract AbstractDeployment is Script {
 
         console2.log("Vault", address(vault));
 
-        VaultRegistry vaultRegistry = new VaultRegistry(address(vault), "BOB Vault Token", "BVT", "");
+        VaultRegistry vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
 
         EIP1967Proxy vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
