@@ -20,13 +20,13 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
     using Strings for uint256;
 
     // Token name
-    bytes32 immutable private _name;
+    bytes32 private immutable _name;
 
     // Token symbol
-    bytes32 immutable private _symbol;
+    bytes32 private immutable _symbol;
 
     // Token baseURI
-    bytes32 immutable private _baseURIBytes;
+    bytes32 private immutable _baseURIBytes;
 
     // Mapping from token ID to owner address
     mapping(uint256 => address) private _owners;
@@ -43,7 +43,11 @@ contract ERC721 is Context, ERC165, IERC721, IERC721Metadata {
     /**
      * @dev Initializes the contract by setting a `name`, a `symbol` and a `baseURI` to the token collection.
      */
-    constructor(string memory name_, string memory symbol_, string memory baseURI_) {
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        string memory baseURI_
+    ) {
         _name = bytes32(bytes(name_));
         _symbol = bytes32(bytes(symbol_));
         _baseURIBytes = bytes32(bytes(baseURI_));

@@ -7,18 +7,12 @@ import "./utils/Utilities.sol";
 import "../src/VaultRegistry.sol";
 import "../src/proxy/EIP1967Proxy.sol";
 
-
 contract VaultRegistryTest is Test, SetupContract, Utilities {
     VaultRegistry vaultRegistry;
     EIP1967Proxy vaultRegistryProxy;
 
     function setUp() public {
-        vaultRegistry = new VaultRegistry(
-            address(this),
-            "BOB Vault Token",
-            "BVT",
-            "baseURI/"
-        );
+        vaultRegistry = new VaultRegistry(address(this), "BOB Vault Token", "BVT", "baseURI/");
 
         vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
