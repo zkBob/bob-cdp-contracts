@@ -10,7 +10,7 @@ contract MUSD is ERC20 {
         _mint(to, amount);
     }
 
-    function burn(address from, uint256 amount) external {
-        _burn(from, amount);
+    function burn(uint256 amount) external {
+        _burn(msg.sender, amount);
     }
 }

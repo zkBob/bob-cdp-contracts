@@ -79,6 +79,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
+        token.approve(address(vault), type(uint256).max);
 
         protocolGovernance.changeLiquidationFee(3 * 10**7);
         protocolGovernance.changeLiquidationPremium(3 * 10**7);

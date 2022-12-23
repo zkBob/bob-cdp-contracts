@@ -397,7 +397,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
             amount -= burningFeeAmount;
         }
 
-        token.burn(msg.sender, overallAmount);
+        token.transferFrom(msg.sender, address(this), overallAmount);
+        token.burn(overallAmount);
         vaultDebt[vaultId] -= amount;
 
         emit DebtBurned(msg.sender, vaultId, overallAmount);
@@ -449,7 +450,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, ERC721Enumerable, IERC721Rec
         }
         token.transferFrom(msg.sender, address(this), returnAmount);
 
-        token.burn(address(this), currentDebt);
+        token.burn(currentDebt);
 
         uint256 daoReceiveAmount = overallDebt -
             currentDebt +

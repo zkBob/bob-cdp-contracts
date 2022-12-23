@@ -10,8 +10,7 @@ interface IMUSD is IERC20 {
     /// @param amount Amount of MUSD to mint
     function mint(address to, uint256 amount) external;
 
-    /// @notice Burn an amount of MUSD of a specified address.
-    /// @param from Address of the holder of MUSD
+    /// @notice Burn an amount of MUSD of a sender.
     /// @param amount Amount of MUSD to burn
-    function burn(address from, uint256 amount) external;
+    function burn(uint256 amount) external;
 }
