@@ -12,6 +12,7 @@ import "./utils/VaultAccessControl.sol";
 import "./interfaces/IVaultRegistry.sol";
 import "./interfaces/oracles/INFTOracle.sol";
 import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
+import "forge-std/console2.sol";
 
 /// @notice Contract of the system vault manager
 contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
@@ -157,10 +158,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Initialized a new contract.
     /// @param admin Protocol admin
     /// @param stabilisationFee_ MUSD initial stabilisation fee
-    function initialize(
-        address admin,
-        uint256 stabilisationFee_
-    ) external {
+    function initialize(address admin, uint256 stabilisationFee_) external {
         if (isInitialized) {
             revert Initialized();
         }
@@ -373,7 +371,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         uint256[] memory nfts = _vaultNfts[vaultId].values();
 
         for (uint256 i = 0; i < nfts.length; ++i) {
-            (, uint256 positionAmount,) = oracle.price(nfts[i]);
+            (, uint256 positionAmount, ) = oracle.price(nfts[i]);
             vaultAmount += positionAmount;
         }
 
@@ -571,6 +569,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
             revert InvalidPool();
         }
 
+        console2.log(positionAmount);
+        console2.log(protocolGovernance.protocolParams().minSingleNftCollateral);
         if (positionAmount < protocolGovernance.protocolParams().minSingleNftCollateral) {
             revert CollateralUnderflow();
         }

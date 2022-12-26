@@ -9,10 +9,13 @@ import "../src/proxy/EIP1967Proxy.sol";
 import "./mocks/MockOracle.sol";
 import "./mocks/MUSD.sol";
 import "../src/Vault.sol";
+import "../src/oracles/UniV3Oracle.sol";
 
 contract VaultRegistryTest is Test, SetupContract, Utilities {
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
+    EIP1967Proxy univ3OracleProxy;
+    UniV3Oracle univ3Oracle;
     MockOracle oracle;
     ProtocolGovernance protocolGovernance;
     MUSD token;
@@ -30,6 +33,14 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
+        univ3Oracle = new UniV3Oracle(
+            INonfungiblePositionManager(UniV3PositionManager),
+            IUniswapV3Factory(UniV3Factory),
+            IOracle(address(oracle))
+        );
+        univ3OracleProxy = new EIP1967Proxy(address(this), address(univ3Oracle), "");
+        univ3Oracle = UniV3Oracle(address(univ3OracleProxy));
+
         protocolGovernance = new ProtocolGovernance(address(this), type(uint256).max);
 
         treasury = getNextUserAddress();
@@ -38,18 +49,13 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
 
         vault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
+            INFTOracle(address(univ3Oracle)),
             IProtocolGovernance(protocolGovernance),
             treasury,
             address(token)
         );
 
-        bytes memory initData = abi.encodeWithSelector(
-            Vault.initialize.selector,
-            address(this),
-            IOracle(oracle),
-            10**7
-        );
+        bytes memory initData = abi.encodeWithSelector(Vault.initialize.selector, address(this), 10**7);
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 

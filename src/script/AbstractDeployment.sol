@@ -13,6 +13,7 @@ import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "../ProtocolGovernance.sol";
 import "../proxy/EIP1967Proxy.sol";
 import "../VaultRegistry.sol";
+import "../oracles/UniV3Oracle.sol";
 
 abstract contract AbstractDeployment is Script {
     function tokens()
@@ -80,8 +81,20 @@ abstract contract AbstractDeployment is Script {
         (address[] memory oracleTokens, address[] memory oracles) = oracleParams();
         address token = targetToken();
 
-        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, msg.sender);
-        console2.log("Oracle", address(oracle));
+        ChainlinkOracle oracle = new ChainlinkOracle();
+        EIP1967Proxy oracleProxy = new EIP1967Proxy(address(this), address(oracle), "");
+        oracle = ChainlinkOracle(address(oracleProxy));
+        oracle.addChainlinkOracles(oracleTokens, oracles);
+        console2.log("Chainlink Oracle", address(oracle));
+
+        UniV3Oracle univ3Oracle = new UniV3Oracle(
+            INonfungiblePositionManager(positionManager),
+            IUniswapV3Factory(factory),
+            IOracle(address(oracle))
+        );
+        EIP1967Proxy univ3OracleProxy = new EIP1967Proxy(msg.sender, address(univ3Oracle), "");
+        univ3Oracle = UniV3Oracle(address(univ3OracleProxy));
+        console2.log("UniV3 Oracle", address(oracle));
 
         ProtocolGovernance protocolGovernance = new ProtocolGovernance(msg.sender, type(uint256).max);
         console2.log("ProtocolGovernance", address(protocolGovernance));
@@ -90,18 +103,13 @@ abstract contract AbstractDeployment is Script {
 
         Vault vault = new Vault(
             INonfungiblePositionManager(positionManager),
-            IUniswapV3Factory(factory),
+            INFTOracle(address(univ3Oracle)),
             IProtocolGovernance(protocolGovernance),
             treasury,
             token
         );
 
-        bytes memory initData = abi.encodeWithSelector(
-            Vault.initialize.selector,
-            msg.sender,
-            IOracle(oracle),
-            stabilisationFee
-        );
+        bytes memory initData = abi.encodeWithSelector(Vault.initialize.selector, msg.sender, stabilisationFee);
         EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
         vault = Vault(address(vaultProxy));
 
@@ -109,7 +117,7 @@ abstract contract AbstractDeployment is Script {
 
         VaultRegistry vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
 
-        EIP1967Proxy vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
+        EIP1967Proxy vaultRegistryProxy = new EIP1967Proxy(msg.sender, address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
 
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));

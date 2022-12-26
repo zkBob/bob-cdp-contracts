@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSL-1.1
 pragma solidity 0.8.13;
 
+import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "../interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../interfaces/external/univ3/IUniswapV3Factory.sol";
-import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "../interfaces/oracles/INFTOracle.sol";
 import "../interfaces/oracles/IOracle.sol";
 import "../libraries/external/FullMath.sol";
@@ -49,26 +49,47 @@ contract UniV3Oracle is EIP1967Admin, INFTOracle {
         oracle = oracle_;
     }
 
-    function getPositionInfoByNft(uint256 nft) internal view returns (address token0, address token1, uint24 fee, UniswapV3FeesCalculation.PositionInfo memory positionInfo) {
-        (
-            ,
-            ,
-            token0,
-            token1,
-            fee,
-            positionInfo.tickLower,
-            positionInfo.tickUpper,
-            positionInfo.liquidity,
-            positionInfo.feeGrowthInside0LastX128,
-            positionInfo.feeGrowthInside1LastX128,
-            positionInfo.tokensOwed0,
-            positionInfo.tokensOwed1
-        ) = positionManager.positions(nft);
+    function getPositionInfoByNft(uint256 nft)
+        internal
+        view
+        returns (
+            address,
+            address,
+            uint24,
+            UniswapV3FeesCalculation.PositionInfo memory
+        )
+    {
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(nft);
+
+        UniswapV3FeesCalculation.PositionInfo memory positionInfo = UniswapV3FeesCalculation.PositionInfo({
+            tickLower: info.tickLower,
+            tickUpper: info.tickUpper,
+            liquidity: info.liquidity,
+            feeGrowthInside0LastX128: info.feeGrowthInside0LastX128,
+            feeGrowthInside1LastX128: info.feeGrowthInside1LastX128,
+            tokensOwed0: info.tokensOwed0,
+            tokensOwed1: info.tokensOwed1
+        });
+
+        return (info.token0, info.token1, info.fee, positionInfo);
     }
 
     /// @inheritdoc INFTOracle
-    function price(uint256 nft) external view returns (bool success, uint256 positionAmount, address pool) {
-        (address token0, address token1, uint24 fee, UniswapV3FeesCalculation.PositionInfo memory positionInfo) = getPositionInfoByNft(nft);
+    function price(uint256 nft)
+        external
+        view
+        returns (
+            bool success,
+            uint256 positionAmount,
+            address pool
+        )
+    {
+        (
+            address token0,
+            address token1,
+            uint24 fee,
+            UniswapV3FeesCalculation.PositionInfo memory positionInfo
+        ) = getPositionInfoByNft(nft);
 
         pool = factory.getPool(token0, token1, fee);
 
@@ -109,7 +130,7 @@ contract UniV3Oracle is EIP1967Admin, INFTOracle {
         success = true;
         positionAmount = 0;
         for (uint256 i = 0; i < 2; ++i) {
-             positionAmount += FullMath.mulDiv(tokenAmounts[i], pricesX96[i], Q96);
+            positionAmount += FullMath.mulDiv(tokenAmounts[i], pricesX96[i], Q96);
         }
     }
 }

@@ -6,10 +6,16 @@ import "./ConfigContract.sol";
 import "forge-std/Test.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
+import "../src/proxy/EIP1967Proxy.sol";
+
+import "forge-std/console2.sol";
 
 contract SetupContract is Test, ConfigContract {
     function deployChainlink() internal returns (ChainlinkOracle) {
-        ChainlinkOracle oracle = new ChainlinkOracle(tokens, chainlinkOracles, address(this));
+        ChainlinkOracle oracle = new ChainlinkOracle();
+        EIP1967Proxy oracleProxy = new EIP1967Proxy(address(this), address(oracle), "");
+        oracle = ChainlinkOracle(address(oracleProxy));
+        oracle.addChainlinkOracles(tokens, chainlinkOracles);
         return oracle;
     }
 

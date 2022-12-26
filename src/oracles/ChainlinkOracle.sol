@@ -7,9 +7,10 @@ import "../interfaces/external/chainlink/IAggregatorV3.sol";
 import "../interfaces/oracles/IOracle.sol";
 import "../libraries/external/FullMath.sol";
 import "../utils/DefaultAccessControl.sol";
+import "../proxy/EIP1967Admin.sol";
 
 /// @notice Contract for getting chainlink data
-contract ChainlinkOracle is IOracle, DefaultAccessControl {
+contract ChainlinkOracle is EIP1967Admin, IOracle {
     /// @notice Thrown when tokens.length != oracles.length
     error InvalidLength();
 
@@ -29,18 +30,6 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
 
     /// @notice Address set, containing tokens, supported by the oracles
     EnumerableSet.AddressSet private _tokens;
-
-    /// @notice Creates a new contract
-    /// @param tokens Initial supported tokens
-    /// @param oracles Initial approved Chainlink oracles
-    /// @param admin Protocol admin
-    constructor(
-        address[] memory tokens,
-        address[] memory oracles,
-        address admin
-    ) DefaultAccessControl(admin) {
-        _addChainlinkOracles(tokens, oracles);
-    }
 
     // -------------------------  EXTERNAL, VIEW  ------------------------------
 
@@ -71,9 +60,16 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
         priceX96 = oraclePrice * priceMultiplier[token];
     }
 
-    /// @inheritdoc IERC165
-    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
-        return super.supportsInterface(interfaceId) || interfaceId == type(IOracle).interfaceId;
+    /**
+     * @dev Returns true if this contract implements the interface defined by
+     * `interfaceId`. See the corresponding
+     * https://eips.ethereum.org/EIPS/eip-165#how-interfaces-are-identified[EIP section]
+     * to learn more about how these ids are created.
+     *
+     * This function call must use less than 30 000 gas.
+     */
+    function supportsInterface(bytes4 interfaceId) public view returns (bool) {
+        return interfaceId == type(IOracle).interfaceId;
     }
 
     // -------------------------  EXTERNAL, MUTATING  ------------------------------
@@ -81,8 +77,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     /// @notice Add more chainlink oracles and tokens
     /// @param tokens Array of new tokens
     /// @param oracles Array of new oracles
-    function addChainlinkOracles(address[] memory tokens, address[] memory oracles) external {
-        _requireAdmin();
+    function addChainlinkOracles(address[] memory tokens, address[] memory oracles) external onlyAdmin {
         _addChainlinkOracles(tokens, oracles);
     }
 
