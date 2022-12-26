@@ -20,7 +20,6 @@ import "../src/oracles/UniV3Oracle.sol";
 
 contract IntegrationTestForVault is Test, SetupContract, Utilities {
     MockOracle oracle;
-    ProtocolGovernance protocolGovernance;
     MUSD token;
     Vault vault;
     VaultRegistry vaultRegistry;
@@ -50,8 +49,6 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         univ3OracleProxy = new EIP1967Proxy(address(this), address(univ3Oracle), "");
         univ3Oracle = UniV3Oracle(address(univ3OracleProxy));
 
-        protocolGovernance = new ProtocolGovernance(address(this), type(uint256).max);
-
         treasury = getNextUserAddress();
 
         token = new MUSD("Mock USD", "MUSD");
@@ -59,12 +56,16 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
             INFTOracle(address(univ3Oracle)),
-            IProtocolGovernance(protocolGovernance),
             treasury,
             address(token)
         );
 
-        bytes memory initData = abi.encodeWithSelector(Vault.initialize.selector, address(this), 10**7);
+        bytes memory initData = abi.encodeWithSelector(
+            Vault.initialize.selector,
+            address(this),
+            10**7,
+            type(uint256).max
+        );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
@@ -77,12 +78,12 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         token.approve(address(vault), type(uint256).max);
 
-        protocolGovernance.changeLiquidationFee(3 * 10**7);
-        protocolGovernance.changeLiquidationPremium(3 * 10**7);
-        protocolGovernance.changeMinSingleNftCollateral(10**17);
-        protocolGovernance.changeMaxNftsPerVault(20);
+        vault.changeLiquidationFee(3 * 10**7);
+        vault.changeLiquidationPremium(3 * 10**7);
+        vault.changeMinSingleNftCollateral(10**17);
+        vault.changeMaxNftsPerVault(20);
 
-        setPools(IProtocolGovernance(protocolGovernance));
+        setPools(ICDP(vault));
         setApprovals();
 
         address[] memory depositors = new address[](1);
@@ -98,7 +99,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         uint256 nftB = openUniV3Position(wbtc, usdc, 5 * 10**8, 100000 * 10**6, address(vault)); // 200000 USD
         uint256 nftC = openUniV3Position(wbtc, weth, 10**8 / 20000, 10**18 / 1000, address(vault)); // 2 USD
 
-        protocolGovernance.changeMinSingleNftCollateral(18 * 10**17);
+        vault.changeMinSingleNftCollateral(18 * 10**17);
 
         vault.depositCollateral(vaultId, nftA);
         vault.mintDebt(vaultId, 1000 * 10**18);
@@ -119,7 +120,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.withdrawCollateral(nftB);
         vault.withdrawCollateral(nftA);
 
-        protocolGovernance.changeMinSingleNftCollateral(18 * 10**20);
+        vault.changeMinSingleNftCollateral(18 * 10**20);
         vault.mintDebt(vaultId, 10);
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
@@ -456,7 +457,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
 
-        protocolGovernance.setLiquidationThreshold(pool, 2 * 10**8);
+        vault.setLiquidationThreshold(pool, 2 * 10**8);
         vault.burnDebt(vaultId, 5000 * (10**18)); // repaid debt partially and anyway liquidated
 
         address liquidator = getNextUserAddress();

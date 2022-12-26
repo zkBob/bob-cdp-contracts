@@ -4,7 +4,6 @@ pragma solidity 0.8.13;
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./interfaces/IMUSD.sol";
-import "./interfaces/IProtocolGovernance.sol";
 import "./interfaces/oracles/IOracle.sol";
 import "./libraries/external/FullMath.sol";
 import "./proxy/EIP1967Admin.sol";
@@ -12,10 +11,10 @@ import "./utils/VaultAccessControl.sol";
 import "./interfaces/IVaultRegistry.sol";
 import "./interfaces/oracles/INFTOracle.sol";
 import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
-import "forge-std/console2.sol";
+import "./interfaces/ICDP.sol";
 
 /// @notice Contract of the system vault manager
-contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
+contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
@@ -49,6 +48,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Thrown when a position is unhealthy
     error PositionUnhealthy();
 
+    /// @notice Thrown when a value is incorrectly equal to zero
+    error ValueZero();
+
     /// @notice Thrown when the VaultRegistry has already been set
     error VaultRegistryAlreadySet();
 
@@ -66,9 +68,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
     /// @notice UniswapV3 position manager
     INonfungiblePositionManager public immutable positionManager;
-
-    /// @notice Protocol governance, which controls this specific Vault
-    IProtocolGovernance public immutable protocolGovernance;
 
     /// @notice Oracle for price estimations
     INFTOracle public immutable oracle;
@@ -91,8 +90,17 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice State variable, which shows if Vault is public or not
     bool public isPublic;
 
+    /// @notice Protocol params
+    ICDP.ProtocolParams private _protocolParams;
+
     /// @notice Address set, containing only accounts, which are allowed to make deposits
     EnumerableSet.AddressSet private _depositorsAllowlist;
+
+    /// @notice Set of whitelisted pools
+    EnumerableSet.AddressSet private _whitelistedPools;
+
+    /// @inheritdoc ICDP
+    mapping(address => uint256) public liquidationThresholdD;
 
     /// @notice Mapping, returning set of all nfts, managed by vault
     mapping(uint256 => EnumerableSet.UintSet) private _vaultNfts;
@@ -127,20 +135,17 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Creates a new contract
     /// @param positionManager_ UniswapV3 position manager
     /// @param oracle_ Oracle
-    /// @param protocolGovernance_ UniswapV3 protocol governance
     /// @param treasury_ Vault fees treasury
     /// @param token_ Address of token
     constructor(
         INonfungiblePositionManager positionManager_,
         INFTOracle oracle_,
-        IProtocolGovernance protocolGovernance_,
         address treasury_,
         address token_
     ) {
         if (
             address(positionManager_) == address(0) ||
             address(oracle_) == address(0) ||
-            address(protocolGovernance_) == address(0) ||
             address(treasury_) == address(0) ||
             address(token_) == address(0)
         ) {
@@ -149,7 +154,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
         positionManager = positionManager_;
         oracle = oracle_;
-        protocolGovernance = protocolGovernance_;
         treasury = treasury_;
         token = IMUSD(token_);
         isInitialized = true;
@@ -158,7 +162,12 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Initialized a new contract.
     /// @param admin Protocol admin
     /// @param stabilisationFee_ MUSD initial stabilisation fee
-    function initialize(address admin, uint256 stabilisationFee_) external {
+    /// @param maxDebtPerVault Initial max possible debt to a one vault (nominated in MUSD weis)
+    function initialize(
+        address admin,
+        uint256 stabilisationFee_,
+        uint256 maxDebtPerVault
+    ) external {
         if (isInitialized) {
             revert Initialized();
         }
@@ -181,6 +190,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         // initial value
         stabilisationFeeRateD = stabilisationFee_;
         globalStabilisationFeePerUSDSnapshotTimestamp = block.timestamp;
+        _protocolParams.maxDebtPerVault = maxDebtPerVault;
         isInitialized = true;
     }
 
@@ -204,12 +214,10 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         uint256 result = 0;
         uint256[] memory nfts = _vaultNfts[vaultId].values();
 
-        IProtocolGovernance protocolGovernance_ = protocolGovernance;
-
         for (uint256 i = 0; i < nfts.length; ++i) {
             (, uint256 price, address pool) = oracle.price(nfts[i]);
-            uint256 liquidationThresholdD = protocolGovernance_.liquidationThresholdD(pool);
-            result += FullMath.mulDiv(price, liquidationThresholdD, DENOMINATOR);
+            uint256 liquidationThreshold = liquidationThresholdD[pool];
+            result += FullMath.mulDiv(price, liquidationThreshold, DENOMINATOR);
         }
         return result;
     }
@@ -244,6 +252,21 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @return address[] Array of verified depositors
     function depositorsAllowlist() external view returns (address[] memory) {
         return _depositorsAllowlist.values();
+    }
+
+    /// @inheritdoc ICDP
+    function protocolParams() external view returns (ProtocolParams memory) {
+        return _protocolParams;
+    }
+
+    /// @inheritdoc ICDP
+    function isPoolWhitelisted(address pool) external view returns (bool) {
+        return _whitelistedPools.contains(pool);
+    }
+
+    /// @inheritdoc ICDP
+    function whitelistedPool(uint256 i) external view returns (address) {
+        return _whitelistedPools.at(i);
     }
 
     // -------------------  EXTERNAL, MUTATING  -------------------
@@ -323,7 +346,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
             revert PositionUnhealthy();
         }
 
-        if (protocolGovernance.protocolParams().maxDebtPerVault < overallVaultDebt) {
+        if (_protocolParams.maxDebtPerVault < overallVaultDebt) {
             revert DebtLimitExceeded();
         }
 
@@ -376,7 +399,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         }
 
         uint256 returnAmount = FullMath.mulDiv(
-            DENOMINATOR - protocolGovernance.protocolParams().liquidationPremiumD,
+            DENOMINATOR - _protocolParams.liquidationPremiumD,
             vaultAmount,
             DENOMINATOR
         );
@@ -390,7 +413,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
         uint256 daoReceiveAmount = overallDebt -
             currentDebt +
-            FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFeeD, vaultAmount, DENOMINATOR);
+            FullMath.mulDiv(_protocolParams.liquidationFeeD, vaultAmount, DENOMINATOR);
         if (daoReceiveAmount > returnAmount - currentDebt) {
             daoReceiveAmount = returnAmount - currentDebt;
         }
@@ -448,6 +471,74 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         vaultRegistry = vaultRegistry_;
 
         emit VaultRegistrySet(tx.origin, msg.sender, address(vaultRegistry_));
+    }
+
+    /// @inheritdoc ICDP
+    function changeLiquidationFee(uint32 liquidationFeeD) external onlyVaultAdmin {
+        if (liquidationFeeD > DENOMINATOR) {
+            revert InvalidValue();
+        }
+        _protocolParams.liquidationFeeD = liquidationFeeD;
+        emit LiquidationFeeChanged(tx.origin, msg.sender, liquidationFeeD);
+    }
+
+    /// @inheritdoc ICDP
+    function changeLiquidationPremium(uint32 liquidationPremiumD) external onlyVaultAdmin {
+        if (liquidationPremiumD > DENOMINATOR) {
+            revert InvalidValue();
+        }
+        _protocolParams.liquidationPremiumD = liquidationPremiumD;
+        emit LiquidationPremiumChanged(tx.origin, msg.sender, liquidationPremiumD);
+    }
+
+    /// @inheritdoc ICDP
+    function changeMaxDebtPerVault(uint256 maxDebtPerVault) external onlyVaultAdmin {
+        _protocolParams.maxDebtPerVault = maxDebtPerVault;
+        emit MaxDebtPerVaultChanged(tx.origin, msg.sender, maxDebtPerVault);
+    }
+
+    /// @inheritdoc ICDP
+    function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external onlyVaultAdmin {
+        _protocolParams.minSingleNftCollateral = minSingleNftCollateral;
+        emit MinSingleNftCollateralChanged(tx.origin, msg.sender, minSingleNftCollateral);
+    }
+
+    /// @inheritdoc ICDP
+    function changeMaxNftsPerVault(uint8 maxNftsPerVault) external onlyVaultAdmin {
+        _protocolParams.maxNftsPerVault = maxNftsPerVault;
+        emit MaxNftsPerVaultChanged(tx.origin, msg.sender, maxNftsPerVault);
+    }
+
+    /// @inheritdoc ICDP
+    function setWhitelistedPool(address pool) external onlyVaultAdmin {
+        if (pool == address(0)) {
+            revert AddressZero();
+        }
+        _whitelistedPools.add(pool);
+        emit WhitelistedPoolSet(tx.origin, msg.sender, pool);
+    }
+
+    /// @inheritdoc ICDP
+    function revokeWhitelistedPool(address pool) external onlyVaultAdmin {
+        _whitelistedPools.remove(pool);
+        liquidationThresholdD[pool] = 0;
+        emit WhitelistedPoolRevoked(tx.origin, msg.sender, pool);
+    }
+
+    /// @inheritdoc ICDP
+    function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external onlyVaultAdmin {
+        if (pool == address(0)) {
+            revert AddressZero();
+        }
+        if (!_whitelistedPools.contains(pool)) {
+            revert InvalidPool();
+        }
+        if (liquidationThresholdD_ > DENOMINATOR) {
+            revert InvalidValue();
+        }
+
+        liquidationThresholdD[pool] = liquidationThresholdD_;
+        emit LiquidationThresholdSet(tx.origin, msg.sender, pool, liquidationThresholdD_);
     }
 
     /// @notice Pause the system
@@ -551,7 +642,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
             revert AllowList();
         }
 
-        if (protocolGovernance.protocolParams().maxNftsPerVault <= _vaultNfts[vaultId].length()) {
+        if (_protocolParams.maxNftsPerVault <= _vaultNfts[vaultId].length()) {
             revert NFTLimitExceeded();
         }
 
@@ -565,13 +656,11 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
             revert MissingOracle();
         }
 
-        if (!protocolGovernance.isPoolWhitelisted(pool)) {
+        if (!_whitelistedPools.contains(pool)) {
             revert InvalidPool();
         }
 
-        console2.log(positionAmount);
-        console2.log(protocolGovernance.protocolParams().minSingleNftCollateral);
-        if (positionAmount < protocolGovernance.protocolParams().minSingleNftCollateral) {
+        if (positionAmount < _protocolParams.minSingleNftCollateral) {
             revert CollateralUnderflow();
         }
 
@@ -705,4 +794,58 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     event SystemPublic(address indexed origin, address indexed sender);
+
+    /// @notice Emitted when liquidation fee is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param liquidationFeeD The new liquidation fee (multiplied by DENOMINATOR)
+    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint32 liquidationFeeD);
+
+    /// @notice Emitted when liquidation premium is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param liquidationPremiumD The new liquidation premium (multiplied by DENOMINATOR)
+    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint32 liquidationPremiumD);
+
+    /// @notice Emitted when max debt per vault is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param maxDebtPerVault The new max debt per vault (nominated in MUSD weis)
+    event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
+
+    /// @notice Emitted when min nft collateral is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param minSingleNftCollateral The new min nft collateral (nominated in MUSD weis)
+    event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
+
+    /// @notice Emitted when min nft collateral is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param maxNftsPerVault The new max possible amount of NFTs for one vault
+    event MaxNftsPerVaultChanged(address indexed origin, address indexed sender, uint8 maxNftsPerVault);
+
+    /// @notice Emitted when liquidation threshold for a specific pool is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param pool The given pool
+    /// @param liquidationThresholdD_ The new liquidation threshold (multiplied by DENOMINATOR)
+    event LiquidationThresholdSet(
+        address indexed origin,
+        address indexed sender,
+        address pool,
+        uint256 liquidationThresholdD_
+    );
+
+    /// @notice Emitted when new pool is added to the whitelist
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param pool The new whitelisted pool
+    event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
+
+    /// @notice Emitted when pool is deleted from the whitelist
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param pool The deleted whitelisted pool
+    event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
 }
