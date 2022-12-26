@@ -1059,32 +1059,6 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.unpause();
     }
 
-    // setOracle
-
-    function testSetOracleSuccess() public {
-        address newAddress = getNextUserAddress();
-        vault.setOracle(IOracle(newAddress));
-        assertEq(address(vault.oracle()), newAddress);
-    }
-
-    function testSetOracleWhenNotAdmin() public {
-        vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-        vault.setOracle(IOracle(getNextUserAddress()));
-    }
-
-    function testSetOracleWhenAddressZero() public {
-        vm.expectRevert(DefaultAccessControl.AddressZero.selector);
-        vault.setOracle(IOracle(address(0)));
-    }
-
-    function testSetOracleEmit() public {
-        address newAddress = getNextUserAddress();
-        vm.expectEmit(false, true, false, true);
-        emit OracleUpdated(tx.origin, address(this), newAddress);
-        vault.setOracle(IOracle(newAddress));
-    }
-
     // setVaultRegistry
 
     function testSetVaultRegistrySuccess() public {
