@@ -4,21 +4,17 @@ pragma solidity 0.8.13;
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "./interfaces/IMUSD.sol";
-import "./interfaces/IProtocolGovernance.sol";
-import "./interfaces/external/univ3/IUniswapV3Factory.sol";
-import "./interfaces/external/univ3/IUniswapV3Pool.sol";
-import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./interfaces/oracles/IOracle.sol";
-import "./libraries/external/LiquidityAmounts.sol";
 import "./libraries/external/FullMath.sol";
-import "./libraries/external/TickMath.sol";
-import "./libraries/UniswapV3FeesCalculation.sol";
 import "./proxy/EIP1967Admin.sol";
 import "./utils/VaultAccessControl.sol";
 import "./interfaces/IVaultRegistry.sol";
+import "./interfaces/oracles/INFTOracle.sol";
+import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
+import "./interfaces/ICDP.sol";
 
 /// @notice Contract of the system vault manager
-contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
+contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
@@ -52,6 +48,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Thrown when a position is unhealthy
     error PositionUnhealthy();
 
+    /// @notice Thrown when a value is incorrectly equal to zero
+    error ValueZero();
+
     /// @notice Thrown when the VaultRegistry has already been set
     error VaultRegistryAlreadySet();
 
@@ -66,36 +65,12 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
     uint256 public constant DENOMINATOR = 10**9;
     uint256 public constant YEAR = 365 * 24 * 3600;
-    uint256 public constant Q96 = 2**96;
-    uint256 public constant Q48 = 2**48;
-
-    /// @notice Information about a single UniV3 NFT
-    /// @param token0 The first token in the UniswapV3 pool
-    /// @param token1 The second token in the UniswapV3 pool
-    /// @param targetPool Address of the UniswapV3 pool, which contains collateral position
-    /// @param vaultId Id of Mellow Vault, which takes control over collateral nft
-    /// @param sqrtRatioAX96 A sqrt price representing the first tick boundary
-    /// @param sqrtRatioBX96 A sqrt price representing the second tick boundary
-    struct UniV3PositionInfo {
-        address token0;
-        address token1;
-        IUniswapV3Pool targetPool;
-        uint256 vaultId;
-        uint160 sqrtRatioAX96;
-        uint160 sqrtRatioBX96;
-    }
 
     /// @notice UniswapV3 position manager
     INonfungiblePositionManager public immutable positionManager;
 
-    /// @notice UniswapV3 factory
-    IUniswapV3Factory public immutable factory;
-
-    /// @notice Protocol governance, which controls this specific Vault
-    IProtocolGovernance public immutable protocolGovernance;
-
     /// @notice Oracle for price estimations
-    IOracle public oracle;
+    INFTOracle public immutable oracle;
 
     /// @notice Mellow Stable Token
     IMUSD public immutable token;
@@ -115,8 +90,17 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice State variable, which shows if Vault is public or not
     bool public isPublic;
 
+    /// @notice Protocol params
+    ICDP.ProtocolParams private _protocolParams;
+
     /// @notice Address set, containing only accounts, which are allowed to make deposits
     EnumerableSet.AddressSet private _depositorsAllowlist;
+
+    /// @notice Set of whitelisted pools
+    EnumerableSet.AddressSet private _whitelistedPools;
+
+    /// @inheritdoc ICDP
+    mapping(address => uint256) public liquidationThresholdD;
 
     /// @notice Mapping, returning set of all nfts, managed by vault
     mapping(uint256 => EnumerableSet.UintSet) private _vaultNfts;
@@ -127,14 +111,14 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Mapping, returning total accumulated stabilising fees by vault id (which are due to be paid)
     mapping(uint256 => uint256) public stabilisationFeeVaultSnapshot;
 
+    /// @notice Mapping, returning id of a vault, that storing specific nft
+    mapping(uint256 => uint256) public vaultIdByNft;
+
     /// @notice Mapping, returning timestamp of latest debt fee update, generated during last deposit / withdraw / mint / burn
     mapping(uint256 => uint256) private _stabilisationFeeVaultSnapshotTimestamp;
 
     /// @notice Mapping, returning last cumulative sum of time-weighted debt fees by vault id, generated during last deposit / withdraw / mint / burn
     mapping(uint256 => uint256) private _globalStabilisationFeePerUSDVaultSnapshotD;
-
-    /// @notice Mapping, returning position info by nft
-    mapping(uint256 => UniV3PositionInfo) private _uniV3PositionInfo;
 
     /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault)
     uint256 public vaultCount = 0;
@@ -150,21 +134,18 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
     /// @notice Creates a new contract
     /// @param positionManager_ UniswapV3 position manager
-    /// @param factory_ UniswapV3 factory
-    /// @param protocolGovernance_ UniswapV3 protocol governance
+    /// @param oracle_ Oracle
     /// @param treasury_ Vault fees treasury
     /// @param token_ Address of token
     constructor(
         INonfungiblePositionManager positionManager_,
-        IUniswapV3Factory factory_,
-        IProtocolGovernance protocolGovernance_,
+        INFTOracle oracle_,
         address treasury_,
         address token_
     ) {
         if (
             address(positionManager_) == address(0) ||
-            address(factory_) == address(0) ||
-            address(protocolGovernance_) == address(0) ||
+            address(oracle_) == address(0) ||
             address(treasury_) == address(0) ||
             address(token_) == address(0)
         ) {
@@ -172,8 +153,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         }
 
         positionManager = positionManager_;
-        factory = factory_;
-        protocolGovernance = protocolGovernance_;
+        oracle = oracle_;
         treasury = treasury_;
         token = IMUSD(token_);
         isInitialized = true;
@@ -181,22 +161,18 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
     /// @notice Initialized a new contract.
     /// @param admin Protocol admin
-    /// @param oracle_ Oracle
     /// @param stabilisationFee_ MUSD initial stabilisation fee
+    /// @param maxDebtPerVault Initial max possible debt to a one vault (nominated in MUSD weis)
     function initialize(
         address admin,
-        IOracle oracle_,
-        uint256 stabilisationFee_
+        uint256 stabilisationFee_,
+        uint256 maxDebtPerVault
     ) external {
         if (isInitialized) {
             revert Initialized();
         }
 
         if (admin == address(0)) {
-            revert AddressZero();
-        }
-
-        if (address(oracle_) == address(0)) {
             revert AddressZero();
         }
 
@@ -211,11 +187,10 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         _setRoleAdmin(ADMIN_DELEGATE_ROLE, ADMIN_ROLE);
         _setRoleAdmin(OPERATOR, ADMIN_DELEGATE_ROLE);
 
-        oracle = oracle_;
-
         // initial value
         stabilisationFeeRateD = stabilisationFee_;
         globalStabilisationFeePerUSDSnapshotTimestamp = block.timestamp;
+        _protocolParams.maxDebtPerVault = maxDebtPerVault;
         isInitialized = true;
     }
 
@@ -234,37 +209,24 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
     /// @notice Calculate adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis)
     /// @param vaultId Id of the vault
-    /// @return uint256 Adjusted collateral
-    function calculateVaultAdjustedCollateral(uint256 vaultId) public view returns (uint256) {
-        uint256 result = 0;
+    /// @return overallCollateral Overall collateral
+    /// @return adjustedCollateral Adjusted collateral
+    function calculateVaultCollateral(uint256 vaultId)
+        public
+        view
+        returns (uint256 overallCollateral, uint256 adjustedCollateral)
+    {
         uint256[] memory nfts = _vaultNfts[vaultId].values();
 
-        INonfungiblePositionManager positionManager_ = positionManager;
-        IProtocolGovernance protocolGovernance_ = protocolGovernance;
+        overallCollateral = 0;
+        adjustedCollateral = 0;
 
         for (uint256 i = 0; i < nfts.length; ++i) {
-            uint256 nft = nfts[i];
-            UniV3PositionInfo memory position = _uniV3PositionInfo[nft];
-            uint256 liquidationThresholdD = protocolGovernance_.liquidationThresholdD(address(position.targetPool));
-            UniswapV3FeesCalculation.PositionInfo memory positionInfo;
-            (
-                ,
-                ,
-                ,
-                ,
-                ,
-                positionInfo.tickLower,
-                positionInfo.tickUpper,
-                positionInfo.liquidity,
-                positionInfo.feeGrowthInside0LastX128,
-                positionInfo.feeGrowthInside1LastX128,
-                positionInfo.tokensOwed0,
-                positionInfo.tokensOwed1
-            ) = positionManager_.positions(nft);
-
-            result += _calculateAdjustedCollateral(position, liquidationThresholdD, positionInfo);
+            (, uint256 price, address pool) = oracle.price(nfts[i]);
+            uint256 liquidationThreshold = liquidationThresholdD[pool];
+            overallCollateral += price;
+            adjustedCollateral += FullMath.mulDiv(price, liquidationThreshold, DENOMINATOR);
         }
-        return result;
     }
 
     /// @notice Get global time-weighted stabilisation fee per USD (multiplied by DENOMINATOR)
@@ -297,6 +259,21 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @return address[] Array of verified depositors
     function depositorsAllowlist() external view returns (address[] memory) {
         return _depositorsAllowlist.values();
+    }
+
+    /// @inheritdoc ICDP
+    function protocolParams() external view returns (ProtocolParams memory) {
+        return _protocolParams;
+    }
+
+    /// @inheritdoc ICDP
+    function isPoolWhitelisted(address pool) external view returns (bool) {
+        return _whitelistedPools.contains(pool);
+    }
+
+    /// @inheritdoc ICDP
+    function whitelistedPool(uint256 i) external view returns (address) {
+        return _whitelistedPools.at(i);
     }
 
     // -------------------  EXTERNAL, MUTATING  -------------------
@@ -344,21 +321,22 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @notice Withdraw collateral from a given vault
     /// @param nft UniV3 NFT to be withdrawn
     function withdrawCollateral(uint256 nft) external {
-        UniV3PositionInfo memory position = _uniV3PositionInfo[nft];
-        _requireVaultOwner(position.vaultId);
+        uint256 vaultId = vaultIdByNft[nft];
+        _requireVaultOwner(vaultId);
 
-        _vaultNfts[position.vaultId].remove(nft);
+        _vaultNfts[vaultId].remove(nft);
 
         positionManager.transferFrom(address(this), msg.sender, nft);
 
-        delete _uniV3PositionInfo[nft];
-
         // checking that health factor is more or equal than 1
-        if (calculateVaultAdjustedCollateral(position.vaultId) < getOverallDebt(position.vaultId)) {
+        (, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
+        if (adjustedCollateral < getOverallDebt(vaultId)) {
             revert PositionUnhealthy();
         }
 
-        emit CollateralWithdrew(msg.sender, position.vaultId, nft);
+        delete vaultIdByNft[nft];
+
+        emit CollateralWithdrew(msg.sender, vaultId, nft);
     }
 
     /// @notice Mint debt on a given vault
@@ -372,11 +350,12 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         vaultDebt[vaultId] += amount;
         uint256 overallVaultDebt = stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId];
 
-        if (calculateVaultAdjustedCollateral(vaultId) < overallVaultDebt) {
+        (, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
+        if (adjustedCollateral < overallVaultDebt) {
             revert PositionUnhealthy();
         }
 
-        if (protocolGovernance.protocolParams().maxDebtPerVault < overallVaultDebt) {
+        if (_protocolParams.maxDebtPerVault < overallVaultDebt) {
             revert DebtLimitExceeded();
         }
 
@@ -413,39 +392,17 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @param vaultId Id of the vault subject to liquidation
     function liquidate(uint256 vaultId) external {
         uint256 overallDebt = getOverallDebt(vaultId);
-        if (calculateVaultAdjustedCollateral(vaultId) >= overallDebt) {
+        (uint256 vaultAmount, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
+        if (adjustedCollateral >= overallDebt) {
             revert PositionHealthy();
         }
 
         address owner = vaultRegistry.ownerOf(vaultId);
 
-        uint256 vaultAmount = 0;
-
         uint256[] memory nfts = _vaultNfts[vaultId].values();
-        INonfungiblePositionManager positionManager_ = positionManager;
-
-        for (uint256 i = 0; i < nfts.length; ++i) {
-            UniswapV3FeesCalculation.PositionInfo memory positionInfo;
-            uint256 nft = nfts[i];
-            (
-                ,
-                ,
-                ,
-                ,
-                ,
-                positionInfo.tickLower,
-                positionInfo.tickUpper,
-                positionInfo.liquidity,
-                positionInfo.feeGrowthInside0LastX128,
-                positionInfo.feeGrowthInside1LastX128,
-                positionInfo.tokensOwed0,
-                positionInfo.tokensOwed1
-            ) = positionManager_.positions(nft);
-            vaultAmount += _calculateAdjustedCollateral(_uniV3PositionInfo[nft], DENOMINATOR, positionInfo);
-        }
 
         uint256 returnAmount = FullMath.mulDiv(
-            DENOMINATOR - protocolGovernance.protocolParams().liquidationPremiumD,
+            DENOMINATOR - _protocolParams.liquidationPremiumD,
             vaultAmount,
             DENOMINATOR
         );
@@ -459,7 +416,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
         uint256 daoReceiveAmount = overallDebt -
             currentDebt +
-            FullMath.mulDiv(protocolGovernance.protocolParams().liquidationFeeD, vaultAmount, DENOMINATOR);
+            FullMath.mulDiv(_protocolParams.liquidationFeeD, vaultAmount, DENOMINATOR);
         if (daoReceiveAmount > returnAmount - currentDebt) {
             daoReceiveAmount = returnAmount - currentDebt;
         }
@@ -503,17 +460,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         return this.onERC721Received.selector;
     }
 
-    /// @notice Set a new price oracle
-    /// @param oracle_ The new oracle
-    function setOracle(IOracle oracle_) external onlyVaultAdmin {
-        if (address(oracle_) == address(0)) {
-            revert AddressZero();
-        }
-        oracle = oracle_;
-
-        emit OracleUpdated(tx.origin, msg.sender, address(oracle));
-    }
-
     /// @notice Set a new vault registry
     /// @param vaultRegistry_ The new vault registry address
     function setVaultRegistry(IVaultRegistry vaultRegistry_) external onlyVaultAdmin {
@@ -528,6 +474,74 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         vaultRegistry = vaultRegistry_;
 
         emit VaultRegistrySet(tx.origin, msg.sender, address(vaultRegistry_));
+    }
+
+    /// @inheritdoc ICDP
+    function changeLiquidationFee(uint32 liquidationFeeD) external onlyVaultAdmin {
+        if (liquidationFeeD > DENOMINATOR) {
+            revert InvalidValue();
+        }
+        _protocolParams.liquidationFeeD = liquidationFeeD;
+        emit LiquidationFeeChanged(tx.origin, msg.sender, liquidationFeeD);
+    }
+
+    /// @inheritdoc ICDP
+    function changeLiquidationPremium(uint32 liquidationPremiumD) external onlyVaultAdmin {
+        if (liquidationPremiumD > DENOMINATOR) {
+            revert InvalidValue();
+        }
+        _protocolParams.liquidationPremiumD = liquidationPremiumD;
+        emit LiquidationPremiumChanged(tx.origin, msg.sender, liquidationPremiumD);
+    }
+
+    /// @inheritdoc ICDP
+    function changeMaxDebtPerVault(uint256 maxDebtPerVault) external onlyVaultAdmin {
+        _protocolParams.maxDebtPerVault = maxDebtPerVault;
+        emit MaxDebtPerVaultChanged(tx.origin, msg.sender, maxDebtPerVault);
+    }
+
+    /// @inheritdoc ICDP
+    function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external onlyVaultAdmin {
+        _protocolParams.minSingleNftCollateral = minSingleNftCollateral;
+        emit MinSingleNftCollateralChanged(tx.origin, msg.sender, minSingleNftCollateral);
+    }
+
+    /// @inheritdoc ICDP
+    function changeMaxNftsPerVault(uint8 maxNftsPerVault) external onlyVaultAdmin {
+        _protocolParams.maxNftsPerVault = maxNftsPerVault;
+        emit MaxNftsPerVaultChanged(tx.origin, msg.sender, maxNftsPerVault);
+    }
+
+    /// @inheritdoc ICDP
+    function setWhitelistedPool(address pool) external onlyVaultAdmin {
+        if (pool == address(0)) {
+            revert AddressZero();
+        }
+        _whitelistedPools.add(pool);
+        emit WhitelistedPoolSet(tx.origin, msg.sender, pool);
+    }
+
+    /// @inheritdoc ICDP
+    function revokeWhitelistedPool(address pool) external onlyVaultAdmin {
+        _whitelistedPools.remove(pool);
+        liquidationThresholdD[pool] = 0;
+        emit WhitelistedPoolRevoked(tx.origin, msg.sender, pool);
+    }
+
+    /// @inheritdoc ICDP
+    function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external onlyVaultAdmin {
+        if (pool == address(0)) {
+            revert AddressZero();
+        }
+        if (!_whitelistedPools.contains(pool)) {
+            revert InvalidPool();
+        }
+        if (liquidationThresholdD_ > DENOMINATOR) {
+            revert InvalidValue();
+        }
+
+        liquidationThresholdD[pool] = liquidationThresholdD_;
+        emit LiquidationThresholdSet(tx.origin, msg.sender, pool, liquidationThresholdD_);
     }
 
     /// @notice Pause the system
@@ -592,61 +606,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
 
     // -------------------  INTERNAL, VIEW  -----------------------
 
-    /// @notice Calculate total capital of the specific collateral (nominated in MUSD weis)
-    /// @param position Position info
-    /// @param liquidationThresholdD Liquidation threshold of the corresponding pool, set in the protocol governance (multiplied by DENOMINATOR)
-    /// @param positionInfo Additional position info
-    /// @return uint256 Position capital (nominated in MUSD weis)
-    function _calculateAdjustedCollateral(
-        UniV3PositionInfo memory position,
-        uint256 liquidationThresholdD,
-        UniswapV3FeesCalculation.PositionInfo memory positionInfo
-    ) internal view returns (uint256) {
-        uint256[] memory tokenAmounts = new uint256[](2);
-
-        uint256[] memory pricesX96 = new uint256[](2);
-        {
-            bool successFirstOracle;
-            bool successSecondOracle;
-
-            (successFirstOracle, pricesX96[0]) = oracle.price(position.token0);
-            (successSecondOracle, pricesX96[1]) = oracle.price(position.token1);
-
-            if (!successFirstOracle || !successSecondOracle) {
-                return 0;
-            }
-        }
-
-        uint256 ratioX96 = FullMath.mulDiv(pricesX96[0], Q96, pricesX96[1]);
-        uint160 sqrtRatioX96 = uint160(FullMath.sqrt(ratioX96) * Q48);
-
-        (, int24 tick, , , , , ) = position.targetPool.slot0();
-
-        (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
-            sqrtRatioX96,
-            position.sqrtRatioAX96,
-            position.sqrtRatioBX96,
-            positionInfo.liquidity
-        );
-
-        (uint256 actualTokensOwed0, uint256 actualTokensOwed1) = UniswapV3FeesCalculation._calculateUniswapFees(
-            position.targetPool,
-            tick,
-            positionInfo
-        );
-
-        tokenAmounts[0] += actualTokensOwed0;
-        tokenAmounts[1] += actualTokensOwed1;
-
-        uint256 result = 0;
-        for (uint256 i = 0; i < 2; ++i) {
-            uint256 tokenAmountsUSD = FullMath.mulDiv(tokenAmounts[i], pricesX96[i], Q96);
-            result += FullMath.mulDiv(tokenAmountsUSD, liquidationThresholdD, DENOMINATOR);
-        }
-
-        return result;
-    }
-
     /// @notice Check if the caller is the vault owner
     /// @param vaultId Vault id
     function _requireVaultOwner(uint256 vaultId) internal view {
@@ -686,7 +645,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
             revert AllowList();
         }
 
-        if (protocolGovernance.protocolParams().maxNftsPerVault <= _vaultNfts[vaultId].length()) {
+        if (_protocolParams.maxNftsPerVault <= _vaultNfts[vaultId].length()) {
             revert NFTLimitExceeded();
         }
 
@@ -694,63 +653,21 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
             revert InvalidVault();
         }
 
-        {
-            (
-                ,
-                ,
-                address token0,
-                address token1,
-                uint24 fee,
-                int24 tickLower,
-                int24 tickUpper,
-                uint128 liquidity,
-                uint256 feeGrowthInside0LastX128,
-                uint256 feeGrowthInside1LastX128,
-                uint128 tokensOwed0,
-                uint128 tokensOwed1
-            ) = positionManager.positions(nft);
+        (bool success, uint256 positionAmount, address pool) = oracle.price(nft);
 
-            {
-                uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(tickLower);
-                uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(tickUpper);
-
-                _uniV3PositionInfo[nft] = UniV3PositionInfo({
-                    token0: token0,
-                    token1: token1,
-                    targetPool: IUniswapV3Pool(factory.getPool(token0, token1, fee)),
-                    vaultId: vaultId,
-                    sqrtRatioAX96: sqrtRatioAX96,
-                    sqrtRatioBX96: sqrtRatioBX96
-                });
-
-                if (!protocolGovernance.isPoolWhitelisted(factory.getPool(token0, token1, fee))) {
-                    revert InvalidPool();
-                }
-
-                if (!oracle.hasOracle(token0) || !oracle.hasOracle(token1)) {
-                    revert MissingOracle();
-                }
-            }
-
-            if (
-                _calculateAdjustedCollateral(
-                    _uniV3PositionInfo[nft],
-                    DENOMINATOR,
-                    UniswapV3FeesCalculation.PositionInfo({
-                        tickLower: tickLower,
-                        tickUpper: tickUpper,
-                        liquidity: liquidity,
-                        feeGrowthInside0LastX128: feeGrowthInside0LastX128,
-                        feeGrowthInside1LastX128: feeGrowthInside1LastX128,
-                        tokensOwed0: tokensOwed0,
-                        tokensOwed1: tokensOwed1
-                    })
-                ) < protocolGovernance.protocolParams().minSingleNftCollateral
-            ) {
-                revert CollateralUnderflow();
-            }
+        if (!success) {
+            revert MissingOracle();
         }
 
+        if (!_whitelistedPools.contains(pool)) {
+            revert InvalidPool();
+        }
+
+        if (positionAmount < _protocolParams.minSingleNftCollateral) {
+            revert CollateralUnderflow();
+        }
+
+        vaultIdByNft[nft] = vaultId;
         _vaultNfts[vaultId].add(nft);
 
         emit CollateralDeposited(caller, vaultId, nft);
@@ -766,7 +683,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
         for (uint256 i = 0; i < nfts.length; ++i) {
             uint256 nft = nfts[i];
 
-            delete _uniV3PositionInfo[nft];
+            delete vaultIdByNft[nft];
 
             positionManager_.transferFrom(address(this), nftsRecipient, nft);
         }
@@ -855,12 +772,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @param stabilisationFee New stabilisation fee
     event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
 
-    /// @notice Emitted when the oracle is updated
-    /// @param origin Origin of the transaction (tx.origin)
-    /// @param sender Sender of the call (msg.sender)
-    /// @param oracleAddress New oracle address
-    event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
-
     /// @notice Emitted when the VaultRegistry is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
@@ -886,4 +797,58 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver {
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     event SystemPublic(address indexed origin, address indexed sender);
+
+    /// @notice Emitted when liquidation fee is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param liquidationFeeD The new liquidation fee (multiplied by DENOMINATOR)
+    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint32 liquidationFeeD);
+
+    /// @notice Emitted when liquidation premium is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param liquidationPremiumD The new liquidation premium (multiplied by DENOMINATOR)
+    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint32 liquidationPremiumD);
+
+    /// @notice Emitted when max debt per vault is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param maxDebtPerVault The new max debt per vault (nominated in MUSD weis)
+    event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
+
+    /// @notice Emitted when min nft collateral is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param minSingleNftCollateral The new min nft collateral (nominated in MUSD weis)
+    event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
+
+    /// @notice Emitted when min nft collateral is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param maxNftsPerVault The new max possible amount of NFTs for one vault
+    event MaxNftsPerVaultChanged(address indexed origin, address indexed sender, uint8 maxNftsPerVault);
+
+    /// @notice Emitted when liquidation threshold for a specific pool is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param pool The given pool
+    /// @param liquidationThresholdD_ The new liquidation threshold (multiplied by DENOMINATOR)
+    event LiquidationThresholdSet(
+        address indexed origin,
+        address indexed sender,
+        address pool,
+        uint256 liquidationThresholdD_
+    );
+
+    /// @notice Emitted when new pool is added to the whitelist
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param pool The new whitelisted pool
+    event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
+
+    /// @notice Emitted when pool is deleted from the whitelist
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param pool The deleted whitelisted pool
+    event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
 }

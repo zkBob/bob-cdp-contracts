@@ -9,12 +9,14 @@ import "../src/proxy/EIP1967Proxy.sol";
 import "./mocks/MockOracle.sol";
 import "./mocks/MUSD.sol";
 import "../src/Vault.sol";
+import "../src/oracles/UniV3Oracle.sol";
 
 contract VaultRegistryTest is Test, SetupContract, Utilities {
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
+    EIP1967Proxy univ3OracleProxy;
+    UniV3Oracle univ3Oracle;
     MockOracle oracle;
-    ProtocolGovernance protocolGovernance;
     MUSD token;
     Vault vault;
     VaultRegistry vaultRegistry;
@@ -30,7 +32,7 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
-        protocolGovernance = new ProtocolGovernance(address(this), type(uint256).max);
+        univ3Oracle = new UniV3Oracle(INonfungiblePositionManager(UniV3PositionManager), IOracle(address(oracle)));
 
         treasury = getNextUserAddress();
 
@@ -38,8 +40,7 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
 
         vault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
-            IProtocolGovernance(protocolGovernance),
+            INFTOracle(address(univ3Oracle)),
             treasury,
             address(token)
         );
@@ -47,8 +48,8 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             address(this),
-            IOracle(oracle),
-            10**7
+            10**7,
+            type(uint256).max
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
@@ -62,12 +63,12 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
 
         token.approve(address(vault), type(uint256).max);
 
-        protocolGovernance.changeLiquidationFee(3 * 10**7);
-        protocolGovernance.changeLiquidationPremium(3 * 10**7);
-        protocolGovernance.changeMinSingleNftCollateral(10**17);
-        protocolGovernance.changeMaxNftsPerVault(12);
+        vault.changeLiquidationFee(3 * 10**7);
+        vault.changeLiquidationPremium(3 * 10**7);
+        vault.changeMinSingleNftCollateral(10**17);
+        vault.changeMaxNftsPerVault(12);
 
-        setPools(IProtocolGovernance(protocolGovernance));
+        setPools(ICDP(vault));
         setApprovals();
 
         address[] memory depositors = new address[](1);

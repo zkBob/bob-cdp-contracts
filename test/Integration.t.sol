@@ -16,15 +16,17 @@ import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./utils/Utilities.sol";
 import "../src/proxy/EIP1967Proxy.sol";
 import "../src/VaultRegistry.sol";
+import "../src/oracles/UniV3Oracle.sol";
 
 contract IntegrationTestForVault is Test, SetupContract, Utilities {
     MockOracle oracle;
-    ProtocolGovernance protocolGovernance;
     MUSD token;
     Vault vault;
     VaultRegistry vaultRegistry;
+    UniV3Oracle univ3Oracle;
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
+    EIP1967Proxy univ3OracleProxy;
     INonfungiblePositionManager positionManager;
     address treasury;
 
@@ -39,7 +41,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
-        protocolGovernance = new ProtocolGovernance(address(this), type(uint256).max);
+        univ3Oracle = new UniV3Oracle(INonfungiblePositionManager(UniV3PositionManager), IOracle(address(oracle)));
 
         treasury = getNextUserAddress();
 
@@ -47,8 +49,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         vault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
-            IProtocolGovernance(protocolGovernance),
+            INFTOracle(address(univ3Oracle)),
             treasury,
             address(token)
         );
@@ -56,8 +57,8 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             address(this),
-            IOracle(oracle),
-            10**7
+            10**7,
+            type(uint256).max
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
@@ -71,12 +72,12 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         token.approve(address(vault), type(uint256).max);
 
-        protocolGovernance.changeLiquidationFee(3 * 10**7);
-        protocolGovernance.changeLiquidationPremium(3 * 10**7);
-        protocolGovernance.changeMinSingleNftCollateral(10**17);
-        protocolGovernance.changeMaxNftsPerVault(20);
+        vault.changeLiquidationFee(3 * 10**7);
+        vault.changeLiquidationPremium(3 * 10**7);
+        vault.changeMinSingleNftCollateral(10**17);
+        vault.changeMaxNftsPerVault(20);
 
-        setPools(IProtocolGovernance(protocolGovernance));
+        setPools(ICDP(vault));
         setApprovals();
 
         address[] memory depositors = new address[](1);
@@ -92,7 +93,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         uint256 nftB = openUniV3Position(wbtc, usdc, 5 * 10**8, 100000 * 10**6, address(vault)); // 200000 USD
         uint256 nftC = openUniV3Position(wbtc, weth, 10**8 / 20000, 10**18 / 1000, address(vault)); // 2 USD
 
-        protocolGovernance.changeMinSingleNftCollateral(18 * 10**17);
+        vault.changeMinSingleNftCollateral(18 * 10**17);
 
         vault.depositCollateral(vaultId, nftA);
         vault.mintDebt(vaultId, 1000 * 10**18);
@@ -113,7 +114,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.withdrawCollateral(nftB);
         vault.withdrawCollateral(nftA);
 
-        protocolGovernance.changeMinSingleNftCollateral(18 * 10**20);
+        vault.changeMinSingleNftCollateral(18 * 10**20);
         vault.mintDebt(vaultId, 10);
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
@@ -216,7 +217,8 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         vm.stopPrank();
         vm.warp(block.timestamp + 4 * YEAR);
-        assertTrue(vault.getOverallDebt(vaultId) > vault.calculateVaultAdjustedCollateral(vaultId));
+        (, uint256 healthFactor) = vault.calculateVaultCollateral(vaultId);
+        assertTrue(vault.getOverallDebt(vaultId) > healthFactor);
 
         vm.startPrank(secondAddress);
         token.transfer(firstAddress, 230 * 10**18);
@@ -235,7 +237,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
-        uint256 healthFactor = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthFactor) = vault.calculateVaultCollateral(vaultId);
         uint256 overallDebt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
         assertTrue(healthFactor <= overallDebt); // hence subject to liquidation
 
@@ -412,14 +414,14 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, nftA);
 
-        uint256 healthBeforeSwaps = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthBeforeSwaps) = vault.calculateVaultCollateral(vaultId);
         vault.mintDebt(vaultId, healthBeforeSwaps - 1);
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, 100);
 
         oracle.setPrice(weth, (uint256(1000 << 96) * 999999) / 1000000); // small price change to make position slightly lower than health threshold
-        uint256 healthAfterPriceChanged = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthAfterPriceChanged) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.vaultDebt(vaultId);
 
         assertTrue(healthAfterPriceChanged <= debt);
@@ -427,7 +429,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         uint256 amountOut = makeSwap(weth, usdc, 10**22); // have to get a lot of fees
         makeSwap(usdc, weth, amountOut);
 
-        uint256 healthAfterSwaps = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthAfterSwaps) = vault.calculateVaultCollateral(vaultId);
 
         assertTrue(healthBeforeSwaps * 100001 <= healthAfterSwaps * 100000);
         assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 3); // difference < 0.3% though
@@ -450,7 +452,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
 
-        protocolGovernance.setLiquidationThreshold(pool, 2 * 10**8);
+        vault.setLiquidationThreshold(pool, 2 * 10**8);
         vault.burnDebt(vaultId, 5000 * (10**18)); // repaid debt partially and anyway liquidated
 
         address liquidator = getNextUserAddress();

@@ -3,16 +3,15 @@ pragma solidity ^0.8.13;
 
 import "forge-std/Script.sol";
 import "../interfaces/oracles/IOracle.sol";
-import "../interfaces/IProtocolGovernance.sol";
 import "../interfaces/IMUSD.sol";
 import "../oracles/ChainlinkOracle.sol";
 import "../Vault.sol";
 import "../interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
-import "../ProtocolGovernance.sol";
 import "../proxy/EIP1967Proxy.sol";
 import "../VaultRegistry.sol";
+import "../oracles/UniV3Oracle.sol";
 
 abstract contract AbstractDeployment is Script {
     function tokens()
@@ -80,18 +79,18 @@ abstract contract AbstractDeployment is Script {
         (address[] memory oracleTokens, address[] memory oracles) = oracleParams();
         address token = targetToken();
 
-        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, msg.sender);
-        console2.log("Oracle", address(oracle));
+        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles);
+        console2.log("Chainlink Oracle", address(oracle));
 
-        ProtocolGovernance protocolGovernance = new ProtocolGovernance(msg.sender, type(uint256).max);
-        console2.log("ProtocolGovernance", address(protocolGovernance));
-
-        setupGovernance(IProtocolGovernance(protocolGovernance), factory);
+        UniV3Oracle univ3Oracle = new UniV3Oracle(
+            INonfungiblePositionManager(positionManager),
+            IOracle(address(oracle))
+        );
+        console2.log("UniV3 Oracle", address(oracle));
 
         Vault vault = new Vault(
             INonfungiblePositionManager(positionManager),
-            IUniswapV3Factory(factory),
-            IProtocolGovernance(protocolGovernance),
+            INFTOracle(address(univ3Oracle)),
             treasury,
             token
         );
@@ -99,17 +98,19 @@ abstract contract AbstractDeployment is Script {
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             msg.sender,
-            IOracle(oracle),
-            stabilisationFee
+            stabilisationFee,
+            type(uint256).max
         );
         EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
         vault = Vault(address(vaultProxy));
+
+        setupGovernance(ICDP(address(vault)), factory);
 
         console2.log("Vault", address(vault));
 
         VaultRegistry vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
 
-        EIP1967Proxy vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
+        EIP1967Proxy vaultRegistryProxy = new EIP1967Proxy(msg.sender, address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
 
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
@@ -119,7 +120,7 @@ abstract contract AbstractDeployment is Script {
         vm.stopBroadcast();
     }
 
-    function setupGovernance(IProtocolGovernance governance, address factory) public {
+    function setupGovernance(ICDP cdp, address factory) public {
         (
             uint256 minSingleNftCollateral,
             uint256 maxDebtPerVault,
@@ -130,15 +131,15 @@ abstract contract AbstractDeployment is Script {
             uint256[] memory liquidationThresholds
         ) = governanceParams(factory);
 
-        governance.changeLiquidationFee(liquidationFeeD);
-        governance.changeLiquidationPremium(liquidationPremiumD);
-        governance.changeMinSingleNftCollateral(minSingleNftCollateral);
-        governance.changeMaxDebtPerVault(maxDebtPerVault);
-        governance.changeMaxNftsPerVault(maxNftsPerVault);
+        cdp.changeLiquidationFee(liquidationFeeD);
+        cdp.changeLiquidationPremium(liquidationPremiumD);
+        cdp.changeMinSingleNftCollateral(minSingleNftCollateral);
+        cdp.changeMaxDebtPerVault(maxDebtPerVault);
+        cdp.changeMaxNftsPerVault(maxNftsPerVault);
 
         for (uint256 i = 0; i < pools.length; ++i) {
-            governance.setWhitelistedPool(pools[i]);
-            governance.setLiquidationThreshold(pools[i], liquidationThresholds[i]);
+            cdp.setWhitelistedPool(pools[i]);
+            cdp.setLiquidationThreshold(pools[i], liquidationThresholds[i]);
         }
     }
 }

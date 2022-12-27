@@ -16,6 +16,7 @@ import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./utils/Utilities.sol";
 import "../src/proxy/EIP1967Proxy.sol";
 import "../src/VaultRegistry.sol";
+import "../src/oracles/UniV3Oracle.sol";
 
 contract VaultTest is Test, SetupContract, Utilities {
     event VaultOpened(address indexed sender, uint256 vaultId);
@@ -38,10 +39,26 @@ contract VaultTest is Test, SetupContract, Utilities {
     event SystemPrivate(address indexed origin, address indexed sender);
     event SystemPublic(address indexed origin, address indexed sender);
 
+    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint32 liquidationFeeD);
+    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint32 liquidationPremiumD);
+    event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
+    event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
+    event MaxNftsPerVaultChanged(address indexed origin, address indexed sender, uint8 maxNftsPerVault);
+    event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
+    event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
+    event TokenLimitSet(address indexed origin, address indexed sender, address token, uint256 stagedLimit);
+    event LiquidationThresholdSet(
+        address indexed origin,
+        address indexed sender,
+        address pool,
+        uint256 liquidationThresholdD
+    );
+
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
+    EIP1967Proxy univ3OracleProxy;
+    UniV3Oracle univ3Oracle;
     MockOracle oracle;
-    ProtocolGovernance protocolGovernance;
     MUSD token;
     Vault vault;
     VaultRegistry vaultRegistry;
@@ -59,7 +76,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
-        protocolGovernance = new ProtocolGovernance(address(this), type(uint256).max);
+        univ3Oracle = new UniV3Oracle(INonfungiblePositionManager(UniV3PositionManager), IOracle(address(oracle)));
 
         treasury = getNextUserAddress();
 
@@ -67,8 +84,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         vault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
-            IProtocolGovernance(protocolGovernance),
+            INFTOracle(address(univ3Oracle)),
             treasury,
             address(token)
         );
@@ -76,8 +92,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             address(this),
-            IOracle(oracle),
-            10**7
+            10**7,
+            type(uint256).max
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
@@ -91,12 +107,12 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         token.approve(address(vault), type(uint256).max);
 
-        protocolGovernance.changeLiquidationFee(3 * 10**7);
-        protocolGovernance.changeLiquidationPremium(3 * 10**7);
-        protocolGovernance.changeMinSingleNftCollateral(10**17);
-        protocolGovernance.changeMaxNftsPerVault(12);
+        vault.changeLiquidationFee(3 * 10**7);
+        vault.changeLiquidationPremium(3 * 10**7);
+        vault.changeMinSingleNftCollateral(10**17);
+        vault.changeMaxNftsPerVault(12);
 
-        setPools(IProtocolGovernance(protocolGovernance));
+        setPools(vault);
         setApprovals();
 
         address[] memory depositors = new address[](1);
@@ -210,6 +226,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testDepositCollateralInvalidPool() public {
         uint256 vaultId = vault.openVault();
 
+        oracle.setPrice(ape, 1000);
         uint256 tokenId = openUniV3Position(weth, ape, 10**18, 10**25, address(vault));
 
         vm.expectRevert(Vault.InvalidPool.selector);
@@ -235,7 +252,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testDepositCollateralWhenPositionExceedsMinCapitalButEstimationNotSuccess() public {
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
-        protocolGovernance.setLiquidationThreshold(pool, 10**7); // 1%
+        vault.setLiquidationThreshold(pool, 10**7); // 1%
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**15, 10**6, address(vault));
 
@@ -247,7 +264,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        protocolGovernance.changeMaxNftsPerVault(1);
+        vault.changeMaxNftsPerVault(1);
 
         vm.expectRevert(Vault.NFTLimitExceeded.selector);
         vault.depositCollateral(vaultId, tokenId);
@@ -344,7 +361,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testCloseVaultWrongOwner() public {
         uint256 vaultId = vault.openVault();
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.closeVault(vaultId, address(this));
     }
 
@@ -375,7 +392,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testMintDebtWhenNotOwner() public {
         uint256 vaultId = vault.openVault();
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.mintDebt(vaultId, 1);
     }
 
@@ -419,8 +436,6 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         uint256 vaultId = vault.mintDebtFromScratch(tokenId, 10**18);
 
-        console2.log(vault.calculateVaultAdjustedCollateral(vaultId));
-
         assertTrue(vault.vaultDebt(vaultId) == 10**18);
         uint256[] memory nfts = vault.vaultNftsById(vaultId);
 
@@ -455,7 +470,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         bytes memory data = abi.encode(vaultId);
 
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.onERC721Received(address(positionManager), address(this), tokenId, data);
     }
 
@@ -599,7 +614,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testBurnDebtWhenNotOwner() public {
         uint256 vaultId = vault.openVault();
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.burnDebt(vaultId, 1);
     }
 
@@ -643,7 +658,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
 
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.withdrawCollateral(tokenId);
     }
 
@@ -669,7 +684,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testHealthFactorSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         assertEq(health, 0);
     }
 
@@ -679,7 +694,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 lowCapitalBound = 10**18 * 1000;
         uint256 upCapitalBound = 10**18 * 1200; // health apparently ~1100USD
         vault.depositCollateral(vaultId, tokenId);
-        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
     }
 
@@ -688,7 +703,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.withdrawCollateral(tokenId);
-        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         assertEq(health, 0);
     }
 
@@ -697,11 +712,11 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         uint256 nftB = openUniV3Position(wbtc, weth, 10**8, 10**18 * 20, address(vault));
         vault.depositCollateral(vaultId, nftA);
-        uint256 healthOneAsset = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthOneAsset) = vault.calculateVaultCollateral(vaultId);
         vault.depositCollateral(vaultId, nftB);
-        uint256 healthTwoAssets = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthTwoAssets) = vault.calculateVaultCollateral(vaultId);
         vault.withdrawCollateral(nftB);
-        uint256 healthOneAssetFinal = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthOneAssetFinal) = vault.calculateVaultCollateral(vaultId);
 
         assertEq(healthOneAsset, healthOneAssetFinal);
         assertTrue(healthOneAsset < healthTwoAssets);
@@ -712,11 +727,11 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        uint256 healthPreAction = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthPreAction) = vault.calculateVaultCollateral(vaultId);
         oracle.setPrice(weth, 800 << 96);
-        uint256 healthLowPrice = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthLowPrice) = vault.calculateVaultCollateral(vaultId);
         oracle.setPrice(weth, 2000 << 96);
-        uint256 healthHighPrice = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthHighPrice) = vault.calculateVaultCollateral(vaultId);
 
         assertTrue(healthLowPrice < healthPreAction);
         assertTrue(healthPreAction < healthHighPrice);
@@ -730,7 +745,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         IUniswapV3Pool pool = IUniswapV3Pool(IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000));
 
         (, int24 tickOld, , , , , ) = pool.slot0();
-        uint256 healthPreAction = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthPreAction) = vault.calculateVaultCollateral(vaultId);
 
         makeSwap(usdc, weth, 10**13); //10M USD swap which is on 4.5% of price
 
@@ -738,7 +753,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         console.logInt(tickNew);
         console.logInt(tickOld);
         assertTrue(tickOld > tickNew); //swap passed
-        uint256 healthPostAction = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthPostAction) = vault.calculateVaultCollateral(vaultId);
 
         assertApproxEqual((healthPreAction * 1001) / 1000, healthPostAction, 1); //with fees that means they're just equal
     }
@@ -748,9 +763,9 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        uint256 healthPreAction = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthPreAction) = vault.calculateVaultCollateral(vaultId);
         makeSwap(weth, usdc, 10**18);
-        uint256 healthPostAction = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthPostAction) = vault.calculateVaultCollateral(vaultId);
         assertTrue(healthPreAction != healthPostAction);
         assertApproxEqual(healthPreAction, healthPostAction, 1);
     }
@@ -761,27 +776,27 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
 
-        protocolGovernance.setLiquidationThreshold(pool, 1e8);
+        vault.setLiquidationThreshold(pool, 1e8);
         uint256 lowCapitalBound = 10**18 * 150;
         uint256 upCapitalBound = 10**18 * 250; // health apparently ~200USD
-        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
 
-        protocolGovernance.revokeWhitelistedPool(pool);
-        uint256 healthNoAssets = vault.calculateVaultAdjustedCollateral(vaultId);
+        vault.revokeWhitelistedPool(pool);
+        (, uint256 healthNoAssets) = vault.calculateVaultCollateral(vaultId);
         assertEq(healthNoAssets, 0);
     }
 
     function testHealthFactorFromRandomAddress() public {
         uint256 vaultId = vault.openVault();
         vm.prank(getNextUserAddress());
-        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         assertEq(health, 0);
     }
 
     function testHealthFactorNonExistingVault() public {
         uint256 nextId = vault.vaultCount();
-        uint256 health = vault.calculateVaultAdjustedCollateral(nextId);
+        (, uint256 health) = vault.calculateVaultCollateral(nextId);
         assertEq(health, 0);
     }
 
@@ -799,7 +814,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         address randomAddress = getNextUserAddress();
         token.transfer(randomAddress, vault.vaultDebt(vaultId));
 
-        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
 
         assertTrue(health < debt);
@@ -818,8 +833,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         uint256 liquidatorSpent = oldLiquidatorBalance - token.balanceOf(liquidator);
 
-        uint256 targetTreasuryBalance = (1400 * 10**18 * uint256(protocolGovernance.protocolParams().liquidationFeeD)) /
-            10**9;
+        uint256 targetTreasuryBalance = (1400 * 10**18 * uint256(vault.protocolParams().liquidationFeeD)) / 10**9;
         uint256 treasuryGot = token.balanceOf(address(treasury));
 
         assertApproxEqual(targetTreasuryBalance, treasuryGot, 150);
@@ -845,7 +859,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         oracle.setPrice(weth, 1 << 96);
 
         address liquidator = getNextUserAddress();
-        uint256 nftPrice = (vault.calculateVaultAdjustedCollateral(vaultId) / 6) * 10;
+        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
+        uint256 nftPrice = (health / 6) * 10;
         deal(address(token), liquidator, nftPrice, true);
 
         vm.startPrank(liquidator);
@@ -927,7 +942,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
 
-        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
 
         assertTrue(debt <= health);
@@ -946,7 +961,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
-        uint256 health = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
 
         assertTrue(health < debt);
@@ -973,7 +988,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testMakePublicWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.makePublic();
     }
 
@@ -992,7 +1007,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testMakePrivateWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.makePrivate();
     }
 
@@ -1020,7 +1035,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testPauseWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.pause();
     }
 
@@ -1043,13 +1058,13 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.grantRole(keccak256("admin_delegate"), address(this));
         vault.grantRole(keccak256("operator"), operator);
         vm.prank(operator);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.unpause();
     }
 
     function testUnpauseWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.unpause();
     }
 
@@ -1059,39 +1074,12 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.unpause();
     }
 
-    // setOracle
-
-    function testSetOracleSuccess() public {
-        address newAddress = getNextUserAddress();
-        vault.setOracle(IOracle(newAddress));
-        assertEq(address(vault.oracle()), newAddress);
-    }
-
-    function testSetOracleWhenNotAdmin() public {
-        vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
-        vault.setOracle(IOracle(getNextUserAddress()));
-    }
-
-    function testSetOracleWhenAddressZero() public {
-        vm.expectRevert(DefaultAccessControl.AddressZero.selector);
-        vault.setOracle(IOracle(address(0)));
-    }
-
-    function testSetOracleEmit() public {
-        address newAddress = getNextUserAddress();
-        vm.expectEmit(false, true, false, true);
-        emit OracleUpdated(tx.origin, address(this), newAddress);
-        vault.setOracle(IOracle(newAddress));
-    }
-
     // setVaultRegistry
 
     function testSetVaultRegistrySuccess() public {
         Vault newVault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
-            IProtocolGovernance(protocolGovernance),
+            INFTOracle(address(univ3Oracle)),
             treasury,
             address(token)
         );
@@ -1099,8 +1087,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             address(this),
-            IOracle(oracle),
-            10**7
+            10**7,
+            type(uint256).max
         );
         EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
         newVault = Vault(address(newVaultProxy));
@@ -1112,7 +1100,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testSetVaultRegistryWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.setVaultRegistry(IVaultRegistry(getNextUserAddress()));
     }
 
@@ -1124,8 +1112,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testSetVaultRegistryWhenAddressZero() public {
         Vault newVault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
-            IProtocolGovernance(protocolGovernance),
+            INFTOracle(address(univ3Oracle)),
             treasury,
             address(token)
         );
@@ -1133,21 +1120,20 @@ contract VaultTest is Test, SetupContract, Utilities {
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             address(this),
-            IOracle(oracle),
-            10**7
+            10**7,
+            type(uint256).max
         );
         EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
         newVault = Vault(address(newVaultProxy));
 
-        vm.expectRevert(DefaultAccessControl.AddressZero.selector);
+        vm.expectRevert(VaultAccessControl.AddressZero.selector);
         newVault.setVaultRegistry(IVaultRegistry(address(0)));
     }
 
     function testSetVaultRegistryEmit() public {
         Vault newVault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
-            IProtocolGovernance(protocolGovernance),
+            INFTOracle(address(univ3Oracle)),
             treasury,
             address(token)
         );
@@ -1155,8 +1141,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             address(this),
-            IOracle(oracle),
-            10**7
+            10**7,
+            type(uint256).max
         );
         EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
         newVault = Vault(address(newVaultProxy));
@@ -1223,7 +1209,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testUpdateStabilisationFeeWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.updateStabilisationFeeRate(10**7);
     }
 
@@ -1236,5 +1222,337 @@ contract VaultTest is Test, SetupContract, Utilities {
         vm.expectEmit(false, true, false, true);
         emit StabilisationFeeUpdated(getNextUserAddress(), address(this), 2 * 10**7);
         vault.updateStabilisationFeeRate(2 * 10**7);
+    }
+
+    // protocolParams
+
+    function testDefaultProtocolParams() public {
+        ICDP.ProtocolParams memory params = vault.protocolParams();
+        assertEq(params.maxDebtPerVault, type(uint256).max);
+        assertEq(params.minSingleNftCollateral, 100000000000000000);
+        assertEq(params.liquidationPremiumD, 30000000);
+        assertEq(params.liquidationFeeD, 30000000);
+        assertEq(params.maxNftsPerVault, 12);
+    }
+
+    function testChangedProtocolParams() public {
+        vault.changeLiquidationFee(3 * 10**7);
+        vault.changeLiquidationPremium(3 * 10**7);
+        vault.changeMaxDebtPerVault(10**24);
+        vault.changeMinSingleNftCollateral(10**18);
+        vault.changeMaxNftsPerVault(30);
+        ICDP.ProtocolParams memory newParams = vault.protocolParams();
+        assertEq(newParams.liquidationFeeD, 3 * 10**7);
+        assertEq(newParams.liquidationPremiumD, 3 * 10**7);
+        assertEq(newParams.maxDebtPerVault, 10**24);
+        assertEq(newParams.minSingleNftCollateral, 10**18);
+        assertEq(newParams.maxNftsPerVault, 30);
+    }
+
+    // isPoolWhitelisted + setWhitelistedPool + revokeWhitelistedPool
+
+    function testSetGetWhitelistedPoolSuccess() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+        assertTrue(vault.isPoolWhitelisted(pool));
+    }
+
+    function testPoolNotWhitelisted() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(ape, usdc, 3000);
+        assertTrue(!vault.isPoolWhitelisted(pool));
+    }
+
+    function testRevokedPool() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+        vault.revokeWhitelistedPool(pool);
+        assertTrue(!vault.isPoolWhitelisted(pool));
+    }
+
+    // whitelistedPool
+
+    function testGetWhitelistedPoolSuccess() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(ape, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+        assertTrue(pool == vault.whitelistedPool(3));
+    }
+
+    function testSeveralPoolsOkay() public {
+        address poolA = IUniswapV3Factory(UniV3Factory).getPool(weth, ape, 3000);
+        address poolB = IUniswapV3Factory(UniV3Factory).getPool(ape, usdc, 3000);
+        vault.setWhitelistedPool(poolA);
+        vault.setWhitelistedPool(poolB);
+
+        address pool0 = vault.whitelistedPool(3);
+        address pool1 = vault.whitelistedPool(4);
+
+        assertTrue(pool0 != pool1);
+        assertTrue(pool0 == poolA || pool0 == poolB);
+        assertTrue(pool1 == poolA || pool1 == poolB);
+    }
+
+    function testFailMissingIndex() public {
+        vault.whitelistedPool(10);
+    }
+
+    // Access control of all public methods
+
+    function testAccessControlsAllAccountsMethods() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+
+        address newAddress = getNextUserAddress();
+        vm.startPrank(newAddress);
+
+        vault.protocolParams();
+        vault.isPoolWhitelisted(pool);
+        vault.liquidationThresholdD(usdc);
+        vault.whitelistedPool(0);
+    }
+
+    // changeLiquidationFee
+
+    function testLiquidationFeeSuccess() public {
+        vault.changeLiquidationFee(10**8);
+        ICDP.ProtocolParams memory newParams = vault.protocolParams();
+        assertEq(newParams.liquidationFeeD, 10**8);
+    }
+
+    function testLiquidationFeeTooLarge() public {
+        vm.expectRevert(Vault.InvalidValue.selector);
+        vault.changeLiquidationFee(2 * 10**9);
+    }
+
+    function testLiquidationFeeAccessControl() public {
+        address newAddress = getNextUserAddress();
+        vm.startPrank(newAddress);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.changeLiquidationFee(11 * 10**7);
+    }
+
+    function testLiquidationFeeEventEmitted() public {
+        vm.expectEmit(false, true, false, true);
+        emit LiquidationFeeChanged(getNextUserAddress(), address(this), 10**6);
+        vault.changeLiquidationFee(10**6);
+    }
+
+    // changeLiquidationPremium
+
+    function testLiquidationPremiumSuccess() public {
+        vault.changeLiquidationPremium(10**8);
+        ICDP.ProtocolParams memory newParams = vault.protocolParams();
+        assertEq(newParams.liquidationPremiumD, 10**8);
+    }
+
+    function testLiquidationPremiumTooLarge() public {
+        vm.expectRevert(Vault.InvalidValue.selector);
+        vault.changeLiquidationPremium(2 * 10**9);
+    }
+
+    function testLiquidationPremiumAccessControl() public {
+        address newAddress = getNextUserAddress();
+        vm.startPrank(newAddress);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.changeLiquidationPremium(11 * 10**7);
+    }
+
+    function testLiquidationPremiumEventEmitted() public {
+        vm.expectEmit(false, true, false, true);
+        emit LiquidationPremiumChanged(getNextUserAddress(), address(this), 10**6);
+        vault.changeLiquidationPremium(10**6);
+    }
+
+    // changeMaxDebtPerVault
+
+    function testMaxDebtPerVaultSuccess() public {
+        vault.changeMaxDebtPerVault(10**25);
+        ICDP.ProtocolParams memory newParams = vault.protocolParams();
+        assertEq(newParams.maxDebtPerVault, 10**25);
+    }
+
+    function testMaxDebtPerVaultAccessControl() public {
+        address newAddress = getNextUserAddress();
+        vm.startPrank(newAddress);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.changeMaxDebtPerVault(1);
+    }
+
+    function testMaxDebtPerVaultAnyValue() public {
+        vault.changeMaxDebtPerVault(0);
+        vault.changeMaxDebtPerVault(type(uint256).max);
+        vault.changeMaxDebtPerVault(2**100);
+        vault.changeMaxDebtPerVault(1);
+        ICDP.ProtocolParams memory newParams = vault.protocolParams();
+        assertEq(newParams.maxDebtPerVault, 1);
+    }
+
+    function testMaxDebtPerVaultEventEmitted() public {
+        vm.expectEmit(false, true, false, true);
+        emit MaxDebtPerVaultChanged(getNextUserAddress(), address(this), 10**10);
+        vault.changeMaxDebtPerVault(10**10);
+    }
+
+    // changeSingleNftCollateral
+
+    function testChangeMinSingleNftCollateralSuccess() public {
+        vault.changeMinSingleNftCollateral(10**18);
+        ICDP.ProtocolParams memory newParams = vault.protocolParams();
+        assertEq(newParams.minSingleNftCollateral, 10**18);
+    }
+
+    function testChangeMinSingleNftCollateralAccessControl() public {
+        address newAddress = getNextUserAddress();
+        vm.startPrank(newAddress);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.changeMinSingleNftCollateral(10**18);
+    }
+
+    function testChangeMinSingleNftCollateralEmitted() public {
+        vm.expectEmit(false, true, false, true);
+        emit MinSingleNftCollateralChanged(getNextUserAddress(), address(this), 10**20);
+        vault.changeMinSingleNftCollateral(10**20);
+    }
+
+    // changeMaxNftsPerVault
+
+    function testChangeMaxNftsPerVault() public {
+        vault.changeMaxNftsPerVault(20);
+        ICDP.ProtocolParams memory newParams = vault.protocolParams();
+        assertEq(newParams.maxNftsPerVault, 20);
+    }
+
+    function testChangeMaxNftsPerVaultAccessControl() public {
+        address newAddress = getNextUserAddress();
+        vm.startPrank(newAddress);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.changeMaxNftsPerVault(20);
+    }
+
+    function testChangeMaxNftsPerVaultEmitted() public {
+        vm.expectEmit(false, true, false, true);
+        emit MaxNftsPerVaultChanged(getNextUserAddress(), address(this), 20);
+        vault.changeMaxNftsPerVault(20);
+    }
+
+    // setWhitelistedPool
+
+    function testSetWhitelistedPoolZeroAddress() public {
+        vm.expectRevert(VaultAccessControl.AddressZero.selector);
+        vault.setWhitelistedPool(address(0));
+    }
+
+    function testSetWhitelistedPoolAccessControl() public {
+        address newAddress = getNextUserAddress();
+        vm.startPrank(newAddress);
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.setWhitelistedPool(pool);
+    }
+
+    function testSetSeveralPoolsOkay() public {
+        setPools(ICDP(vault));
+    }
+
+    function testSetWhitelistedPoolEmitted() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vm.expectEmit(false, true, false, true);
+        emit WhitelistedPoolSet(getNextUserAddress(), address(this), pool);
+        vault.setWhitelistedPool(pool);
+    }
+
+    // revokeWhitelistedPool
+
+    function testRevokePoolAccessControl() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+        address newAddress = getNextUserAddress();
+        vm.startPrank(newAddress);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.revokeWhitelistedPool(pool);
+    }
+
+    function testTryRevokeUnstagedPoolIsOkay() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.revokeWhitelistedPool(pool);
+    }
+
+    function testRevokePoolEmitted() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+
+        vm.expectEmit(false, true, false, true);
+        emit WhitelistedPoolRevoked(getNextUserAddress(), address(this), pool);
+        vault.revokeWhitelistedPool(pool);
+    }
+
+    // setLiquidationThreshold
+
+    function testSetThresholdSuccess() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(ape, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+        assertEq(vault.liquidationThresholdD(pool), 0);
+        vault.setLiquidationThreshold(pool, 5 * 10**8);
+        assertEq(vault.liquidationThresholdD(pool), 5 * 10**8);
+    }
+
+    function testSetZeroThresholdIsOkay() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+        vault.setLiquidationThreshold(pool, 0);
+        assertEq(vault.liquidationThresholdD(pool), 0);
+    }
+
+    function testSetNewThreshold() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+        vault.setLiquidationThreshold(pool, 5 * 10**8);
+        assertEq(vault.liquidationThresholdD(pool), 5 * 10**8);
+        vault.setLiquidationThreshold(pool, 3 * 10**8);
+        assertEq(vault.liquidationThresholdD(pool), 3 * 10**8);
+    }
+
+    function testSetThresholdNotWhitelisted() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(ape, usdc, 3000);
+        vm.expectRevert(Vault.InvalidPool.selector);
+        vault.setLiquidationThreshold(pool, 5 * 10**8);
+    }
+
+    function testSetThresholdWhitelistedThenRevoked() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+        vault.setLiquidationThreshold(pool, 5 * 10**8);
+        vault.revokeWhitelistedPool(pool);
+        assertEq(vault.liquidationThresholdD(pool), 0);
+        vm.expectRevert(Vault.InvalidPool.selector);
+        vault.setLiquidationThreshold(pool, 3 * 10**8);
+    }
+
+    function testSetTooLargeThreshold() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+        vm.expectRevert(Vault.InvalidValue.selector);
+        vault.setLiquidationThreshold(pool, 2 * 10**9);
+    }
+
+    function testSetThresholdZeroAddress() public {
+        vm.expectRevert(VaultAccessControl.AddressZero.selector);
+        vault.setLiquidationThreshold(address(0), 10**5);
+    }
+
+    function testSetThresholdAccessControl() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address newAddress = getNextUserAddress();
+        vm.startPrank(newAddress);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.setLiquidationThreshold(pool, 10**5);
+    }
+
+    function testSetThresholdEmitted() public {
+        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        vault.setWhitelistedPool(pool);
+
+        vm.expectEmit(false, true, false, true);
+        emit LiquidationThresholdSet(getNextUserAddress(), address(this), pool, 10**6);
+        vault.setLiquidationThreshold(pool, 10**6);
     }
 }
