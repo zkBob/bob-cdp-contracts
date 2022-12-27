@@ -361,7 +361,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testCloseVaultWrongOwner() public {
         uint256 vaultId = vault.openVault();
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.closeVault(vaultId, address(this));
     }
 
@@ -392,7 +392,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testMintDebtWhenNotOwner() public {
         uint256 vaultId = vault.openVault();
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.mintDebt(vaultId, 1);
     }
 
@@ -470,7 +470,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         bytes memory data = abi.encode(vaultId);
 
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.onERC721Received(address(positionManager), address(this), tokenId, data);
     }
 
@@ -614,7 +614,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testBurnDebtWhenNotOwner() public {
         uint256 vaultId = vault.openVault();
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.burnDebt(vaultId, 1);
     }
 
@@ -658,7 +658,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
 
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.withdrawCollateral(tokenId);
     }
 
@@ -988,7 +988,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testMakePublicWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.makePublic();
     }
 
@@ -1007,7 +1007,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testMakePrivateWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.makePrivate();
     }
 
@@ -1035,7 +1035,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testPauseWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.pause();
     }
 
@@ -1058,13 +1058,13 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.grantRole(keccak256("admin_delegate"), address(this));
         vault.grantRole(keccak256("operator"), operator);
         vm.prank(operator);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.unpause();
     }
 
     function testUnpauseWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.unpause();
     }
 
@@ -1100,7 +1100,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testSetVaultRegistryWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.setVaultRegistry(IVaultRegistry(getNextUserAddress()));
     }
 
@@ -1126,7 +1126,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
         newVault = Vault(address(newVaultProxy));
 
-        vm.expectRevert(DefaultAccessControl.AddressZero.selector);
+        vm.expectRevert(VaultAccessControl.AddressZero.selector);
         newVault.setVaultRegistry(IVaultRegistry(address(0)));
     }
 
@@ -1209,7 +1209,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
     function testUpdateStabilisationFeeWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.updateStabilisationFeeRate(10**7);
     }
 
@@ -1326,7 +1326,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testLiquidationFeeAccessControl() public {
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.changeLiquidationFee(11 * 10**7);
     }
 
@@ -1352,7 +1352,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testLiquidationPremiumAccessControl() public {
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.changeLiquidationPremium(11 * 10**7);
     }
 
@@ -1373,7 +1373,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testMaxDebtPerVaultAccessControl() public {
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.changeMaxDebtPerVault(1);
     }
 
@@ -1403,7 +1403,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testChangeMinSingleNftCollateralAccessControl() public {
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.changeMinSingleNftCollateral(10**18);
     }
 
@@ -1424,7 +1424,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testChangeMaxNftsPerVaultAccessControl() public {
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.changeMaxNftsPerVault(20);
     }
 
@@ -1437,7 +1437,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     // setWhitelistedPool
 
     function testSetWhitelistedPoolZeroAddress() public {
-        vm.expectRevert(DefaultAccessControl.AddressZero.selector);
+        vm.expectRevert(VaultAccessControl.AddressZero.selector);
         vault.setWhitelistedPool(address(0));
     }
 
@@ -1445,7 +1445,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.setWhitelistedPool(pool);
     }
 
@@ -1467,7 +1467,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.setWhitelistedPool(pool);
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.revokeWhitelistedPool(pool);
     }
 
@@ -1535,7 +1535,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     }
 
     function testSetThresholdZeroAddress() public {
-        vm.expectRevert(DefaultAccessControl.AddressZero.selector);
+        vm.expectRevert(VaultAccessControl.AddressZero.selector);
         vault.setLiquidationThreshold(address(0), 10**5);
     }
 
@@ -1543,7 +1543,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
-        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.setLiquidationThreshold(pool, 10**5);
     }
 

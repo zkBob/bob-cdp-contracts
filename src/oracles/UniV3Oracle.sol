@@ -56,20 +56,11 @@ contract UniV3Oracle is INFTOracle {
         )
     {
         INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(nft);
-        UniswapV3FeesCalculation.PositionInfo memory positionInfo = UniswapV3FeesCalculation.PositionInfo({
-            tickLower: info.tickLower,
-            tickUpper: info.tickUpper,
-            liquidity: info.liquidity,
-            feeGrowthInside0LastX128: info.feeGrowthInside0LastX128,
-            feeGrowthInside1LastX128: info.feeGrowthInside1LastX128,
-            tokensOwed0: info.tokensOwed0,
-            tokensOwed1: info.tokensOwed1
-        });
 
         pool = factory.getPool(info.token0, info.token1, info.fee);
 
-        uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(positionInfo.tickLower);
-        uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(positionInfo.tickUpper);
+        uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(info.tickLower);
+        uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(info.tickUpper);
 
         uint256[2] memory tokenAmounts;
         uint256[2] memory pricesX96;
@@ -91,13 +82,13 @@ contract UniV3Oracle is INFTOracle {
                 sqrtRatioX96,
                 sqrtRatioAX96,
                 sqrtRatioBX96,
-                positionInfo.liquidity
+                info.liquidity
             );
 
             (uint256 actualTokensOwed0, uint256 actualTokensOwed1) = UniswapV3FeesCalculation._calculateUniswapFees(
                 IUniswapV3Pool(pool),
                 tick,
-                positionInfo
+                info
             );
             tokenAmounts[0] += actualTokensOwed0;
             tokenAmounts[1] += actualTokensOwed1;

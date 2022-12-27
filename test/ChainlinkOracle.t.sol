@@ -52,7 +52,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
     function testAddChainlinkOraclesSuccess() public {
         address[] memory emptyTokens = new address[](0);
         address[] memory emptyOracles = new address[](0);
-        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles, address(this));
+        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles);
 
         currentOracle.addChainlinkOracles(tokens, chainlinkOracles);
 
@@ -64,7 +64,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
     function testAddChainlinkOraclesEmit() public {
         address[] memory emptyTokens = new address[](0);
         address[] memory emptyOracles = new address[](0);
-        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles, address(this));
+        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles);
 
         vm.expectEmit(false, true, false, true);
         emit OraclesAdded(getNextUserAddress(), address(this), tokens, chainlinkOracles);
