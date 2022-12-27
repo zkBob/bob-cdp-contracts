@@ -462,13 +462,19 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         return this.onERC721Received.selector;
     }
 
-    function decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams calldata params) external returns (uint256 amount0, uint256 amount1) {
+    function decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams calldata params)
+        external
+        returns (uint256 amount0, uint256 amount1)
+    {
         _requireVaultOwner(vaultIdByNft[params.tokenId]);
 
         (amount0, amount1) = positionManager.decreaseLiquidity(params);
     }
 
-    function collect(INonfungiblePositionManager.CollectParams calldata params) external returns (uint256 amount0, uint256 amount1) {
+    function collect(INonfungiblePositionManager.CollectParams calldata params)
+        external
+        returns (uint256 amount0, uint256 amount1)
+    {
         uint256 vaultId = vaultIdByNft[params.tokenId];
         _requireVaultOwner(vaultId);
 
