@@ -34,10 +34,7 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @notice Creates a new contract
     /// @param tokens Initial supported tokens
     /// @param oracles Initial approved Chainlink oracles
-    constructor(
-        address[] memory tokens,
-        address[] memory oracles
-    ) {
+    constructor(address[] memory tokens, address[] memory oracles) {
         _addChainlinkOracles(tokens, oracles);
     }
 
