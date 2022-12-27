@@ -13,7 +13,7 @@ import "../libraries/UniswapV3FeesCalculation.sol";
 import "../proxy/EIP1967Admin.sol";
 
 /// @notice Contract of the univ3 positions oracle
-contract UniV3Oracle is EIP1967Admin, INFTOracle {
+contract UniV3Oracle is INFTOracle {
     /// @notice Thrown when a given address is zero
     error AddressZero();
 
@@ -32,46 +32,17 @@ contract UniV3Oracle is EIP1967Admin, INFTOracle {
     uint256 public constant Q96 = 2**96;
     uint256 public constant Q48 = 2**48;
 
+    /// @notice Creates a new contract
     /// @param positionManager_ UniswapV3 position manager
-    /// @param factory_ UniswapV3 factory
     /// @param oracle_ Oracle
-    constructor(
-        INonfungiblePositionManager positionManager_,
-        IUniswapV3Factory factory_,
-        IOracle oracle_
-    ) {
-        if (address(positionManager_) == address(0) || address(factory_) == address(0)) {
+    constructor(INonfungiblePositionManager positionManager_, IOracle oracle_) {
+        if (address(positionManager_) == address(0)) {
             revert AddressZero();
         }
 
         positionManager = positionManager_;
-        factory = factory_;
+        factory = IUniswapV3Factory(positionManager.factory());
         oracle = oracle_;
-    }
-
-    function getPositionInfoByNft(uint256 nft)
-        internal
-        view
-        returns (
-            address,
-            address,
-            uint24,
-            UniswapV3FeesCalculation.PositionInfo memory
-        )
-    {
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(nft);
-
-        UniswapV3FeesCalculation.PositionInfo memory positionInfo = UniswapV3FeesCalculation.PositionInfo({
-            tickLower: info.tickLower,
-            tickUpper: info.tickUpper,
-            liquidity: info.liquidity,
-            feeGrowthInside0LastX128: info.feeGrowthInside0LastX128,
-            feeGrowthInside1LastX128: info.feeGrowthInside1LastX128,
-            tokensOwed0: info.tokensOwed0,
-            tokensOwed1: info.tokensOwed1
-        });
-
-        return (info.token0, info.token1, info.fee, positionInfo);
     }
 
     /// @inheritdoc INFTOracle
@@ -84,25 +55,29 @@ contract UniV3Oracle is EIP1967Admin, INFTOracle {
             address pool
         )
     {
-        (
-            address token0,
-            address token1,
-            uint24 fee,
-            UniswapV3FeesCalculation.PositionInfo memory positionInfo
-        ) = getPositionInfoByNft(nft);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(nft);
+        UniswapV3FeesCalculation.PositionInfo memory positionInfo = UniswapV3FeesCalculation.PositionInfo({
+            tickLower: info.tickLower,
+            tickUpper: info.tickUpper,
+            liquidity: info.liquidity,
+            feeGrowthInside0LastX128: info.feeGrowthInside0LastX128,
+            feeGrowthInside1LastX128: info.feeGrowthInside1LastX128,
+            tokensOwed0: info.tokensOwed0,
+            tokensOwed1: info.tokensOwed1
+        });
 
-        pool = factory.getPool(token0, token1, fee);
+        pool = factory.getPool(info.token0, info.token1, info.fee);
 
         uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(positionInfo.tickLower);
         uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(positionInfo.tickUpper);
 
-        uint256[] memory tokenAmounts = new uint256[](2);
-        uint256[] memory pricesX96 = new uint256[](2);
+        uint256[2] memory tokenAmounts;
+        uint256[2] memory pricesX96;
         {
-            bool[] memory successOracle = new bool[](2);
+            bool[2] memory successOracle;
 
-            (successOracle[0], pricesX96[0]) = oracle.price(token0);
-            (successOracle[1], pricesX96[1]) = oracle.price(token1);
+            (successOracle[0], pricesX96[0]) = oracle.price(info.token0);
+            (successOracle[1], pricesX96[1]) = oracle.price(info.token1);
 
             if (!successOracle[0] || !successOracle[1]) {
                 return (false, 0, address(0));

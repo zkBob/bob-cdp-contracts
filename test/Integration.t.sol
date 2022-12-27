@@ -41,13 +41,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
-        univ3Oracle = new UniV3Oracle(
-            INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
-            IOracle(address(oracle))
-        );
-        univ3OracleProxy = new EIP1967Proxy(address(this), address(univ3Oracle), "");
-        univ3Oracle = UniV3Oracle(address(univ3OracleProxy));
+        univ3Oracle = new UniV3Oracle(INonfungiblePositionManager(UniV3PositionManager), IOracle(address(oracle)));
 
         treasury = getNextUserAddress();
 
@@ -223,7 +217,8 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         vm.stopPrank();
         vm.warp(block.timestamp + 4 * YEAR);
-        assertTrue(vault.getOverallDebt(vaultId) > vault.calculateVaultAdjustedCollateral(vaultId));
+        (, uint256 healthFactor) = vault.calculateVaultCollateral(vaultId);
+        assertTrue(vault.getOverallDebt(vaultId) > healthFactor);
 
         vm.startPrank(secondAddress);
         token.transfer(firstAddress, 230 * 10**18);
@@ -242,7 +237,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
-        uint256 healthFactor = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthFactor) = vault.calculateVaultCollateral(vaultId);
         uint256 overallDebt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
         assertTrue(healthFactor <= overallDebt); // hence subject to liquidation
 
@@ -419,14 +414,14 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, nftA);
 
-        uint256 healthBeforeSwaps = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthBeforeSwaps) = vault.calculateVaultCollateral(vaultId);
         vault.mintDebt(vaultId, healthBeforeSwaps - 1);
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, 100);
 
         oracle.setPrice(weth, (uint256(1000 << 96) * 999999) / 1000000); // small price change to make position slightly lower than health threshold
-        uint256 healthAfterPriceChanged = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthAfterPriceChanged) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.vaultDebt(vaultId);
 
         assertTrue(healthAfterPriceChanged <= debt);
@@ -434,7 +429,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         uint256 amountOut = makeSwap(weth, usdc, 10**22); // have to get a lot of fees
         makeSwap(usdc, weth, amountOut);
 
-        uint256 healthAfterSwaps = vault.calculateVaultAdjustedCollateral(vaultId);
+        (, uint256 healthAfterSwaps) = vault.calculateVaultCollateral(vaultId);
 
         assertTrue(healthBeforeSwaps * 100001 <= healthAfterSwaps * 100000);
         assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 3); // difference < 0.3% though

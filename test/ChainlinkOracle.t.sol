@@ -50,9 +50,9 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
     // addChainlinkOracles
 
     function testAddChainlinkOraclesSuccess() public {
-        ChainlinkOracle currentOracle = new ChainlinkOracle();
-        EIP1967Proxy currentOracleProxy = new EIP1967Proxy(address(this), address(currentOracle), "");
-        currentOracle = ChainlinkOracle(address(currentOracleProxy));
+        address[] memory emptyTokens = new address[](0);
+        address[] memory emptyOracles = new address[](0);
+        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles, address(this));
 
         currentOracle.addChainlinkOracles(tokens, chainlinkOracles);
 
@@ -62,9 +62,9 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
     }
 
     function testAddChainlinkOraclesEmit() public {
-        ChainlinkOracle currentOracle = new ChainlinkOracle();
-        EIP1967Proxy currentOracleProxy = new EIP1967Proxy(address(this), address(currentOracle), "");
-        currentOracle = ChainlinkOracle(address(currentOracleProxy));
+        address[] memory emptyTokens = new address[](0);
+        address[] memory emptyOracles = new address[](0);
+        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles, address(this));
 
         vm.expectEmit(false, true, false, true);
         emit OraclesAdded(getNextUserAddress(), address(this), tokens, chainlinkOracles);

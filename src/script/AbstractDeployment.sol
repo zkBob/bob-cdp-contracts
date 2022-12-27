@@ -79,19 +79,13 @@ abstract contract AbstractDeployment is Script {
         (address[] memory oracleTokens, address[] memory oracles) = oracleParams();
         address token = targetToken();
 
-        ChainlinkOracle oracle = new ChainlinkOracle();
-        EIP1967Proxy oracleProxy = new EIP1967Proxy(address(this), address(oracle), "");
-        oracle = ChainlinkOracle(address(oracleProxy));
-        oracle.addChainlinkOracles(oracleTokens, oracles);
+        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, msg.sender);
         console2.log("Chainlink Oracle", address(oracle));
 
         UniV3Oracle univ3Oracle = new UniV3Oracle(
             INonfungiblePositionManager(positionManager),
-            IUniswapV3Factory(factory),
             IOracle(address(oracle))
         );
-        EIP1967Proxy univ3OracleProxy = new EIP1967Proxy(msg.sender, address(univ3Oracle), "");
-        univ3Oracle = UniV3Oracle(address(univ3OracleProxy));
         console2.log("UniV3 Oracle", address(oracle));
 
         Vault vault = new Vault(

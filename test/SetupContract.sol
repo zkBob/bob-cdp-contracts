@@ -12,10 +12,7 @@ import "../src/Vault.sol";
 
 contract SetupContract is Test, ConfigContract {
     function deployChainlink() internal returns (ChainlinkOracle) {
-        ChainlinkOracle oracle = new ChainlinkOracle();
-        EIP1967Proxy oracleProxy = new EIP1967Proxy(address(this), address(oracle), "");
-        oracle = ChainlinkOracle(address(oracleProxy));
-        oracle.addChainlinkOracles(tokens, chainlinkOracles);
+        ChainlinkOracle oracle = new ChainlinkOracle(tokens, chainlinkOracles, address(this));
         return oracle;
     }
 

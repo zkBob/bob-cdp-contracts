@@ -32,13 +32,7 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
-        univ3Oracle = new UniV3Oracle(
-            INonfungiblePositionManager(UniV3PositionManager),
-            IUniswapV3Factory(UniV3Factory),
-            IOracle(address(oracle))
-        );
-        univ3OracleProxy = new EIP1967Proxy(address(this), address(univ3Oracle), "");
-        univ3Oracle = UniV3Oracle(address(univ3OracleProxy));
+        univ3Oracle = new UniV3Oracle(INonfungiblePositionManager(UniV3PositionManager), IOracle(address(oracle)));
 
         treasury = getNextUserAddress();
 

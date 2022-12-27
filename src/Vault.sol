@@ -209,17 +209,24 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
 
     /// @notice Calculate adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis)
     /// @param vaultId Id of the vault
-    /// @return uint256 Adjusted collateral
-    function calculateVaultAdjustedCollateral(uint256 vaultId) public view returns (uint256) {
-        uint256 result = 0;
+    /// @return overallCollateral Overall collateral
+    /// @return adjustedCollateral Adjusted collateral
+    function calculateVaultCollateral(uint256 vaultId)
+        public
+        view
+        returns (uint256 overallCollateral, uint256 adjustedCollateral)
+    {
         uint256[] memory nfts = _vaultNfts[vaultId].values();
+
+        overallCollateral = 0;
+        adjustedCollateral = 0;
 
         for (uint256 i = 0; i < nfts.length; ++i) {
             (, uint256 price, address pool) = oracle.price(nfts[i]);
             uint256 liquidationThreshold = liquidationThresholdD[pool];
-            result += FullMath.mulDiv(price, liquidationThreshold, DENOMINATOR);
+            overallCollateral += price;
+            adjustedCollateral += FullMath.mulDiv(price, liquidationThreshold, DENOMINATOR);
         }
-        return result;
     }
 
     /// @notice Get global time-weighted stabilisation fee per USD (multiplied by DENOMINATOR)
@@ -322,7 +329,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         positionManager.transferFrom(address(this), msg.sender, nft);
 
         // checking that health factor is more or equal than 1
-        if (calculateVaultAdjustedCollateral(vaultId) < getOverallDebt(vaultId)) {
+        (, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
+        if (adjustedCollateral < getOverallDebt(vaultId)) {
             revert PositionUnhealthy();
         }
 
@@ -342,7 +350,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         vaultDebt[vaultId] += amount;
         uint256 overallVaultDebt = stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId];
 
-        if (calculateVaultAdjustedCollateral(vaultId) < overallVaultDebt) {
+        (, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
+        if (adjustedCollateral < overallVaultDebt) {
             revert PositionUnhealthy();
         }
 
@@ -383,20 +392,14 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
     /// @param vaultId Id of the vault subject to liquidation
     function liquidate(uint256 vaultId) external {
         uint256 overallDebt = getOverallDebt(vaultId);
-        if (calculateVaultAdjustedCollateral(vaultId) >= overallDebt) {
+        (uint256 vaultAmount, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
+        if (adjustedCollateral >= overallDebt) {
             revert PositionHealthy();
         }
 
         address owner = vaultRegistry.ownerOf(vaultId);
 
-        uint256 vaultAmount = 0;
-
         uint256[] memory nfts = _vaultNfts[vaultId].values();
-
-        for (uint256 i = 0; i < nfts.length; ++i) {
-            (, uint256 positionAmount, ) = oracle.price(nfts[i]);
-            vaultAmount += positionAmount;
-        }
 
         uint256 returnAmount = FullMath.mulDiv(
             DENOMINATOR - _protocolParams.liquidationPremiumD,
