@@ -3,14 +3,14 @@ pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/external/chainlink/IAggregatorV3.sol";
 import "../interfaces/oracles/IOracle.sol";
 import "../libraries/external/FullMath.sol";
-import "../utils/DefaultAccessControl.sol";
 import "../proxy/EIP1967Admin.sol";
 
 /// @notice Contract for getting chainlink data
-contract ChainlinkOracle is IOracle, DefaultAccessControl {
+contract ChainlinkOracle is IOracle, Ownable {
     /// @notice Thrown when tokens.length != oracles.length
     error InvalidLength();
 
@@ -34,12 +34,7 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
     /// @notice Creates a new contract
     /// @param tokens Initial supported tokens
     /// @param oracles Initial approved Chainlink oracles
-    /// @param admin Protocol admin
-    constructor(
-        address[] memory tokens,
-        address[] memory oracles,
-        address admin
-    ) DefaultAccessControl(admin) {
+    constructor(address[] memory tokens, address[] memory oracles) {
         _addChainlinkOracles(tokens, oracles);
     }
 
@@ -72,18 +67,12 @@ contract ChainlinkOracle is IOracle, DefaultAccessControl {
         priceX96 = oraclePrice * priceMultiplier[token];
     }
 
-    /// @inheritdoc IERC165
-    function supportsInterface(bytes4 interfaceId) public view override returns (bool) {
-        return super.supportsInterface(interfaceId) || interfaceId == type(IOracle).interfaceId;
-    }
-
     // -------------------------  EXTERNAL, MUTATING  ------------------------------
 
     /// @notice Add more chainlink oracles and tokens
     /// @param tokens Array of new tokens
     /// @param oracles Array of new oracles
-    function addChainlinkOracles(address[] memory tokens, address[] memory oracles) external {
-        _requireAdmin();
+    function addChainlinkOracles(address[] memory tokens, address[] memory oracles) external onlyOwner {
         _addChainlinkOracles(tokens, oracles);
     }
 

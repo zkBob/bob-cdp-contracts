@@ -3,28 +3,11 @@ pragma solidity =0.8.13;
 
 import "./external/FullMath.sol";
 import "../interfaces/external/univ3/IUniswapV3Pool.sol";
+import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
 
 /// @title Math library for computing fees for uniswap v3 positions
 library UniswapV3FeesCalculation {
     uint256 public constant Q128 = 2**128;
-
-    /// @notice Additional information about UniV3 position
-    /// @param tickLower The lower tick boundary of the position
-    /// @param tickUpper The upper tick boundary of the position
-    /// @param liquidity The amount of liquidity owned by this position (at the moment of the last call to the UniV3 position manager)
-    /// @param feeGrowthInside0LastX128 Fee growth of token0 inside the tick range (at the moment of the last call to the UniV3 position manager)
-    /// @param feeGrowthInside1LastX128 Fee growth of token1 inside the tick range (at the moment of the last call to the UniV3 position manager)
-    /// @param tokensOwed0 The computed amount of token0 owed to the position (at the moment of the last call to the UniV3 position manager)
-    /// @param tokensOwed1 The computed amount of token1 owed to the position (at the moment of the last call to the UniV3 position manager)
-    struct PositionInfo {
-        int24 tickLower;
-        int24 tickUpper;
-        uint128 liquidity;
-        uint256 feeGrowthInside0LastX128;
-        uint256 feeGrowthInside1LastX128;
-        uint128 tokensOwed0;
-        uint128 tokensOwed1;
-    }
 
     /// @notice Calculate Uniswap token fees for the position with a given nft
     /// @param pool UniswapV3 pool
@@ -34,7 +17,7 @@ library UniswapV3FeesCalculation {
     function _calculateUniswapFees(
         IUniswapV3Pool pool,
         int24 tick,
-        PositionInfo memory positionInfo
+        INonfungiblePositionManager.PositionInfo memory positionInfo
     ) internal view returns (uint128 actualTokensOwed0, uint128 actualTokensOwed1) {
         actualTokensOwed0 = positionInfo.tokensOwed0;
         actualTokensOwed1 = positionInfo.tokensOwed1;
