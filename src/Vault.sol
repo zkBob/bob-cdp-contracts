@@ -12,6 +12,8 @@ import "./interfaces/IVaultRegistry.sol";
 import "./interfaces/oracles/INFTOracle.sol";
 import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./interfaces/ICDP.sol";
+import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
+import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
 
 /// @notice Contract of the system vault manager
 contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
@@ -458,6 +460,29 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         _depositCollateral(from, vaultId, tokenId);
 
         return this.onERC721Received.selector;
+    }
+
+    function decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams calldata params) external returns (uint256 amount0, uint256 amount1) {
+        _requireVaultOwner(vaultIdByNft[params.tokenId]);
+
+        (amount0, amount1) = INonfungiblePositionManager.decreaseLiquidity(params);
+
+        // checking that health factor is more or equal than 1
+        (, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
+        if (adjustedCollateral < getOverallDebt(vaultId)) {
+            revert PositionUnhealthy();
+        }
+    }
+
+    function collectFees(INonfungiblePositionManager.CollectParams calldata params) external returns (uint256 amount0, uint256 amount1) {
+        _requireVaultOwner(vaultIdByNft[params.tokenId]);
+
+        (amount0, amount1) = INonfungiblePositionManager.collect(params);
+
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(nft);
+
+        IERC20(info.token0).transfer(msg.sender, amount0);
+        IERC20(info.token1).transfer(msg.sender, amount1);
     }
 
     /// @notice Set a new vault registry
