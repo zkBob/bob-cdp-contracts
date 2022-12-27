@@ -680,6 +680,145 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.withdrawCollateral(tokenId);
     }
 
+    // decreaseLiquidity
+
+    function testDecreaseLiquiditySuccess() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams({
+            tokenId: tokenId,
+            liquidity: info.liquidity,
+            amount0Min: 0,
+            amount1Min: 0,
+            deadline: type(uint256).max
+        }));
+        info = positionManager.positions(tokenId);
+        assertEq(info.liquidity, 0);
+    }
+
+    function testDecreaseLiquidityWhenPaused() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.pause();
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams({
+            tokenId: tokenId,
+            liquidity: info.liquidity,
+            amount0Min: 0,
+            amount1Min: 0,
+            deadline: type(uint256).max
+        }));
+        info = positionManager.positions(tokenId);
+        assertEq(info.liquidity, 0);
+    }
+
+    function testDecreaseLiquidityWhenNotOwner() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vm.prank(getNextUserAddress());
+        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vault.decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams({
+            tokenId: tokenId,
+            liquidity: info.liquidity,
+            amount0Min: 0,
+            amount1Min: 0,
+            deadline: type(uint256).max
+        }));
+    }
+
+    // collect
+
+    function testCollectSuccess() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams({
+            tokenId: tokenId,
+            liquidity: info.liquidity,
+            amount0Min: 0,
+            amount1Min: 0,
+            deadline: type(uint256).max
+        }));
+        vault.collect(INonfungiblePositionManager.CollectParams({
+            tokenId: tokenId,
+            recipient: address(this),
+            amount0Max: type(uint128).max,
+            amount1Max: type(uint128).max
+        }));
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        assertEq(overallCollateral, 0);
+        assertEq(adjustedCollateral, 0);
+    }
+
+    function testCollectWhenPaused() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.pause();
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams({
+            tokenId: tokenId,
+            liquidity: info.liquidity,
+            amount0Min: 0,
+            amount1Min: 0,
+            deadline: type(uint256).max
+        }));
+        vault.collect(INonfungiblePositionManager.CollectParams({
+            tokenId: tokenId,
+            recipient: address(this),
+            amount0Max: type(uint128).max,
+            amount1Max: type(uint128).max
+        }));
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        assertEq(overallCollateral, 0);
+        assertEq(adjustedCollateral, 0);
+    }
+
+    function testCollectWhenNotOwner() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vm.prank(getNextUserAddress());
+        vm.expectRevert(DefaultAccessControl.Forbidden.selector);
+        vault.collect(INonfungiblePositionManager.CollectParams({
+            tokenId: tokenId,
+            recipient: address(this),
+            amount0Max: type(uint128).max,
+            amount1Max: type(uint128).max
+        }));
+    }
+
+    function testCollectWhenPositionGoingUnhealthy() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams({
+            tokenId: tokenId,
+            liquidity: info.liquidity,
+            amount0Min: 0,
+            amount1Min: 0,
+            deadline: type(uint256).max
+        }));
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
+        vault.collect(INonfungiblePositionManager.CollectParams({
+            tokenId: tokenId,
+            recipient: address(this),
+            amount0Max: type(uint128).max,
+            amount1Max: type(uint128).max
+        }));
+    }
+
     // health factor
 
     function testHealthFactorSuccess() public {

@@ -465,24 +465,20 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
     function decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams calldata params) external returns (uint256 amount0, uint256 amount1) {
         _requireVaultOwner(vaultIdByNft[params.tokenId]);
 
-        (amount0, amount1) = INonfungiblePositionManager.decreaseLiquidity(params);
+        (amount0, amount1) = positionManager.decreaseLiquidity(params);
+    }
+
+    function collect(INonfungiblePositionManager.CollectParams calldata params) external returns (uint256 amount0, uint256 amount1) {
+        uint256 vaultId = vaultIdByNft[params.tokenId];
+        _requireVaultOwner(vaultId);
+
+        (amount0, amount1) = positionManager.collect(params);
 
         // checking that health factor is more or equal than 1
         (, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
         if (adjustedCollateral < getOverallDebt(vaultId)) {
             revert PositionUnhealthy();
         }
-    }
-
-    function collectFees(INonfungiblePositionManager.CollectParams calldata params) external returns (uint256 amount0, uint256 amount1) {
-        _requireVaultOwner(vaultIdByNft[params.tokenId]);
-
-        (amount0, amount1) = INonfungiblePositionManager.collect(params);
-
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(nft);
-
-        IERC20(info.token0).transfer(msg.sender, amount0);
-        IERC20(info.token1).transfer(msg.sender, amount1);
     }
 
     /// @notice Set a new vault registry
