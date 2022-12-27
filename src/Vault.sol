@@ -12,8 +12,6 @@ import "./interfaces/IVaultRegistry.sol";
 import "./interfaces/oracles/INFTOracle.sol";
 import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./interfaces/ICDP.sol";
-import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
-import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
 
 /// @notice Contract of the system vault manager
 contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
