@@ -46,6 +46,11 @@ interface ICDP {
     /// @return address Address of the pool
     function whitelistedPool(uint256 i) external view returns (address);
 
+    /// @notice Get total debt for a given vault by id (including fees)
+    /// @param vaultId Id of the vault
+    /// @return uint256 Total debt value (in MUSD weis)
+    function getOverallDebt(uint256 vaultId) external view returns (uint256);
+
     // -------------------  EXTERNAL, MUTATING  -------------------
 
     /// @notice Change liquidation fee (multiplied by DENOMINATOR) to a given value
@@ -80,4 +85,8 @@ interface ICDP {
     /// @param pool Address of the pool
     /// @param liquidationThresholdD_ The new liquidation threshold (multiplied by DENOMINATOR)
     function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external;
+
+    /// @notice Liquidate a vault
+    /// @param vaultId Id of the vault subject to liquidation
+    function liquidate(uint256 vaultId) external;
 }
