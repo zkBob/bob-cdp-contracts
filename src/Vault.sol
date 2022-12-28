@@ -238,9 +238,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
             YEAR;
     }
 
-    /// @notice Get total debt for a given vault by id (including fees)
-    /// @param vaultId Id of the vault
-    /// @return uint256 Total debt value (in MUSD weis)
+    /// @inheritdoc ICDP
     function getOverallDebt(uint256 vaultId) public view returns (uint256) {
         uint256 currentDebt = vaultDebt[vaultId];
         return currentDebt + stabilisationFeeVaultSnapshot[vaultId] + _accruedStabilisationFee(vaultId, currentDebt);
@@ -388,8 +386,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         emit DebtBurned(msg.sender, vaultId, overallAmount);
     }
 
-    /// @notice Liquidate a vault
-    /// @param vaultId Id of the vault subject to liquidation
+    /// @inheritdoc ICDP
     function liquidate(uint256 vaultId) external {
         uint256 overallDebt = getOverallDebt(vaultId);
         (uint256 vaultAmount, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
