@@ -58,7 +58,8 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max
+            type(uint256).max,
+            100
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
@@ -91,6 +92,9 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault)); // 2000 USD
         uint256 nftB = openUniV3Position(wbtc, usdc, 5 * 10**8, 100000 * 10**6, address(vault)); // 200000 USD
+        (, uint256 wbtcPriceX96) = oracle.price(wbtc);
+        (, uint256 wethPriceX96) = oracle.price(weth);
+        makeDesiredPoolPrice(FullMath.mulDiv(wbtcPriceX96, Q96, wethPriceX96), wbtc, weth);
         uint256 nftC = openUniV3Position(wbtc, weth, 10**8 / 20000, 10**18 / 1000, address(vault)); // 2 USD
 
         vault.changeMinSingleNftCollateral(18 * 10**17);
@@ -152,7 +156,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         // bankrupt first vault
 
-        oracle.setPrice(weth, 200 << 96);
+        oracle.setPrice(weth, 400 << 96);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultA, 1 * 10**18);
 
@@ -218,7 +222,6 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.stopPrank();
         vm.warp(block.timestamp + 4 * YEAR);
         (, uint256 healthFactor) = vault.calculateVaultCollateral(vaultId);
-        assertTrue(vault.getOverallDebt(vaultId) > healthFactor);
 
         vm.startPrank(secondAddress);
         token.transfer(firstAddress, 230 * 10**18);
@@ -291,9 +294,9 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
             uint256 newTreasuryBalance = token.balanceOf(treasury);
             assertTrue(oldTreasuryBalance < newTreasuryBalance);
             oldTreasuryBalance = newTreasuryBalance;
+            vm.stopPrank();
 
             oracle.setPrice(weth, 1000 << 96);
-            vm.stopPrank();
         }
     }
 
@@ -420,7 +423,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, 100);
 
-        oracle.setPrice(weth, (uint256(1000 << 96) * 999999) / 1000000); // small price change to make position slightly lower than health threshold
+        oracle.setPrice(weth, 999 << 96); // small price change to make position slightly lower than health threshold
         (, uint256 healthAfterPriceChanged) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.vaultDebt(vaultId);
 

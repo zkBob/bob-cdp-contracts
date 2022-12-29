@@ -99,7 +99,8 @@ abstract contract AbstractDeployment is Script {
             Vault.initialize.selector,
             msg.sender,
             stabilisationFee,
-            type(uint256).max
+            type(uint256).max,
+            100
         );
         EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
         vault = Vault(address(vaultProxy));

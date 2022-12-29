@@ -93,7 +93,8 @@ contract VaultTest is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max
+            type(uint256).max,
+            100
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
@@ -118,6 +119,10 @@ contract VaultTest is Test, SetupContract, Utilities {
         address[] memory depositors = new address[](1);
         depositors[0] = address(this);
         vault.addDepositorsToAllowlist(depositors);
+
+        IERC20(weth).approve(address(vault), type(uint256).max);
+        IERC20(usdc).approve(address(vault), type(uint256).max);
+        IERC20(wbtc).approve(address(vault), type(uint256).max);
     }
 
     // addDepositorsToAllowlist
@@ -226,8 +231,8 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testDepositCollateralInvalidPool() public {
         uint256 vaultId = vault.openVault();
 
-        oracle.setPrice(ape, 1000);
-        uint256 tokenId = openUniV3Position(weth, ape, 10**18, 10**25, address(vault));
+        vault.revokeWhitelistedPool(IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000));
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**25, address(vault));
 
         vm.expectRevert(Vault.InvalidPool.selector);
         vault.depositCollateral(vaultId, tokenId);
@@ -381,6 +386,15 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 10);
         assertEq(token.balanceOf(address(this)), 10);
+    }
+
+    function testMintDebtWhenManipulatingPrice() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        makeSwap(weth, usdc, 10**22);
+        vm.expectRevert(UniV3Oracle.TickDeviation.selector);
+        vault.mintDebt(vaultId, 10);
     }
 
     function testMintDebtPaused() public {
@@ -652,6 +666,15 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertEq(positionManager.ownerOf(tokenId), address(this));
     }
 
+    function testWithdrawCollateralWhenManipulatingPrice() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        makeSwap(weth, usdc, 10**22);
+        vm.expectRevert(UniV3Oracle.TickDeviation.selector);
+        vault.withdrawCollateral(tokenId);
+    }
+
     function testWithdrawCollateralWhenNotOwner() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
@@ -687,6 +710,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        (, uint256 price, ) = univ3Oracle.price(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -696,8 +721,12 @@ contract VaultTest is Test, SetupContract, Utilities {
                 deadline: type(uint256).max
             })
         );
+        (, uint256 newPrice, ) = univ3Oracle.price(tokenId);
+        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         info = positionManager.positions(tokenId);
         assertEq(info.liquidity, 0);
+        assertEq(overallCollateral, newOverallCollateral);
+        assertEq(adjustedCollateral, newAdjustedCollateral);
     }
 
     function testDecreaseLiquidityWhenPaused() public {
@@ -744,11 +773,12 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
-                liquidity: info.liquidity,
+                liquidity: info.liquidity / 2,
                 amount0Min: 0,
                 amount1Min: 0,
                 deadline: type(uint256).max
@@ -762,9 +792,9 @@ contract VaultTest is Test, SetupContract, Utilities {
                 amount1Max: type(uint128).max
             })
         );
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        assertEq(overallCollateral, 0);
-        assertEq(adjustedCollateral, 0);
+        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        assertApproxEqual(overallCollateral / 2, newOverallCollateral, 10);
+        assertApproxEqual(adjustedCollateral / 2, newAdjustedCollateral, 10);
     }
 
     function testCollectWhenPaused() public {
@@ -772,11 +802,12 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
-                liquidity: info.liquidity,
+                liquidity: info.liquidity / 2,
                 amount0Min: 0,
                 amount1Min: 0,
                 deadline: type(uint256).max
@@ -790,9 +821,61 @@ contract VaultTest is Test, SetupContract, Utilities {
                 amount1Max: type(uint128).max
             })
         );
+        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        assertApproxEqual(overallCollateral / 2, newOverallCollateral, 10);
+        assertApproxEqual(adjustedCollateral / 2, newAdjustedCollateral, 10);
+    }
+
+    function testCollectWhenManipulatingPrice() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        assertEq(overallCollateral, 0);
-        assertEq(adjustedCollateral, 0);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity / 2,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        makeSwap(weth, usdc, 10**22);
+        vm.expectRevert(UniV3Oracle.TickDeviation.selector);
+        vault.collect(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            })
+        );
+    }
+
+    function testCollectWhenCollateralUnderflow() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        vm.expectRevert(Vault.CollateralUnderflow.selector);
+        vault.collect(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            })
+        );
     }
 
     function testCollectWhenNotOwner() public {
@@ -835,6 +918,237 @@ contract VaultTest is Test, SetupContract, Utilities {
                 recipient: address(this),
                 amount0Max: type(uint128).max,
                 amount1Max: type(uint128).max
+            })
+        );
+    }
+
+    // collect
+
+    function testCollectAndIncreaseAmountSuccess() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity / 2,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        deal(weth, address(this), 10000 ether);
+        deal(usdc, address(this), 10000 ether);
+        deal(wbtc, address(this), 10000 ether);
+        vault.collectAndIncreaseAmount(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            }),
+            INonfungiblePositionManager.IncreaseLiquidityParams({
+                tokenId: tokenId,
+                amount0Desired: 10**9 / 2,
+                amount1Desired: 10**18 / 2,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        assertApproxEqual(overallCollateral, newOverallCollateral, 10);
+        assertApproxEqual(adjustedCollateral, newAdjustedCollateral, 10);
+    }
+
+    function testCollectAndIncreaseAmountWhenPaused() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.pause();
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity / 2,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        deal(weth, address(this), 10000 ether);
+        deal(usdc, address(this), 10000 ether);
+        deal(wbtc, address(this), 10000 ether);
+        vault.collectAndIncreaseAmount(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            }),
+            INonfungiblePositionManager.IncreaseLiquidityParams({
+                tokenId: tokenId,
+                amount0Desired: 10**9 / 2,
+                amount1Desired: 10**18 / 2,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        assertApproxEqual(overallCollateral, newOverallCollateral, 10);
+        assertApproxEqual(adjustedCollateral, newAdjustedCollateral, 10);
+    }
+
+    function testCollectAndIncreaseAmountWhenManipulatingPrice() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity / 2,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        makeSwap(weth, usdc, 10**22);
+        deal(weth, address(this), 10000 ether);
+        deal(usdc, address(this), 10000 ether);
+        deal(wbtc, address(this), 10000 ether);
+        vm.expectRevert(UniV3Oracle.TickDeviation.selector);
+        vault.collectAndIncreaseAmount(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            }),
+            INonfungiblePositionManager.IncreaseLiquidityParams({
+                tokenId: tokenId,
+                amount0Desired: 10**9 / 2,
+                amount1Desired: 10**18 / 2,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+    }
+
+    function testCollectAndIncreaseAmountWhenCollateralUnderflow() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        deal(weth, address(this), 10000 ether);
+        deal(usdc, address(this), 10000 ether);
+        deal(wbtc, address(this), 10000 ether);
+        vm.expectRevert(Vault.CollateralUnderflow.selector);
+        vault.collectAndIncreaseAmount(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            }),
+            INonfungiblePositionManager.IncreaseLiquidityParams({
+                tokenId: tokenId,
+                amount0Desired: 10**2,
+                amount1Desired: 10**10,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+    }
+
+    function testCollectAndIncreaseAmountWhenNotOwner() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        deal(weth, address(this), 10000 ether);
+        deal(usdc, address(this), 10000 ether);
+        deal(wbtc, address(this), 10000 ether);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vm.prank(getNextUserAddress());
+        vault.collectAndIncreaseAmount(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            }),
+            INonfungiblePositionManager.IncreaseLiquidityParams({
+                tokenId: tokenId,
+                amount0Desired: 10**2,
+                amount1Desired: 10**10,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+    }
+
+    function testCollectAndIncreaseAmountWhenPositionGoingUnhealthy() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1000 ether);
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        deal(weth, address(this), 10000 ether);
+        deal(usdc, address(this), 10000 ether);
+        deal(wbtc, address(this), 10000 ether);
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
+        vault.collectAndIncreaseAmount(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            }),
+            INonfungiblePositionManager.IncreaseLiquidityParams({
+                tokenId: tokenId,
+                amount0Desired: 10**2,
+                amount1Desired: 10**10,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
             })
         );
     }
@@ -889,32 +1203,11 @@ contract VaultTest is Test, SetupContract, Utilities {
         (, uint256 healthPreAction) = vault.calculateVaultCollateral(vaultId);
         oracle.setPrice(weth, 800 << 96);
         (, uint256 healthLowPrice) = vault.calculateVaultCollateral(vaultId);
-        oracle.setPrice(weth, 2000 << 96);
+        oracle.setPrice(weth, 1400 << 96);
         (, uint256 healthHighPrice) = vault.calculateVaultCollateral(vaultId);
 
         assertTrue(healthLowPrice < healthPreAction);
         assertTrue(healthPreAction < healthHighPrice);
-    }
-
-    function testHealthFactorOkayInCaseOfManipulation() public {
-        uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        vault.depositCollateral(vaultId, tokenId);
-
-        IUniswapV3Pool pool = IUniswapV3Pool(IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000));
-
-        (, int24 tickOld, , , , , ) = pool.slot0();
-        (, uint256 healthPreAction) = vault.calculateVaultCollateral(vaultId);
-
-        makeSwap(usdc, weth, 10**13); //10M USD swap which is on 4.5% of price
-
-        (, int24 tickNew, , , , , ) = pool.slot0();
-        console.logInt(tickNew);
-        console.logInt(tickOld);
-        assertTrue(tickOld > tickNew); //swap passed
-        (, uint256 healthPostAction) = vault.calculateVaultCollateral(vaultId);
-
-        assertApproxEqual((healthPreAction * 1001) / 1000, healthPostAction, 1); //with fees that means they're just equal
     }
 
     function testHealthFactorAfterPoolChange() public {
@@ -973,12 +1266,13 @@ contract VaultTest is Test, SetupContract, Utilities {
         address randomAddress = getNextUserAddress();
         token.transfer(randomAddress, vault.vaultDebt(vaultId));
 
-        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
-        uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
+        vm.warp(block.timestamp + 5 * YEAR);
+        (uint256 vaultAmount, uint256 health) = vault.calculateVaultCollateral(vaultId);
+        {
+            uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
 
-        assertTrue(health < debt);
-        vm.warp(block.timestamp + 3600);
-
+            assertTrue(health < debt);
+        }
         address liquidator = getNextUserAddress();
 
         deal(address(token), liquidator, 2000 * 10**18, true);
@@ -992,7 +1286,9 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         uint256 liquidatorSpent = oldLiquidatorBalance - token.balanceOf(liquidator);
 
-        uint256 targetTreasuryBalance = (1400 * 10**18 * uint256(vault.protocolParams().liquidationFeeD)) / 10**9;
+        uint256 targetTreasuryBalance = 50 ether +
+            (vaultAmount * uint256(vault.protocolParams().liquidationFeeD)) /
+            10**9;
         uint256 treasuryGot = token.balanceOf(address(treasury));
 
         assertApproxEqual(targetTreasuryBalance, treasuryGot, 150);
@@ -1027,7 +1323,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.liquidate(vaultId);
     }
 
-    function testLiquidateSuccessWhenPricePlummets() public {
+    function testLiquidateWhenPricePlummets() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
@@ -1054,7 +1350,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertEq(oldBalanceOwner, newBalanceOwner);
     }
 
-    function testLiquidateSuccessWhenPricePlummetsButDaoReceiveSomething() public {
+    function testLiquidateWhenVaultOwnerReceiveNothingButDaoReceiveSomething() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
@@ -1067,6 +1363,8 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         uint256 oldBalanceTreasury = token.balanceOf(treasury);
         uint256 oldBalanceOwner = token.balanceOf(address(this));
+
+        vm.warp(block.timestamp + YEAR * 60);
 
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
@@ -1116,10 +1414,11 @@ contract VaultTest is Test, SetupContract, Utilities {
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 1000 * 10**18);
+        vault.mintDebt(vaultId, 1100 * 10**18);
         // eth 1000 -> 800
         oracle.setPrice(weth, 800 << 96);
 
+        vm.warp(block.timestamp + 5 * YEAR);
         (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
 
@@ -1247,7 +1546,8 @@ contract VaultTest is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max
+            type(uint256).max,
+            100
         );
         EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
         newVault = Vault(address(newVaultProxy));
@@ -1280,7 +1580,8 @@ contract VaultTest is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max
+            type(uint256).max,
+            100
         );
         EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
         newVault = Vault(address(newVaultProxy));
@@ -1301,7 +1602,8 @@ contract VaultTest is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max
+            type(uint256).max,
+            100
         );
         EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
         newVault = Vault(address(newVaultProxy));

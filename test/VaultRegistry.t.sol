@@ -49,7 +49,8 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max
+            type(uint256).max,
+            100
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));

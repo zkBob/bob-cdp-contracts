@@ -20,6 +20,9 @@ contract UniV3Oracle is INFTOracle {
     /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Uniswap V3 NFT
     error MissingOracle();
 
+    /// @notice Thrown when a tick deviation is out of limit
+    error TickDeviation();
+
     /// @notice UniswapV3 position manager
     INonfungiblePositionManager public immutable positionManager;
 
@@ -55,6 +58,65 @@ contract UniV3Oracle is INFTOracle {
             address pool
         )
     {
+        (success, positionAmount, pool, ) = _price(nft);
+    }
+
+    /// @inheritdoc INFTOracle
+    function checkPositionOnPossibleManipulation(uint256 nft, uint256 maxTickDeviation) external view {
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(nft);
+
+        IUniswapV3Pool pool = IUniswapV3Pool(factory.getPool(info.token0, info.token1, info.fee));
+
+        uint256[2] memory tokenAmounts;
+        uint256[2] memory pricesX96;
+        bool[2] memory successOracle;
+
+        (successOracle[0], pricesX96[0]) = oracle.price(info.token0);
+        (successOracle[1], pricesX96[1]) = oracle.price(info.token1);
+
+        if (!successOracle[0] || !successOracle[1]) {
+            return;
+        }
+
+        (, int24 tick, , , , , ) = pool.slot0();
+
+        uint160 chainlinkSqrtRatioX96 = uint160(FullMath.sqrt(FullMath.mulDiv(pricesX96[0], Q96, pricesX96[1])) * Q48);
+        int24 chainlinkTick = TickMath.getTickAtSqrtRatio(chainlinkSqrtRatioX96);
+        int24 tickDeviation = chainlinkTick - tick;
+        uint24 absoluteTickDeviation = (tickDeviation < 0) ? uint24(-tickDeviation) : uint24(tickDeviation);
+
+        if (absoluteTickDeviation > maxTickDeviation) {
+            revert TickDeviation();
+        }
+    }
+
+    /// @inheritdoc INFTOracle
+    function safePrice(uint256 nft, uint256 maxTickDeviation)
+        external
+        view
+        returns (
+            bool success,
+            uint256 positionAmount,
+            address pool
+        )
+    {
+        uint24 absoluteTickDeviation;
+        (success, positionAmount, pool, absoluteTickDeviation) = _price(nft);
+        if (absoluteTickDeviation > maxTickDeviation) {
+            revert TickDeviation();
+        }
+    }
+
+    function _price(uint256 nft)
+        internal
+        view
+        returns (
+            bool success,
+            uint256 positionAmount,
+            address pool,
+            uint24 absoluteTickDeviation
+        )
+    {
         INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(nft);
 
         pool = factory.getPool(info.token0, info.token1, info.fee);
@@ -71,12 +133,19 @@ contract UniV3Oracle is INFTOracle {
             (successOracle[1], pricesX96[1]) = oracle.price(info.token1);
 
             if (!successOracle[0] || !successOracle[1]) {
-                return (false, 0, address(0));
+                return (false, 0, address(0), 0);
             }
 
-            uint160 sqrtRatioX96 = uint160(FullMath.sqrt(FullMath.mulDiv(pricesX96[0], Q96, pricesX96[1])) * Q48);
+            (uint160 sqrtRatioX96, int24 tick, , , , , ) = IUniswapV3Pool(pool).slot0();
 
-            (, int24 tick, , , , , ) = IUniswapV3Pool(pool).slot0();
+            {
+                uint160 chainlinkSqrtRatioX96 = uint160(
+                    FullMath.sqrt(FullMath.mulDiv(pricesX96[0], Q96, pricesX96[1])) * Q48
+                );
+                int24 chainlinkTick = TickMath.getTickAtSqrtRatio(chainlinkSqrtRatioX96);
+                int24 tickDeviation = chainlinkTick - tick;
+                absoluteTickDeviation = (tickDeviation < 0) ? uint24(-tickDeviation) : uint24(tickDeviation);
+            }
 
             (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
                 sqrtRatioX96,

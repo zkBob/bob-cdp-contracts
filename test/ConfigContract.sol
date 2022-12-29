@@ -14,6 +14,9 @@ abstract contract ConfigContract {
     address constant chainlinkUsdc = address(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
     address constant chainlinkEth = address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
 
+    uint256 public constant Q96 = 2**96;
+    uint256 public constant Q48 = 2**48;
+
     address[] tokens = [wbtc, usdc, weth];
     address[] chainlinkOracles = [chainlinkBtc, chainlinkUsdc, chainlinkEth];
 }
