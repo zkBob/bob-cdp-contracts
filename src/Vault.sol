@@ -708,7 +708,12 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         for (uint256 i = 0; i < nfts.length; ++i) {
             uint256 nft = nfts[i];
-            (, bool deviationSafety, uint256 price, address pool) = oracle.price(nft);
+            (bool success, bool deviationSafety, uint256 price, address pool) = oracle.price(nft);
+
+            if (!success) {
+                revert MissingOracle();
+            }
+
             if (isSafe && !deviationSafety) {
                 revert TickDeviation();
             }

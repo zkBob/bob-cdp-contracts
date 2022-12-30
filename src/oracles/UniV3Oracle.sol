@@ -30,20 +30,19 @@ contract UniV3Oracle is INFTOracle, Ownable {
     /// @notice Oracle for price estimations
     IOracle public immutable oracle;
 
-    /// @notice Maximum sqrtPriceX96 deviation allowed between oracle and univ3 pool
-    uint256 public maxSqrtPriceX96Deviation;
+    /// @notice Maximum price deviation allowed between oracle and univ3 pool
+    uint256 public maxPriceRatioDeviation;
 
     uint256 public constant Q96 = 2**96;
-    uint256 public constant Q48 = 2**48;
 
     /// @notice Creates a new contract
     /// @param positionManager_ UniswapV3 position manager
     /// @param oracle_ Oracle
-    /// @param maxSqrtPriceX96Deviation_ Maximum price deviation allowed between oracle and spot ticks
+    /// @param maxPriceRatioDeviation_ Maximum price deviation allowed between oracle and spot ticks
     constructor(
         INonfungiblePositionManager positionManager_,
         IOracle oracle_,
-        uint256 maxSqrtPriceX96Deviation_
+        uint256 maxPriceRatioDeviation_
     ) {
         if (address(positionManager_) == address(0)) {
             revert AddressZero();
@@ -52,7 +51,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
         positionManager = positionManager_;
         factory = IUniswapV3Factory(positionManager.factory());
         oracle = oracle_;
-        maxSqrtPriceX96Deviation = maxSqrtPriceX96Deviation_;
+        maxPriceRatioDeviation = maxPriceRatioDeviation_;
     }
 
     /// @inheritdoc INFTOracle
@@ -91,7 +90,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
                 uint256 chainlinkPriceRatioX96 = FullMath.mulDiv(pricesX96[0], Q96, pricesX96[1]);
                 uint256 priceRatioX96 = FullMath.mulDiv(sqrtRatioX96, sqrtRatioX96, Q96);
                 uint256 deviation = FullMath.mulDiv(chainlinkPriceRatioX96, 1 ether, priceRatioX96);
-                if (1 ether - maxSqrtPriceX96Deviation < deviation && deviation < 1 ether + maxSqrtPriceX96Deviation) {
+                if (1 ether - maxPriceRatioDeviation < deviation && deviation < 1 ether + maxPriceRatioDeviation) {
                     deviationSafety = true;
                 } else {
                     deviationSafety = false;
@@ -120,9 +119,9 @@ contract UniV3Oracle is INFTOracle, Ownable {
         }
     }
 
-    /// @notice Changes maxSqrtPriceX96Deviation
-    /// @param maxSqrtPriceX96Deviation_ New maxSqrtPriceX96Deviation
-    function setMaxSqrtPriceX96Deviation(uint256 maxSqrtPriceX96Deviation_) external onlyOwner {
-        maxSqrtPriceX96Deviation = maxSqrtPriceX96Deviation_;
+    /// @notice Changes maxPriceRatioDeviation
+    /// @param maxPriceRatioDeviation_ New maxPriceRatioDeviation
+    function setMaxSqrtPriceX96Deviation(uint256 maxPriceRatioDeviation_) external onlyOwner {
+        maxPriceRatioDeviation = maxPriceRatioDeviation_;
     }
 }
