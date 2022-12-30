@@ -93,7 +93,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
                 if (1 ether - maxPriceRatioDeviation < deviation && deviation < 1 ether + maxPriceRatioDeviation) {
                     deviationSafety = true;
                 } else {
-                    deviationSafety = false;
+                    return (true, false, 0, address(0));
                 }
             }
 
