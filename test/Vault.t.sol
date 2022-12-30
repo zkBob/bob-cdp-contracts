@@ -520,6 +520,26 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertTrue(nfts[0] == tokenId);
     }
 
+    function testDepositAndMintSeveralNfts() public {
+        uint256 tokenAId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenBId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 vaultId = vault.openVault();
+
+        bytes[] memory data = new bytes[](3);
+        data[0] = abi.encodeWithSelector(vault.depositCollateral.selector, vaultId, tokenAId);
+        data[1] = abi.encodeWithSelector(vault.depositCollateral.selector, vaultId, tokenBId);
+        data[2] = abi.encodeWithSelector(vault.mintDebt.selector, vaultId, 10**18);
+
+        vault.multicall(data);
+
+        assertTrue(vault.vaultDebt(vaultId) == 10**18);
+        uint256[] memory nfts = vault.vaultNftsById(vaultId);
+
+        assertTrue(nfts.length == 2);
+        assertTrue(nfts[0] == tokenAId);
+        assertTrue(nfts[1] == tokenBId);
+    }
+
     function testDepositAndMintWhenTooMuchDebtTried() public {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         uint256 vaultId = vault.openVault();
@@ -751,6 +771,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertEq(info.liquidity, 0);
         assertEq(overallCollateral, newOverallCollateral);
         assertEq(adjustedCollateral, newAdjustedCollateral);
+        assertEq(price, newPrice);
     }
 
     function testDecreaseLiquidityWhenPaused() public {
