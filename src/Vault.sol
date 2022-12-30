@@ -49,6 +49,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Thrown when a position is unhealthy
     error PositionUnhealthy();
 
+    /// @notice Thrown when a tick deviation is out of limit
+    error TickDeviation();
+
     /// @notice Thrown when a value is incorrectly equal to zero
     error ValueZero();
 
@@ -124,9 +127,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault)
     uint256 public vaultCount = 0;
 
-    /// @notice Maximum tick deviation allowed between oracle and spot ticks
-    uint24 public maxTickDeviation;
-
     /// @notice State variable, returning current stabilisation fee (multiplied by DENOMINATOR)
     uint256 public stabilisationFeeRateD;
 
@@ -167,12 +167,10 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param admin Protocol admin
     /// @param stabilisationFee_ MUSD initial stabilisation fee
     /// @param maxDebtPerVault Initial max possible debt to a one vault (nominated in MUSD weis)
-    /// @param maxTickDeviation_ Maximum tick deviation allowed between oracle and spot ticks
     function initialize(
         address admin,
         uint256 stabilisationFee_,
-        uint256 maxDebtPerVault,
-        uint24 maxTickDeviation_
+        uint256 maxDebtPerVault
     ) external {
         if (isInitialized) {
             revert Initialized();
@@ -195,7 +193,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         // initial value
         stabilisationFeeRateD = stabilisationFee_;
-        maxTickDeviation = maxTickDeviation_;
         globalStabilisationFeePerUSDSnapshotTimestamp = block.timestamp;
         _protocolParams.maxDebtPerVault = maxDebtPerVault;
         isInitialized = true;
@@ -331,10 +328,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert PositionUnhealthy();
         }
 
-        if (adjustedCollateral == 0) {
-            oracle.checkPositionOnPossibleManipulation(nft, maxTickDeviation);
-        }
-
         delete vaultIdByNft[nft];
 
         emit CollateralWithdrew(msg.sender, vaultId, nft);
@@ -430,15 +423,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     function mintDebtFromScratch(uint256 nft, uint256 amount) external returns (uint256 vaultId) {
         vaultId = openVault();
-        depositCollateral(vaultId, nft);
-        mintDebt(vaultId, amount);
-    }
-
-    function depositAndMint(
-        uint256 vaultId,
-        uint256 nft,
-        uint256 amount
-    ) external {
         depositCollateral(vaultId, nft);
         mintDebt(vaultId, amount);
     }
@@ -724,12 +708,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         for (uint256 i = 0; i < nfts.length; ++i) {
             uint256 nft = nfts[i];
-            uint256 price;
-            address pool;
-            if (isSafe) {
-                (, price, pool) = oracle.safePrice(nfts[i], maxTickDeviation);
-            } else {
-                (, price, pool) = oracle.price(nfts[i]);
+            (, bool deviationSafety, uint256 price, address pool) = oracle.price(nft);
+            if (isSafe && !deviationSafety) {
+                revert TickDeviation();
             }
 
             if (nft == tokenId) {
@@ -793,7 +774,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert InvalidVault();
         }
 
-        (bool success, uint256 positionAmount, address pool) = oracle.price(nft);
+        (bool success, , uint256 positionAmount, address pool) = oracle.price(nft);
 
         if (!success) {
             revert MissingOracle();

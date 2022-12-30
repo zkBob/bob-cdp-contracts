@@ -84,7 +84,8 @@ abstract contract AbstractDeployment is Script {
 
         UniV3Oracle univ3Oracle = new UniV3Oracle(
             INonfungiblePositionManager(positionManager),
-            IOracle(address(oracle))
+            IOracle(address(oracle)),
+            10**17
         );
         console2.log("UniV3 Oracle", address(oracle));
 
@@ -99,8 +100,7 @@ abstract contract AbstractDeployment is Script {
             Vault.initialize.selector,
             msg.sender,
             stabilisationFee,
-            type(uint256).max,
-            100
+            type(uint256).max
         );
         EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
         vault = Vault(address(vaultProxy));

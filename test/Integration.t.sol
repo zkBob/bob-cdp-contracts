@@ -41,7 +41,11 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
-        univ3Oracle = new UniV3Oracle(INonfungiblePositionManager(UniV3PositionManager), IOracle(address(oracle)));
+        univ3Oracle = new UniV3Oracle(
+            INonfungiblePositionManager(UniV3PositionManager),
+            IOracle(address(oracle)),
+            10**16
+        );
 
         treasury = getNextUserAddress();
 
@@ -58,8 +62,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max,
-            100
+            type(uint256).max
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
@@ -211,7 +214,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         positionManager.transferFrom(address(this), secondAddress, secondNft);
         vault.depositCollateral(vaultId, tokenId);
 
-        vault.mintDebt(vaultId, 1020 * 10**18);
+        vault.mintDebt(vaultId, 1150 * 10**18);
         vm.startPrank(secondAddress);
 
         positionManager.approve(address(vault), secondNft);
@@ -222,6 +225,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.stopPrank();
         vm.warp(block.timestamp + 4 * YEAR);
         (, uint256 healthFactor) = vault.calculateVaultCollateral(vaultId);
+        assertTrue(vault.getOverallDebt(vaultId) > healthFactor);
 
         vm.startPrank(secondAddress);
         token.transfer(firstAddress, 230 * 10**18);

@@ -76,7 +76,11 @@ contract VaultTest is Test, SetupContract, Utilities {
         oracle.setPrice(weth, uint256(1000 << 96));
         oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
 
-        univ3Oracle = new UniV3Oracle(INonfungiblePositionManager(UniV3PositionManager), IOracle(address(oracle)));
+        univ3Oracle = new UniV3Oracle(
+            INonfungiblePositionManager(UniV3PositionManager),
+            IOracle(address(oracle)),
+            10**16
+        );
 
         treasury = getNextUserAddress();
 
@@ -93,8 +97,7 @@ contract VaultTest is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max,
-            100
+            type(uint256).max
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
@@ -393,7 +396,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         makeSwap(weth, usdc, 10**22);
-        vm.expectRevert(UniV3Oracle.TickDeviation.selector);
+        vm.expectRevert(Vault.TickDeviation.selector);
         vault.mintDebt(vaultId, 10);
     }
 
@@ -498,13 +501,17 @@ contract VaultTest is Test, SetupContract, Utilities {
         positionManager.safeTransferFrom(address(this), address(vault), tokenId, data);
     }
 
-    // depositAndMint
+    // depositAndMint via multicall
 
     function testDepositAndMintSuccess() public {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         uint256 vaultId = vault.openVault();
 
-        vault.depositAndMint(vaultId, tokenId, 10**18);
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSelector(vault.depositCollateral.selector, vaultId, tokenId);
+        data[1] = abi.encodeWithSelector(vault.mintDebt.selector, vaultId, 10**18);
+
+        vault.multicall(data);
 
         assertTrue(vault.vaultDebt(vaultId) == 10**18);
         uint256[] memory nfts = vault.vaultNftsById(vaultId);
@@ -518,7 +525,11 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
-        vault.depositAndMint(vaultId, tokenId, 10**22);
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSelector(vault.depositCollateral.selector, vaultId, tokenId);
+        data[1] = abi.encodeWithSelector(vault.mintDebt.selector, vaultId, 10**22);
+
+        vault.multicall(data);
     }
 
     // burnDebt
@@ -666,13 +677,26 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertEq(positionManager.ownerOf(tokenId), address(this));
     }
 
-    function testWithdrawCollateralWhenManipulatingPrice() public {
+    function testWithdrawCollateralWhenManipulatingPriceAndEmptyingVault() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         makeSwap(weth, usdc, 10**22);
-        vm.expectRevert(UniV3Oracle.TickDeviation.selector);
         vault.withdrawCollateral(tokenId);
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        assertEq(overallCollateral, 0);
+        assertEq(adjustedCollateral, 0);
+    }
+
+    function testWithdrawCollateralWhenManipulatingPriceAndVaultNonEmpty() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenAId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenBId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenAId);
+        vault.depositCollateral(vaultId, tokenBId);
+        makeSwap(weth, usdc, 10**22);
+        vm.expectRevert(Vault.TickDeviation.selector);
+        vault.withdrawCollateral(tokenAId);
     }
 
     function testWithdrawCollateralWhenNotOwner() public {
@@ -711,7 +735,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        (, uint256 price, ) = univ3Oracle.price(tokenId);
+        (, , uint256 price, ) = univ3Oracle.price(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -721,7 +745,7 @@ contract VaultTest is Test, SetupContract, Utilities {
                 deadline: type(uint256).max
             })
         );
-        (, uint256 newPrice, ) = univ3Oracle.price(tokenId);
+        (, , uint256 newPrice, ) = univ3Oracle.price(tokenId);
         (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         info = positionManager.positions(tokenId);
         assertEq(info.liquidity, 0);
@@ -842,7 +866,7 @@ contract VaultTest is Test, SetupContract, Utilities {
             })
         );
         makeSwap(weth, usdc, 10**22);
-        vm.expectRevert(UniV3Oracle.TickDeviation.selector);
+        vm.expectRevert(Vault.TickDeviation.selector);
         vault.collect(
             INonfungiblePositionManager.CollectParams({
                 tokenId: tokenId,
@@ -922,7 +946,43 @@ contract VaultTest is Test, SetupContract, Utilities {
         );
     }
 
-    // collect
+    // decreaseAndCollect via multicall
+
+    function testDecreaseAndCollectSuccess() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+
+        bytes[] memory data = new bytes[](2);
+        data[0] = abi.encodeWithSelector(
+            vault.decreaseLiquidity.selector,
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity / 2,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        data[1] = abi.encodeWithSelector(
+            vault.collect.selector,
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            })
+        );
+
+        vault.multicall(data);
+        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        assertApproxEqual(overallCollateral / 2, newOverallCollateral, 10);
+        assertApproxEqual(adjustedCollateral / 2, newAdjustedCollateral, 10);
+    }
+
+    // collectAndIncrease
 
     function testCollectAndIncreaseAmountSuccess() public {
         uint256 vaultId = vault.openVault();
@@ -1021,7 +1081,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         deal(weth, address(this), 10000 ether);
         deal(usdc, address(this), 10000 ether);
         deal(wbtc, address(this), 10000 ether);
-        vm.expectRevert(UniV3Oracle.TickDeviation.selector);
+        vm.expectRevert(Vault.TickDeviation.selector);
         vault.collectAndIncreaseAmount(
             INonfungiblePositionManager.CollectParams({
                 tokenId: tokenId,
@@ -1546,8 +1606,7 @@ contract VaultTest is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max,
-            100
+            type(uint256).max
         );
         EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
         newVault = Vault(address(newVaultProxy));
@@ -1580,8 +1639,7 @@ contract VaultTest is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max,
-            100
+            type(uint256).max
         );
         EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
         newVault = Vault(address(newVaultProxy));
@@ -1602,8 +1660,7 @@ contract VaultTest is Test, SetupContract, Utilities {
             Vault.initialize.selector,
             address(this),
             10**7,
-            type(uint256).max,
-            100
+            type(uint256).max
         );
         EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
         newVault = Vault(address(newVaultProxy));
