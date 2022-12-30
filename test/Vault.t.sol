@@ -246,7 +246,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         oracle.setPrice(weth, 0);
 
-        vm.expectRevert(Vault.MissingOracle.selector);
+        vm.expectRevert(UniV3Oracle.MissingOracle.selector);
         vault.depositCollateral(vaultId, tokenId);
     }
 
@@ -755,7 +755,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        (, , uint256 price, ) = univ3Oracle.price(tokenId);
+        (, uint256 price, ) = univ3Oracle.price(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -765,7 +765,7 @@ contract VaultTest is Test, SetupContract, Utilities {
                 deadline: type(uint256).max
             })
         );
-        (, , uint256 newPrice, ) = univ3Oracle.price(tokenId);
+        (, uint256 newPrice, ) = univ3Oracle.price(tokenId);
         (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         info = positionManager.positions(tokenId);
         assertEq(info.liquidity, 0);

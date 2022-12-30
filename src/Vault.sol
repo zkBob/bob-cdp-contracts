@@ -34,9 +34,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Thrown when a vault id does not exist
     error InvalidVault();
 
-    /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Uniswap V3 NFT
-    error MissingOracle();
-
     /// @notice Thrown when the nft limit for one vault would have been exceeded after the deposit
     error NFTLimitExceeded();
 
@@ -708,11 +705,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         for (uint256 i = 0; i < nfts.length; ++i) {
             uint256 nft = nfts[i];
-            (bool success, bool deviationSafety, uint256 price, address pool) = oracle.price(nft);
-
-            if (!success) {
-                revert MissingOracle();
-            }
+            (bool deviationSafety, uint256 price, address pool) = oracle.price(nft);
 
             if (isSafe && !deviationSafety) {
                 revert TickDeviation();
@@ -779,11 +772,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert InvalidVault();
         }
 
-        (bool success, , uint256 positionAmount, address pool) = oracle.price(nft);
-
-        if (!success) {
-            revert MissingOracle();
-        }
+        (, uint256 positionAmount, address pool) = oracle.price(nft);
 
         if (!_whitelistedPools.contains(pool)) {
             revert InvalidPool();

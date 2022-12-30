@@ -59,7 +59,6 @@ contract UniV3Oracle is INFTOracle, Ownable {
         external
         view
         returns (
-            bool success,
             bool deviationSafety,
             uint256 positionAmount,
             address pool
@@ -81,7 +80,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
             (successOracle[1], pricesX96[1]) = oracle.price(info.token1);
 
             if (!successOracle[0] || !successOracle[1]) {
-                return (false, true, 0, address(0));
+                revert MissingOracle();
             }
 
             (uint160 sqrtRatioX96, int24 tick, , , , , ) = IUniswapV3Pool(pool).slot0();
@@ -93,7 +92,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
                 if (1 ether - maxPriceRatioDeviation < deviation && deviation < 1 ether + maxPriceRatioDeviation) {
                     deviationSafety = true;
                 } else {
-                    return (true, false, 0, address(0));
+                    deviationSafety = false;
                 }
             }
 
@@ -112,7 +111,6 @@ contract UniV3Oracle is INFTOracle, Ownable {
             tokenAmounts[0] += actualTokensOwed0;
             tokenAmounts[1] += actualTokensOwed1;
         }
-        success = true;
         positionAmount = 0;
         for (uint256 i = 0; i < 2; ++i) {
             positionAmount += FullMath.mulDiv(tokenAmounts[i], pricesX96[i], Q96);
