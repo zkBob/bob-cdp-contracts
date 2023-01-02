@@ -119,7 +119,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
 
     /// @notice Changes maxPriceRatioDeviation
     /// @param maxPriceRatioDeviation_ New maxPriceRatioDeviation
-    function setMaxSqrtPriceX96Deviation(uint256 maxPriceRatioDeviation_) external onlyOwner {
+    function setMaxPriceRatioDeviation(uint256 maxPriceRatioDeviation_) external onlyOwner {
         maxPriceRatioDeviation = maxPriceRatioDeviation_;
     }
 }
