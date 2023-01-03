@@ -83,12 +83,12 @@ contract UniV3Oracle is INFTOracle, Ownable {
                 revert MissingOracle();
             }
 
-            (uint160 sqrtRatioX96, int24 tick, , , , , ) = IUniswapV3Pool(pool).slot0();
+            (uint160 spotSqrtRatioX96, int24 tick, , , , , ) = IUniswapV3Pool(pool).slot0();
+            uint256 sqrtRatioX96 = FullMath.mulDiv(pricesX96[0], Q96, pricesX96[1]);
 
             {
-                uint256 chainlinkPriceRatioX96 = FullMath.mulDiv(pricesX96[0], Q96, pricesX96[1]);
-                uint256 priceRatioX96 = FullMath.mulDiv(sqrtRatioX96, sqrtRatioX96, Q96);
-                uint256 deviation = FullMath.mulDiv(chainlinkPriceRatioX96, 1 ether, priceRatioX96);
+                uint256 priceRatioX96 = FullMath.mulDiv(spotSqrtRatioX96, spotSqrtRatioX96, Q96);
+                uint256 deviation = FullMath.mulDiv(sqrtRatioX96, 1 ether, priceRatioX96);
                 if (1 ether - maxPriceRatioDeviation < deviation && deviation < 1 ether + maxPriceRatioDeviation) {
                     deviationSafety = true;
                 } else {
@@ -97,7 +97,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
             }
 
             (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
-                sqrtRatioX96,
+                uint160(sqrtRatioX96),
                 sqrtRatioAX96,
                 sqrtRatioBX96,
                 info.liquidity

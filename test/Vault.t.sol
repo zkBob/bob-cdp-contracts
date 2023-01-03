@@ -769,9 +769,9 @@ contract VaultTest is Test, SetupContract, Utilities {
         (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         info = positionManager.positions(tokenId);
         assertEq(info.liquidity, 0);
-        assertEq(overallCollateral, newOverallCollateral);
-        assertEq(adjustedCollateral, newAdjustedCollateral);
-        assertEq(price, newPrice);
+        assertTrue(overallCollateral != newOverallCollateral);
+        assertTrue(adjustedCollateral != newAdjustedCollateral);
+        assertTrue(price != newPrice);
     }
 
     function testDecreaseLiquidityWhenPaused() public {
@@ -801,6 +801,24 @@ contract VaultTest is Test, SetupContract, Utilities {
         INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
         vm.prank(getNextUserAddress());
         vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+    }
+
+    function testDecreaseLiquidityWhenPositionBecomingUnhealthy() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        vault.mintDebt(vaultId, 1200 ether);
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1245,14 +1263,14 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testHealthFactorAfterDeposit() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        uint256 lowCapitalBound = 10**18 * 1000;
-        uint256 upCapitalBound = 10**18 * 1200; // health apparently ~1100USD
+        uint256 lowCapitalBound = 10**18 * 1100;
+        uint256 upCapitalBound = 10**18 * 1300; // health apparently ~1200USD est: (1000(eth price) + 1000) * 0.6 = 1200
         vault.depositCollateral(vaultId, tokenId);
         (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
     }
 
-    function testHealthFactorAfterDepositWithdraw() public {
+    function testHealthFactorAfterDep0sitWithdraw() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
