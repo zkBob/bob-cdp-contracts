@@ -6,7 +6,7 @@ import "forge-std/Vm.sol";
 import "forge-std/console2.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../lib/forge-std/src/Test.sol";
-import "./ConfigContract.sol";
+import "./configs/PolygonConfigContract.sol";
 import "./SetupContract.sol";
 import "../src/Vault.sol";
 import "./mocks/MUSD.sol";
@@ -19,6 +19,8 @@ import "./mocks/MockChainlinkOracle.sol";
 
 contract ChainlinkOracleTest is Test, SetupContract, Utilities {
     event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles);
+    event ValidPeriodUpdated(address indexed origin, address indexed sender, uint256 validPeriod);
+    event PricePosted(address indexed origin, address indexed sender, address token, uint256 newPriceX96, uint256 updatedAt);
 
     ChainlinkOracle oracle;
 
@@ -52,7 +54,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
     function testAddChainlinkOraclesSuccess() public {
         address[] memory emptyTokens = new address[](0);
         address[] memory emptyOracles = new address[](0);
-        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles);
+        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles, 1500);
 
         currentOracle.addChainlinkOracles(tokens, chainlinkOracles);
 
@@ -64,7 +66,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
     function testAddChainlinkOraclesEmit() public {
         address[] memory emptyTokens = new address[](0);
         address[] memory emptyOracles = new address[](0);
-        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles);
+        ChainlinkOracle currentOracle = new ChainlinkOracle(emptyTokens, emptyOracles, 1500);
 
         vm.expectEmit(false, true, false, true);
         emit OraclesAdded(getNextUserAddress(), address(this), tokens, chainlinkOracles);
@@ -110,5 +112,58 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
 
         vm.expectRevert(ChainlinkOracle.InvalidOracle.selector);
         oracle.addChainlinkOracles(currentTokens, currentOracles);
+    }
+
+    // setValidPeriod
+
+    function testSetValidPeriodSuccess() public {
+        oracle.setValidPeriod(500);
+        assertEq(oracle.validPeriod(), 500);
+    }
+
+    function testSetValidPeriodEmit() public {
+        vm.expectEmit(false, true, false, true);
+        oracle.setValidPeriod(500);
+        emit ValidPeriodUpdated(getNextUserAddress(), address(this), 500);
+    }
+
+    function testSetValidPeriodWhenNotOwner() public {
+        vm.prank(getNextUserAddress());
+        vm.expectRevert("Ownable: caller is not the owner");
+        oracle.setValidPeriod(500);
+    }
+
+    // setUnderlyingPriceX96
+
+    function testSetUnderlyingPriceX96Success() public {
+        (bool success, uint256 priceX96) = oracle.price(ape);
+        assertEq(success, false);
+        oracle.setUnderlyingPriceX96(ape, 30 << 96, block.timestamp);
+        (success, priceX96) = oracle.price(ape);
+        assertEq(success, true);
+        assertEq(priceX96, 30 << 96);
+    }
+
+    function testSetUnderlyingPriceX96Emit() public {
+        vm.expectEmit(false, true, false, true);
+        emit PricePosted(getNextUserAddress(), address(this), ape, 30 << 96, block.timestamp);
+        oracle.setUnderlyingPriceX96(ape, 30 << 96, block.timestamp);
+    }
+
+    function testSetUnderlyingPriceX96WhenNotOwner() public {
+        vm.prank(getNextUserAddress());
+        vm.expectRevert("Ownable: caller is not the owner");
+        emit PricePosted(getNextUserAddress(), address(this), ape, 30 << 96, block.timestamp);
+        oracle.setUnderlyingPriceX96(ape, 30 << 96, block.timestamp);
+    }
+
+    function testSetUnderlyingPriceX96WhenPriceIsTooOld() public {
+        vm.expectRevert(ChainlinkOracle.PriceUpdateFailed.selector);
+        oracle.setUnderlyingPriceX96(ape, 30 << 96, block.timestamp - 500);
+    }
+
+    function testSetUnderlyingPriceX96WhenPriceIsFromFuture() public {
+        vm.expectRevert(ChainlinkOracle.PriceUpdateFailed.selector);
+        oracle.setUnderlyingPriceX96(ape, 30 << 96, block.timestamp + 500);
     }
 }

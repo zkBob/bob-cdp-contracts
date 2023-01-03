@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 import "../../lib/forge-std/src/Script.sol";
-import "../ConfigContract.sol";
+import "../configs/PolygonConfigContract.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console2.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
@@ -13,7 +13,7 @@ import "../../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
 
 //common utilities for forge tests
-contract Utilities is Test, ConfigContract {
+contract Utilities is Test, PolygonConfigContract {
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
 
     function getNextUserAddress() public returns (address payable) {

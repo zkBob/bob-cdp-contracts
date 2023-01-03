@@ -9,6 +9,8 @@ import "../interfaces/oracles/IOracle.sol";
 import "../libraries/external/FullMath.sol";
 import "../proxy/EIP1967Admin.sol";
 
+import "forge-std/console2.sol";
+
 /// @notice Contract for getting chainlink data
 contract ChainlinkOracle is IOracle, Ownable {
     /// @notice Thrown when tokens.length != oracles.length
@@ -16,6 +18,9 @@ contract ChainlinkOracle is IOracle, Ownable {
 
     /// @notice Thrown when price feed doesn't work by some reason
     error InvalidOracle();
+
+    /// @notice Price update error
+    error PriceUpdateFailed();
 
     using EnumerableSet for EnumerableSet.AddressSet;
 
@@ -25,16 +30,29 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @notice Mapping, returning oracle for token
     mapping(address => IAggregatorV3) public oraclesIndex;
 
-    /// @notice Mapping, returning price multiplier for each  token
+    /// @notice Mapping, returning price multiplier for each token
     mapping(address => uint256) public priceMultiplier;
+
+    struct PriceData {
+        uint256 priceX96;
+        uint256 updatedAt;
+    }
+
+    /// @notice Mapping, returning underlying prices for each token
+    mapping(address => PriceData) internal underlyingPricesX96;
 
     /// @notice Address set, containing tokens, supported by the oracles
     EnumerableSet.AddressSet private _tokens;
 
+    /// @notice Valid period of underlying prices (in seconds)
+    uint256 public validPeriod;
+
     /// @notice Creates a new contract
     /// @param tokens Initial supported tokens
     /// @param oracles Initial approved Chainlink oracles
-    constructor(address[] memory tokens, address[] memory oracles) {
+    /// @param validPeriod_ Initial valid period of underlying prices (in seconds)
+    constructor(address[] memory tokens, address[] memory oracles, uint256 validPeriod_) {
+        validPeriod = validPeriod_;
         _addChainlinkOracles(tokens, oracles);
     }
 
@@ -54,13 +72,21 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @inheritdoc IOracle
     function price(address token) external view returns (bool success, uint256 priceX96) {
         IAggregatorV3 chainlinkOracle = oraclesIndex[token];
-        if (address(chainlinkOracle) == address(0)) {
-            return (false, 0);
-        }
+        success = true;
         uint256 oraclePrice;
-        (success, oraclePrice) = _queryChainlinkOracle(chainlinkOracle);
+        uint256 updatedAt;
+        if (address(chainlinkOracle) == address(0)) {
+            success = false;
+        } else {
+            (success, oraclePrice, updatedAt) = _queryChainlinkOracle(chainlinkOracle);
+        }
         if (!success) {
-            return (false, 0);
+            PriceData memory underlyingPriceData = underlyingPricesX96[token];
+            if (block.timestamp - underlyingPriceData.updatedAt <= validPeriod) {
+                return (true, underlyingPriceData.priceX96);
+            } else {
+                return (false, 0);
+            }
         }
 
         success = true;
@@ -76,19 +102,49 @@ contract ChainlinkOracle is IOracle, Ownable {
         _addChainlinkOracles(tokens, oracles);
     }
 
+    /// @notice Set new valid period
+    /// @param validPeriod_ New valid period
+    function setValidPeriod(uint256 validPeriod_) external onlyOwner {
+        validPeriod = validPeriod_;
+        emit ValidPeriodUpdated(tx.origin, msg.sender, validPeriod_);
+    }
+
+    /// @notice Set new underlying priceX96 for specific token
+    /// @param token Address of the token
+    /// @param priceX96 Value of price multiplied by 2**96
+    /// @param updatedAt Timestamp of the price
+    function setUnderlyingPriceX96(address token, uint256 priceX96, uint256 updatedAt) external onlyOwner {
+        if (block.timestamp > updatedAt) {
+            if (block.timestamp - updatedAt > validPeriod) {
+                revert PriceUpdateFailed();
+            }
+        } else {
+            // reject future timestamp (< 3s is allowed)
+            if (updatedAt - block.timestamp >= 3) {
+                revert PriceUpdateFailed();
+            }
+            updatedAt = block.timestamp;
+        }
+
+        underlyingPricesX96[token] = PriceData(priceX96, updatedAt);
+
+        emit PricePosted(tx.origin, msg.sender, token, priceX96, updatedAt);
+    }
+
     // -------------------------  INTERNAL, VIEW  ------------------------------
 
     /// @notice Attempt to send a price query to chainlink oracle
     /// @param oracle Chainlink oracle
     /// @return success Query to chainlink oracle (if oracle.latestRoundData call works correctly => the answer can be received), answer Result of the query
-    function _queryChainlinkOracle(IAggregatorV3 oracle) internal view returns (bool success, uint256 answer) {
-        try oracle.latestRoundData() returns (uint80, int256 ans, uint256, uint256, uint80) {
+    function _queryChainlinkOracle(IAggregatorV3 oracle) internal view returns (bool success, uint256 answer, uint256 updatedAt) {
+        console2.log("CALLING", address(oracle));
+        try oracle.latestRoundData() returns (uint80, int256 ans, uint256, uint256 updatedAt_, uint80) {
             if (ans <= 0) {
-                return (false, 0);
+                return (false, 0, 0);
             }
-            return (true, uint256(ans));
+            return (true, uint256(ans), updatedAt_);
         } catch (bytes memory) {
-            return (false, 0);
+            return (false, 0, 0);
         }
     }
 
@@ -106,7 +162,7 @@ contract ChainlinkOracle is IOracle, Ownable {
             address oracle = oracles[i];
 
             IAggregatorV3 chainlinkOracle = IAggregatorV3(oracle);
-            (bool flag, ) = _queryChainlinkOracle(chainlinkOracle);
+            (bool flag, ,) = _queryChainlinkOracle(chainlinkOracle);
 
             if (!flag) {
                 revert InvalidOracle(); // hence a token for this 'oracle' can not be added
@@ -133,4 +189,18 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @param tokens Tokens added
     /// @param oracles Oracles added for the tokens
     event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles);
+
+    /// @notice Emitted when underlying price of the token updates
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param token Address of the token
+    /// @param newPriceX96 New underlying price multiplied by 2**96
+    /// @param updatedAt Timestamp of underlying price updating
+    event PricePosted(address indexed origin, address indexed sender, address token, uint256 newPriceX96, uint256 updatedAt);
+
+    /// @notice Emitted when validPeriod updates
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param validPeriod Current valid period
+    event ValidPeriodUpdated(address indexed origin, address indexed sender, uint256 validPeriod);
 }

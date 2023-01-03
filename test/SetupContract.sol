@@ -1,7 +1,7 @@
 pragma solidity 0.8.13;
 
 import "../src/oracles/ChainlinkOracle.sol";
-import "./ConfigContract.sol";
+import "./configs/PolygonConfigContract.sol";
 import "forge-std/Test.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
@@ -10,9 +10,9 @@ import "../src/proxy/EIP1967Proxy.sol";
 import "forge-std/console2.sol";
 import "../src/Vault.sol";
 
-contract SetupContract is Test, ConfigContract {
+contract SetupContract is Test, PolygonConfigContract {
     function deployChainlink() internal returns (ChainlinkOracle) {
-        ChainlinkOracle oracle = new ChainlinkOracle(tokens, chainlinkOracles);
+        ChainlinkOracle oracle = new ChainlinkOracle(tokens, chainlinkOracles, 1500);
         return oracle;
     }
 
