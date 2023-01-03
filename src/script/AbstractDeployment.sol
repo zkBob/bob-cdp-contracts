@@ -84,7 +84,8 @@ abstract contract AbstractDeployment is Script {
 
         UniV3Oracle univ3Oracle = new UniV3Oracle(
             INonfungiblePositionManager(positionManager),
-            IOracle(address(oracle))
+            IOracle(address(oracle)),
+            10**17
         );
         console2.log("UniV3 Oracle", address(oracle));
 
