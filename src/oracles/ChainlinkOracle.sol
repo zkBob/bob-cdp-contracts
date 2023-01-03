@@ -1,12 +1,10 @@
 // SPDX-License-Identifier: BSL-1.1
-pragma solidity 0.8.13;
+pragma solidity 0.8.15;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/external/chainlink/IAggregatorV3.sol";
 import "../interfaces/oracles/IOracle.sol";
-import "../libraries/external/FullMath.sol";
-import "../proxy/EIP1967Admin.sol";
 
 /// @notice Contract for getting chainlink data
 contract ChainlinkOracle is IOracle, Ownable {

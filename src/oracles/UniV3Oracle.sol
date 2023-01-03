@@ -1,17 +1,15 @@
 // SPDX-License-Identifier: BSL-1.1
-pragma solidity 0.8.13;
+pragma solidity 0.8.15;
 
-import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
-import "../interfaces/external/univ3/IUniswapV3Pool.sol";
-import "../interfaces/external/univ3/IUniswapV3Factory.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "../interfaces/oracles/INFTOracle.sol";
 import "../interfaces/oracles/IOracle.sol";
-import "../libraries/external/FullMath.sol";
-import "../libraries/external/LiquidityAmounts.sol";
-import "../libraries/external/TickMath.sol";
 import "../libraries/UniswapV3FeesCalculation.sol";
-import "../proxy/EIP1967Admin.sol";
-import "@openzeppelin/contracts/access/Ownable.sol";
 
 /// @notice Contract of the univ3 positions oracle
 contract UniV3Oracle is INFTOracle, Ownable {
@@ -65,7 +63,8 @@ contract UniV3Oracle is INFTOracle, Ownable {
             address pool
         )
     {
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(nft);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(nft);
 
         pool = factory.getPool(info.token0, info.token1, info.fee);
 
@@ -98,7 +97,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
             }
 
             (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
-                uint160(FullMath.sqrt(ratioX96) * Q48),
+                uint160(Math.sqrt(ratioX96) * Q48),
                 sqrtRatioAX96,
                 sqrtRatioBX96,
                 info.liquidity

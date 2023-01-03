@@ -1,22 +1,17 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
-import "forge-std/Vm.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../lib/forge-std/src/Test.sol";
-import "./configs/PolygonConfigContract.sol";
-import "./SetupContract.sol";
+import "@zkbob/proxy/EIP1967Proxy.sol";
 import "../src/Vault.sol";
-import "./mocks/MUSD.sol";
-import "./mocks/MockOracle.sol";
-import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
-import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
-import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
-import "./utils/Utilities.sol";
-import "../src/proxy/EIP1967Proxy.sol";
 import "../src/VaultRegistry.sol";
 import "../src/oracles/UniV3Oracle.sol";
+import "./configs/PolygonConfigContract.sol";
+import "./SetupContract.sol";
+import "./utils/Utilities.sol";
+import "./mocks/BobTokenMock.sol";
+import "./mocks/MockOracle.sol";
 
 contract VaultTest is Test, SetupContract, Utilities {
     event VaultOpened(address indexed sender, uint256 vaultId);
@@ -59,7 +54,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     EIP1967Proxy univ3OracleProxy;
     UniV3Oracle univ3Oracle;
     MockOracle oracle;
-    MUSD token;
+    BobTokenMock token;
     Vault vault;
     VaultRegistry vaultRegistry;
     INonfungiblePositionManager positionManager;
@@ -84,7 +79,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         treasury = getNextUserAddress();
 
-        token = new MUSD("Mock USD", "MUSD");
+        token = new BobTokenMock();
 
         vault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
@@ -109,6 +104,7 @@ contract VaultTest is Test, SetupContract, Utilities {
 
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
+        token.updateMinter(address(vault), true, true);
         token.approve(address(vault), type(uint256).max);
 
         vault.changeLiquidationFee(3 * 10**7);
@@ -753,7 +749,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         (, uint256 price, ) = univ3Oracle.price(tokenId);
         vault.decreaseLiquidity(
@@ -767,7 +764,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         );
         (, uint256 newPrice, ) = univ3Oracle.price(tokenId);
         (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        info = positionManager.positions(tokenId);
+        info = INonfungiblePositionLoader(address(positionManager)).positions(tokenId);
         assertEq(info.liquidity, 0);
         assertTrue(overallCollateral != newOverallCollateral);
         assertTrue(adjustedCollateral != newAdjustedCollateral);
@@ -779,7 +776,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -789,7 +787,7 @@ contract VaultTest is Test, SetupContract, Utilities {
                 deadline: type(uint256).max
             })
         );
-        info = positionManager.positions(tokenId);
+        info = INonfungiblePositionLoader(address(positionManager)).positions(tokenId);
         assertEq(info.liquidity, 0);
     }
 
@@ -798,7 +796,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vm.prank(getNextUserAddress());
         vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.decreaseLiquidity(
@@ -816,7 +815,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         (uint256 adjustedCollateral, ) = vault.calculateVaultCollateral(vaultId);
         vault.mintDebt(vaultId, 1190 * 10**18);
         oracle.setPrice(weth, 800 << 96);
@@ -839,7 +839,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -868,7 +869,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -896,7 +898,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -922,7 +925,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -948,7 +952,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vm.prank(getNextUserAddress());
         vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.collect(
@@ -966,7 +971,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -994,7 +1000,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
 
         bytes[] memory data = new bytes[](2);
         data[0] = abi.encodeWithSelector(
@@ -1030,7 +1037,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1070,7 +1078,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1108,7 +1117,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1146,7 +1156,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1183,7 +1194,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1222,7 +1234,8 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 ether);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,

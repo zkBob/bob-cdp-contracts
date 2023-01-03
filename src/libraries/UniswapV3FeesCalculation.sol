@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-pragma solidity =0.8.13;
+pragma solidity 0.8.15;
 
-import "./external/FullMath.sol";
-import "../interfaces/external/univ3/IUniswapV3Pool.sol";
-import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "@uniswap/v3-core/contracts/libraries/FullMath.sol";
+import "../interfaces/external/univ3/INonfungiblePositionLoader.sol";
 
 /// @title Math library for computing fees for uniswap v3 positions
 library UniswapV3FeesCalculation {
@@ -17,7 +17,7 @@ library UniswapV3FeesCalculation {
     function _calculateUniswapFees(
         IUniswapV3Pool pool,
         int24 tick,
-        INonfungiblePositionManager.PositionInfo memory positionInfo
+        INonfungiblePositionLoader.PositionInfo memory positionInfo
     ) internal view returns (uint128 actualTokensOwed0, uint128 actualTokensOwed1) {
         actualTokensOwed0 = positionInfo.tokensOwed0;
         actualTokensOwed1 = positionInfo.tokensOwed1;

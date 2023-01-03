@@ -1,14 +1,10 @@
-pragma solidity 0.8.13;
+pragma solidity ^0.8.0;
 
-import "../src/oracles/ChainlinkOracle.sol";
-import "./configs/PolygonConfigContract.sol";
 import "forge-std/Test.sol";
-import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
-import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
-import "../src/proxy/EIP1967Proxy.sol";
-
-import "forge-std/console2.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import "../src/oracles/ChainlinkOracle.sol";
 import "../src/Vault.sol";
+import "./configs/PolygonConfigContract.sol";
 
 contract SetupContract is Test, PolygonConfigContract {
     function deployChainlink() internal returns (ChainlinkOracle) {

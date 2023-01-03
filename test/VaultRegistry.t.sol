@@ -1,15 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
-import "./SetupContract.sol";
-import "./utils/Utilities.sol";
+import "@zkbob/proxy/EIP1967Proxy.sol";
 import "../src/VaultRegistry.sol";
-import "../src/proxy/EIP1967Proxy.sol";
-import "./mocks/MockOracle.sol";
-import "./mocks/MUSD.sol";
 import "../src/Vault.sol";
 import "../src/oracles/UniV3Oracle.sol";
+import "./SetupContract.sol";
+import "./utils/Utilities.sol";
+import "./mocks/MockOracle.sol";
+import "./mocks/BobTokenMock.sol";
 
 contract VaultRegistryTest is Test, SetupContract, Utilities {
     EIP1967Proxy vaultProxy;
@@ -17,7 +17,7 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
     EIP1967Proxy univ3OracleProxy;
     UniV3Oracle univ3Oracle;
     MockOracle oracle;
-    MUSD token;
+    BobToken token;
     Vault vault;
     VaultRegistry vaultRegistry;
     INonfungiblePositionManager positionManager;
@@ -40,7 +40,7 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
 
         treasury = getNextUserAddress();
 
-        token = new MUSD("Mock USD", "MUSD");
+        token = new BobTokenMock();
 
         vault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),

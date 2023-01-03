@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: BSL-1.1
-pragma solidity 0.8.13;
+pragma solidity ^0.8.0;
 
 interface INFTOracle {
     /// @notice Calculates the price of NFT position
