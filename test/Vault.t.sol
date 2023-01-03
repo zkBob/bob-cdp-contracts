@@ -817,7 +817,9 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(tokenId);
-        vault.mintDebt(vaultId, 1200 ether);
+        (uint256 adjustedCollateral, ) = vault.calculateVaultCollateral(vaultId);
+        vault.mintDebt(vaultId, 1190 * 10**18);
+        oracle.setPrice(weth, 800 << 96);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -1270,7 +1272,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
     }
 
-    function testHealthFactorAfterDep0sitWithdraw() public {
+    function testHealthFactorAfterDepositWithdraw() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);

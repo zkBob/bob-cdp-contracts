@@ -214,7 +214,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         positionManager.transferFrom(address(this), secondAddress, secondNft);
         vault.depositCollateral(vaultId, tokenId);
 
-        vault.mintDebt(vaultId, 1200 * 10**18);
+        vault.mintDebt(vaultId, 1180 * 10**18);
         vm.startPrank(secondAddress);
 
         positionManager.approve(address(vault), secondNft);
