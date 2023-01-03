@@ -79,7 +79,7 @@ abstract contract AbstractDeployment is Script {
         (address[] memory oracleTokens, address[] memory oracles) = oracleParams();
         address token = targetToken();
 
-        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, 1500);
+        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, 300);
         console2.log("Chainlink Oracle", address(oracle));
 
         UniV3Oracle univ3Oracle = new UniV3Oracle(

@@ -18,6 +18,9 @@ import "../../src/libraries/external/FullMath.sol";
 contract Utilities is Test, PolygonConfigContract {
     bytes32 internal nextUser = keccak256(abi.encodePacked("user address"));
 
+    uint256 public constant Q96 = 2**96;
+    uint256 public constant Q48 = 2**48;
+
     function getNextUserAddress() public returns (address payable) {
         //bytes32 to address conversion
         address payable user = payable(address(uint160(uint256(nextUser))));
