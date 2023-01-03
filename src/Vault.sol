@@ -3,6 +3,7 @@ pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts/utils/Multicall.sol";
 import "./interfaces/IMUSD.sol";
 import "./interfaces/oracles/IOracle.sol";
 import "./libraries/external/FullMath.sol";
@@ -14,7 +15,7 @@ import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./interfaces/ICDP.sol";
 
 /// @notice Contract of the system vault manager
-contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
+contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multicall {
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
@@ -33,9 +34,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
     /// @notice Thrown when a vault id does not exist
     error InvalidVault();
 
-    /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Uniswap V3 NFT
-    error MissingOracle();
-
     /// @notice Thrown when the nft limit for one vault would have been exceeded after the deposit
     error NFTLimitExceeded();
 
@@ -47,6 +45,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
 
     /// @notice Thrown when a position is unhealthy
     error PositionUnhealthy();
+
+    /// @notice Thrown when a tick deviation is out of limit
+    error TickDeviation();
 
     /// @notice Thrown when a value is incorrectly equal to zero
     error ValueZero();
@@ -216,17 +217,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         view
         returns (uint256 overallCollateral, uint256 adjustedCollateral)
     {
-        uint256[] memory nfts = _vaultNfts[vaultId].values();
-
-        overallCollateral = 0;
-        adjustedCollateral = 0;
-
-        for (uint256 i = 0; i < nfts.length; ++i) {
-            (, uint256 price, address pool) = oracle.price(nfts[i]);
-            uint256 liquidationThreshold = liquidationThresholdD[pool];
-            overallCollateral += price;
-            adjustedCollateral += FullMath.mulDiv(price, liquidationThreshold, DENOMINATOR);
-        }
+        (overallCollateral, adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, false);
     }
 
     /// @notice Get global time-weighted stabilisation fee per USD (multiplied by DENOMINATOR)
@@ -327,7 +318,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         positionManager.transferFrom(address(this), msg.sender, nft);
 
         // checking that health factor is more or equal than 1
-        (, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
+        (, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, true);
         if (adjustedCollateral < getOverallDebt(vaultId)) {
             revert PositionUnhealthy();
         }
@@ -348,7 +339,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         vaultDebt[vaultId] += amount;
         uint256 overallVaultDebt = stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId];
 
-        (, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
+        (, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, true);
         if (adjustedCollateral < overallVaultDebt) {
             revert PositionUnhealthy();
         }
@@ -389,14 +380,12 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
     /// @inheritdoc ICDP
     function liquidate(uint256 vaultId) external {
         uint256 overallDebt = getOverallDebt(vaultId);
-        (uint256 vaultAmount, uint256 adjustedCollateral) = calculateVaultCollateral(vaultId);
+        (uint256 vaultAmount, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, true);
         if (adjustedCollateral >= overallDebt) {
             revert PositionHealthy();
         }
 
         address owner = vaultRegistry.ownerOf(vaultId);
-
-        uint256[] memory nfts = _vaultNfts[vaultId].values();
 
         uint256 returnAmount = FullMath.mulDiv(
             DENOMINATOR - _protocolParams.liquidationPremiumD,
@@ -417,6 +406,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         if (daoReceiveAmount > returnAmount - currentDebt) {
             daoReceiveAmount = returnAmount - currentDebt;
         }
+        // returnAmount - overallDebt + liquidationFeeD * vaultAmount
         token.transfer(owner, returnAmount - currentDebt - daoReceiveAmount);
         token.transfer(treasury, daoReceiveAmount);
 
@@ -427,15 +417,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
 
     function mintDebtFromScratch(uint256 nft, uint256 amount) external returns (uint256 vaultId) {
         vaultId = openVault();
-        depositCollateral(vaultId, nft);
-        mintDebt(vaultId, amount);
-    }
-
-    function depositAndMint(
-        uint256 vaultId,
-        uint256 nft,
-        uint256 amount
-    ) external {
         depositCollateral(vaultId, nft);
         mintDebt(vaultId, amount);
     }
@@ -455,6 +436,76 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         _depositCollateral(from, vaultId, tokenId);
 
         return this.onERC721Received.selector;
+    }
+
+    function decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams calldata params)
+        external
+        returns (uint256 amount0, uint256 amount1)
+    {
+        uint256 tokenId = params.tokenId;
+        uint256 vaultId = vaultIdByNft[tokenId];
+        _requireVaultOwner(vaultId);
+
+        (amount0, amount1) = positionManager.decreaseLiquidity(params);
+
+        _checkHealthOfVaultAndPosition(vaultId, tokenId);
+    }
+
+    function collect(INonfungiblePositionManager.CollectParams calldata params)
+        external
+        returns (uint256 amount0, uint256 amount1)
+    {
+        uint256 tokenId = params.tokenId;
+        uint256 vaultId = vaultIdByNft[tokenId];
+        _requireVaultOwner(vaultId);
+
+        (amount0, amount1) = positionManager.collect(params);
+
+        _checkHealthOfVaultAndPosition(vaultId, tokenId);
+    }
+
+    function collectAndIncreaseAmount(
+        INonfungiblePositionManager.CollectParams calldata collectParams,
+        INonfungiblePositionManager.IncreaseLiquidityParams calldata increaseLiquidityParams
+    )
+        external
+        returns (
+            uint256 depositedLiquidity,
+            uint256 depositedAmount0,
+            uint256 depositedAmount1,
+            uint256 returnAmount0,
+            uint256 returnAmount1
+        )
+    {
+        uint256 tokenId = collectParams.tokenId;
+        uint256 vaultId = vaultIdByNft[tokenId];
+        _requireVaultOwner(vaultId);
+
+        (returnAmount0, returnAmount1) = positionManager.collect(collectParams);
+
+        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(
+            increaseLiquidityParams.tokenId
+        );
+
+        IERC20(info.token0).transferFrom(msg.sender, address(this), increaseLiquidityParams.amount0Desired);
+        IERC20(info.token1).transferFrom(msg.sender, address(this), increaseLiquidityParams.amount1Desired);
+
+        _checkAllowance(info.token0, increaseLiquidityParams.amount0Desired, address(positionManager));
+        _checkAllowance(info.token1, increaseLiquidityParams.amount1Desired, address(positionManager));
+
+        (depositedLiquidity, depositedAmount0, depositedAmount1) = positionManager.increaseLiquidity(
+            increaseLiquidityParams
+        );
+
+        if (depositedAmount0 < increaseLiquidityParams.amount0Desired) {
+            IERC20(info.token0).transfer(msg.sender, increaseLiquidityParams.amount0Desired - depositedAmount0);
+        }
+
+        if (depositedAmount1 < increaseLiquidityParams.amount1Desired) {
+            IERC20(info.token1).transfer(msg.sender, increaseLiquidityParams.amount1Desired - depositedAmount1);
+        }
+
+        _checkHealthOfVaultAndPosition(vaultId, tokenId);
     }
 
     /// @notice Set a new vault registry
@@ -627,7 +678,79 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
         return FullMath.mulDiv(currentVaultDebt, deltaGlobalStabilisationFeeD, DENOMINATOR);
     }
 
+    /// @notice Calculate overall collateral and adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis) and price of tokenId if it contains in vault
+    /// @param vaultId Id of the vault
+    /// @param tokenId Id of the token
+    /// @param isSafe If true reverts in case
+    /// @return overallCollateral Overall collateral
+    /// @return adjustedCollateral Adjusted collateral
+    /// @return positionAmount Price of tokenId if it contains in vault, 0 otherwise
+    function _calculateVaultCollateral(
+        uint256 vaultId,
+        uint256 tokenId,
+        bool isSafe
+    )
+        internal
+        view
+        returns (
+            uint256 overallCollateral,
+            uint256 adjustedCollateral,
+            uint256 positionAmount
+        )
+    {
+        uint256[] memory nfts = _vaultNfts[vaultId].values();
+
+        overallCollateral = 0;
+        adjustedCollateral = 0;
+        positionAmount = 0;
+
+        for (uint256 i = 0; i < nfts.length; ++i) {
+            uint256 nft = nfts[i];
+            (bool deviationSafety, uint256 price, address pool) = oracle.price(nft);
+
+            if (isSafe && !deviationSafety) {
+                revert TickDeviation();
+            }
+
+            if (nft == tokenId) {
+                positionAmount = price;
+            }
+            uint256 liquidationThreshold = liquidationThresholdD[pool];
+            overallCollateral += price;
+            adjustedCollateral += FullMath.mulDiv(price, liquidationThreshold, DENOMINATOR);
+        }
+    }
+
+    /// @notice Checking health of specific vault and position
+    /// @param vaultId Id of the vault
+    /// @param tokenId Id of the token
+    function _checkHealthOfVaultAndPosition(uint256 vaultId, uint256 tokenId) internal view {
+        // checking that health factor is more or equal than 1
+        (, uint256 adjustedCollateral, uint256 positionAmount) = _calculateVaultCollateral(vaultId, tokenId, true);
+        if (adjustedCollateral < getOverallDebt(vaultId)) {
+            revert PositionUnhealthy();
+        }
+
+        if (positionAmount < _protocolParams.minSingleNftCollateral) {
+            revert CollateralUnderflow();
+        }
+    }
+
     // -------------------  INTERNAL, MUTATING  -------------------
+
+    /// @notice Checks allowance of specific token to a target address and approves if allowance is too low
+    /// @param targetToken Address of the token
+    /// @param amount Amount to send
+    /// @param target Target address
+    function _checkAllowance(
+        address targetToken,
+        uint256 amount,
+        address target
+    ) internal {
+        if (IERC20(targetToken).allowance(address(this), target) < amount) {
+            IERC20(targetToken).approve(target, type(uint256).max);
+        }
+    }
 
     /// @notice Completes deposit of a collateral to vault
     /// @param caller Caller address
@@ -650,11 +773,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP {
             revert InvalidVault();
         }
 
-        (bool success, uint256 positionAmount, address pool) = oracle.price(nft);
-
-        if (!success) {
-            revert MissingOracle();
-        }
+        (, uint256 positionAmount, address pool) = oracle.price(nft);
 
         if (!_whitelistedPools.contains(pool)) {
             revert InvalidPool();

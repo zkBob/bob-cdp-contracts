@@ -5,12 +5,14 @@ import "../../lib/forge-std/src/Script.sol";
 import "../ConfigContract.sol";
 import "forge-std/Vm.sol";
 import "forge-std/console2.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "forge-std/Test.sol";
 import "../../src/interfaces/external/univ3/IUniswapV3Pool.sol";
 import "../../src/interfaces/external/univ3/ISwapRouter.sol";
 import "../../src/interfaces/external/univ3/IUniswapV3Factory.sol";
 import "../../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
+import "../../src/libraries/external/TickMath.sol";
+import "../../src/libraries/external/FullMath.sol";
 
 //common utilities for forge tests
 contract Utilities is Test, ConfigContract {
@@ -63,6 +65,34 @@ contract Utilities is Test, ConfigContract {
         }
     }
 
+    function makeDesiredPoolPrice(
+        uint256 targetPriceX96,
+        address token0,
+        address token1
+    ) public {
+        if (token0 > token1) {
+            (token0, token1) = (token1, token0);
+            targetPriceX96 = FullMath.mulDiv(Q96, Q96, targetPriceX96);
+        }
+
+        uint160 sqrtRatioX96 = uint160(FullMath.sqrt(targetPriceX96) * Q48);
+        int24 tick = TickMath.getTickAtSqrtRatio(sqrtRatioX96);
+        IUniswapV3Pool pool = IUniswapV3Pool(IUniswapV3Factory(UniV3Factory).getPool(token0, token1, 3000));
+
+        (, int24 currentPoolTick, , , , , ) = IUniswapV3Pool(pool).slot0();
+
+        if (currentPoolTick < tick) {
+            makeSwapManipulatePrice(token1, token0, sqrtRatioX96);
+        } else {
+            makeSwapManipulatePrice(token0, token1, sqrtRatioX96);
+        }
+        (, currentPoolTick, , , , , ) = IUniswapV3Pool(pool).slot0();
+    }
+
+    function makeDesiredUSDCPoolPrice(uint256 targetPriceX96, address token) public {
+        makeDesiredPoolPrice(targetPriceX96, token, usdc);
+    }
+
     function makeSwap(
         address token0,
         address token1,
@@ -83,6 +113,31 @@ contract Utilities is Test, ConfigContract {
         });
 
         return swapRouter.exactInputSingle(params);
+    }
+
+    function makeSwapManipulatePrice(
+        address token0,
+        address token1,
+        uint160 targetLimit
+    ) public returns (uint256 amountOut) {
+        ISwapRouter swapRouter = ISwapRouter(SwapRouter);
+        address executor = getNextUserAddress();
+        vm.startPrank(executor);
+        deal(token0, executor, 10**40);
+        IERC20(token0).approve(address(swapRouter), type(uint256).max);
+
+        ISwapRouter.ExactInputSingleParams memory params = ISwapRouter.ExactInputSingleParams({
+            tokenIn: token0,
+            tokenOut: token1,
+            fee: 3000,
+            recipient: executor,
+            deadline: type(uint256).max,
+            amountIn: 10**40,
+            amountOutMinimum: 0,
+            sqrtPriceLimitX96: targetLimit
+        });
+        amountOut = swapRouter.exactInputSingle(params);
+        vm.stopPrank();
     }
 
     function openUniV3Position(
