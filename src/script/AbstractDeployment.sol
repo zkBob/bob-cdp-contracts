@@ -24,7 +24,15 @@ abstract contract AbstractDeployment is Script {
             address usdc
         );
 
-    function oracleParams() public pure virtual returns (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats);
+    function oracleParams()
+        public
+        pure
+        virtual
+        returns (
+            address[] memory oracleTokens,
+            address[] memory oracles,
+            uint48[] memory heartbeats
+        );
 
     function vaultParams()
         public

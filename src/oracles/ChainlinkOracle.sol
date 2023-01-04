@@ -100,7 +100,11 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @param tokens Array of new tokens
     /// @param oracles Array of new oracles
     /// @param heartbeats Array of heartbeats for oracles
-    function addChainlinkOracles(address[] memory tokens, address[] memory oracles, uint48[] memory heartbeats) external onlyOwner {
+    function addChainlinkOracles(
+        address[] memory tokens,
+        address[] memory oracles,
+        uint48[] memory heartbeats
+    ) external onlyOwner {
         _addChainlinkOracles(tokens, oracles, heartbeats);
     }
 
@@ -121,9 +125,9 @@ contract ChainlinkOracle is IOracle, Ownable {
         uint48 fallbackUpdatedAt
     ) external onlyOwner {
         if (fallbackUpdatedAt >= block.timestamp) {
-          fallbackUpdatedAt = uint48(block.timestamp);
+            fallbackUpdatedAt = uint48(block.timestamp);
         } else if (fallbackUpdatedAt + validPeriod < block.timestamp) {
-          revert PriceUpdateFailed();
+            revert PriceUpdateFailed();
         }
 
         PriceData memory priceData = pricesInfo[token];
@@ -168,7 +172,11 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @param tokens Array of new tokens
     /// @param oracles Array of new oracles
     /// @param heartbeats Array of heartbeats for oracles
-    function _addChainlinkOracles(address[] memory tokens, address[] memory oracles, uint48[] memory heartbeats) internal {
+    function _addChainlinkOracles(
+        address[] memory tokens,
+        address[] memory oracles,
+        uint48[] memory heartbeats
+    ) internal {
         if (tokens.length != oracles.length && oracles.length != heartbeats.length) {
             revert InvalidLength();
         }
@@ -210,7 +218,13 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @param tokens Tokens added
     /// @param oracles Oracles added for the tokens
     /// @param heartbeats Array of heartbeats for oracles
-    event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles, uint48[] heartbeats);
+    event OraclesAdded(
+        address indexed origin,
+        address indexed sender,
+        address[] tokens,
+        address[] oracles,
+        uint48[] heartbeats
+    );
 
     /// @notice Emitted when underlying price of the token updates
     /// @param origin Origin of the transaction (tx.origin)

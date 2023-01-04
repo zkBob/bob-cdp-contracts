@@ -18,7 +18,13 @@ import "./utils/Utilities.sol";
 import "./mocks/MockChainlinkOracle.sol";
 
 contract ChainlinkOracleTest is Test, SetupContract, Utilities {
-    event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles, uint48[] heartbeats);
+    event OraclesAdded(
+        address indexed origin,
+        address indexed sender,
+        address[] tokens,
+        address[] oracles,
+        uint48[] heartbeats
+    );
     event ValidPeriodUpdated(address indexed origin, address indexed sender, uint256 validPeriod);
     event PricePosted(
         address indexed origin,

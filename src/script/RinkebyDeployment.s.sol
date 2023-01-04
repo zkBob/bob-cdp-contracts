@@ -19,7 +19,16 @@ contract RinkebyDeployment is AbstractDeployment {
         usdc = address(0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b);
     }
 
-    function oracleParams() public pure override returns (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) {
+    function oracleParams()
+        public
+        pure
+        override
+        returns (
+            address[] memory oracleTokens,
+            address[] memory oracles,
+            uint48[] memory heartbeats
+        )
+    {
         oracleTokens = new address[](3);
 
         oracleTokens[0] = address(0x577D296678535e4903D59A4C929B718e1D575e0A); // wbtc

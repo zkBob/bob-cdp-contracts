@@ -19,7 +19,16 @@ contract PolygonDeployment is AbstractDeployment {
         usdc = address(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174);
     }
 
-    function oracleParams() public pure override returns (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) {
+    function oracleParams()
+        public
+        pure
+        override
+        returns (
+            address[] memory oracleTokens,
+            address[] memory oracles,
+            uint48[] memory heartbeats
+        )
+    {
         oracleTokens = new address[](3);
 
         oracleTokens[0] = address(0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6); // wbtc

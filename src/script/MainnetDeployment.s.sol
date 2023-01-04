@@ -19,7 +19,16 @@ contract MainnetDeployment is AbstractDeployment {
         usdc = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     }
 
-    function oracleParams() public pure override returns (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) {
+    function oracleParams()
+        public
+        pure
+        override
+        returns (
+            address[] memory oracleTokens,
+            address[] memory oracles,
+            uint48[] memory heartbeats
+        )
+    {
         oracleTokens = new address[](3);
 
         oracleTokens[0] = address(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599); // wbtc
