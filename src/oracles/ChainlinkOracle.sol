@@ -24,21 +24,19 @@ contract ChainlinkOracle is IOracle, Ownable {
 
     uint256 public constant DECIMALS = 18;
     uint256 public constant Q96 = 2**96;
-    uint256 public constant Q48 = 2**48;
-
-    /// @notice Mapping, returning oracle for token
-    mapping(address => IAggregatorV3) public oraclesIndex;
 
     /// @notice Mapping, returning price multiplier for each token
     mapping(address => uint256) public priceMultiplier;
 
     struct PriceData {
-        uint256 priceX96;
-        uint256 updatedAt;
+        IAggregatorV3 feed;
+        uint48 heartbeat;
+        uint48 fallbackUpdatedAt;
+        uint256 fallbackPriceX96;
     }
 
     /// @notice Mapping, returning underlying prices for each token
-    mapping(address => PriceData) internal underlyingPricesX96;
+    mapping(address => PriceData) internal pricesInfo;
 
     /// @notice Address set, containing tokens, supported by the oracles
     EnumerableSet.AddressSet private _tokens;
@@ -49,14 +47,16 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @notice Creates a new contract
     /// @param tokens Initial supported tokens
     /// @param oracles Initial approved Chainlink oracles
+    /// @param heartbeats Initial heartbeats for chainlink oracles
     /// @param validPeriod_ Initial valid period of underlying prices (in seconds)
     constructor(
         address[] memory tokens,
         address[] memory oracles,
+        uint48[] memory heartbeats,
         uint256 validPeriod_
     ) {
         validPeriod = validPeriod_;
-        _addChainlinkOracles(tokens, oracles);
+        _addChainlinkOracles(tokens, oracles, heartbeats);
     }
 
     // -------------------------  EXTERNAL, VIEW  ------------------------------
@@ -74,19 +74,17 @@ contract ChainlinkOracle is IOracle, Ownable {
 
     /// @inheritdoc IOracle
     function price(address token) external view returns (bool success, uint256 priceX96) {
-        IAggregatorV3 chainlinkOracle = oraclesIndex[token];
-        success = true;
+        PriceData memory priceData = pricesInfo[token];
         uint256 oraclePrice;
-        uint256 updatedAt;
-        if (address(chainlinkOracle) == address(0)) {
-            success = false;
+        uint256 fallbackUpdatedAt;
+        if (address(priceData.feed) == address(0)) {
+            return (false, 0);
         } else {
-            (success, oraclePrice, updatedAt) = _queryChainlinkOracle(chainlinkOracle);
+            (success, oraclePrice, fallbackUpdatedAt) = _queryChainlinkOracle(priceData.feed);
         }
-        if (!success) {
-            PriceData memory underlyingPriceData = underlyingPricesX96[token];
-            if (block.timestamp - underlyingPriceData.updatedAt <= validPeriod) {
-                return (true, underlyingPriceData.priceX96);
+        if (!success || fallbackUpdatedAt + priceData.heartbeat < block.timestamp) {
+            if (block.timestamp <= priceData.fallbackUpdatedAt + validPeriod) {
+                return (true, priceData.fallbackPriceX96);
             } else {
                 return (false, 0);
             }
@@ -101,8 +99,9 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @notice Add more chainlink oracles and tokens
     /// @param tokens Array of new tokens
     /// @param oracles Array of new oracles
-    function addChainlinkOracles(address[] memory tokens, address[] memory oracles) external onlyOwner {
-        _addChainlinkOracles(tokens, oracles);
+    /// @param heartbeats Array of heartbeats for oracles
+    function addChainlinkOracles(address[] memory tokens, address[] memory oracles, uint48[] memory heartbeats) external onlyOwner {
+        _addChainlinkOracles(tokens, oracles, heartbeats);
     }
 
     /// @notice Set new valid period
@@ -112,30 +111,31 @@ contract ChainlinkOracle is IOracle, Ownable {
         emit ValidPeriodUpdated(tx.origin, msg.sender, validPeriod_);
     }
 
-    /// @notice Set new underlying priceX96 for specific token
+    /// @notice Set new underlying fallbackPriceX96 for specific token
     /// @param token Address of the token
-    /// @param priceX96 Value of price multiplied by 2**96
-    /// @param updatedAt Timestamp of the price
+    /// @param fallbackPriceX96 Value of price multiplied by 2**96
+    /// @param fallbackUpdatedAt Timestamp of the price
     function setUnderlyingPriceX96(
         address token,
-        uint256 priceX96,
-        uint256 updatedAt
+        uint256 fallbackPriceX96,
+        uint48 fallbackUpdatedAt
     ) external onlyOwner {
-        if (block.timestamp > updatedAt) {
-            if (block.timestamp - updatedAt > validPeriod) {
-                revert PriceUpdateFailed();
-            }
-        } else {
-            // reject future timestamp (< 3s is allowed)
-            if (updatedAt - block.timestamp >= 3) {
-                revert PriceUpdateFailed();
-            }
-            updatedAt = block.timestamp;
+        if (fallbackUpdatedAt >= block.timestamp) {
+          fallbackUpdatedAt = uint48(block.timestamp);
+        } else if (fallbackUpdatedAt + validPeriod < block.timestamp) {
+          revert PriceUpdateFailed();
         }
 
-        underlyingPricesX96[token] = PriceData(priceX96, updatedAt);
+        PriceData memory priceData = pricesInfo[token];
 
-        emit PricePosted(tx.origin, msg.sender, token, priceX96, updatedAt);
+        pricesInfo[token] = PriceData({
+            feed: priceData.feed,
+            heartbeat: priceData.heartbeat,
+            fallbackUpdatedAt: fallbackUpdatedAt,
+            fallbackPriceX96: fallbackPriceX96
+        });
+
+        emit PricePosted(tx.origin, msg.sender, token, fallbackPriceX96, fallbackUpdatedAt);
     }
 
     // -------------------------  INTERNAL, VIEW  ------------------------------
@@ -149,14 +149,14 @@ contract ChainlinkOracle is IOracle, Ownable {
         returns (
             bool success,
             uint256 answer,
-            uint256 updatedAt
+            uint256 fallbackUpdatedAt
         )
     {
-        try oracle.latestRoundData() returns (uint80, int256 ans, uint256, uint256 updatedAt_, uint80) {
+        try oracle.latestRoundData() returns (uint80, int256 ans, uint256, uint256 fallbackUpdatedAt_, uint80) {
             if (ans <= 0) {
                 return (false, 0, 0);
             }
-            return (true, uint256(ans), updatedAt_);
+            return (true, uint256(ans), fallbackUpdatedAt_);
         } catch (bytes memory) {
             return (false, 0, 0);
         }
@@ -167,13 +167,15 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @notice Add more chainlink oracles and tokens (internal)
     /// @param tokens Array of new tokens
     /// @param oracles Array of new oracles
-    function _addChainlinkOracles(address[] memory tokens, address[] memory oracles) internal {
-        if (tokens.length != oracles.length) {
+    /// @param heartbeats Array of heartbeats for oracles
+    function _addChainlinkOracles(address[] memory tokens, address[] memory oracles, uint48[] memory heartbeats) internal {
+        if (tokens.length != oracles.length && oracles.length != heartbeats.length) {
             revert InvalidLength();
         }
         for (uint256 i = 0; i < tokens.length; i++) {
             address token = tokens[i];
             address oracle = oracles[i];
+            uint48 heartbeat = heartbeats[i];
 
             IAggregatorV3 chainlinkOracle = IAggregatorV3(oracle);
             (bool flag, , ) = _queryChainlinkOracle(chainlinkOracle);
@@ -183,7 +185,12 @@ contract ChainlinkOracle is IOracle, Ownable {
             }
 
             _tokens.add(token);
-            oraclesIndex[token] = chainlinkOracle;
+            pricesInfo[token] = PriceData({
+                feed: chainlinkOracle,
+                heartbeat: heartbeat,
+                fallbackUpdatedAt: 0,
+                fallbackPriceX96: 0
+            });
 
             uint256 decimals = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
             if (DECIMALS > decimals) {
@@ -192,7 +199,7 @@ contract ChainlinkOracle is IOracle, Ownable {
                 priceMultiplier[token] = Q96 / 10**(decimals - DECIMALS);
             }
         }
-        emit OraclesAdded(tx.origin, msg.sender, tokens, oracles);
+        emit OraclesAdded(tx.origin, msg.sender, tokens, oracles, heartbeats);
     }
 
     // --------------------------  EVENTS  --------------------------
@@ -202,20 +209,21 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @param sender Sender of the call (msg.sender)
     /// @param tokens Tokens added
     /// @param oracles Oracles added for the tokens
-    event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles);
+    /// @param heartbeats Array of heartbeats for oracles
+    event OraclesAdded(address indexed origin, address indexed sender, address[] tokens, address[] oracles, uint48[] heartbeats);
 
     /// @notice Emitted when underlying price of the token updates
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param token Address of the token
     /// @param newPriceX96 New underlying price multiplied by 2**96
-    /// @param updatedAt Timestamp of underlying price updating
+    /// @param fallbackUpdatedAt Timestamp of underlying price updating
     event PricePosted(
         address indexed origin,
         address indexed sender,
         address token,
         uint256 newPriceX96,
-        uint256 updatedAt
+        uint48 fallbackUpdatedAt
     );
 
     /// @notice Emitted when validPeriod updates

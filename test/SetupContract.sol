@@ -12,7 +12,7 @@ import "../src/Vault.sol";
 
 contract SetupContract is Test, PolygonConfigContract {
     function deployChainlink() internal returns (ChainlinkOracle) {
-        ChainlinkOracle oracle = new ChainlinkOracle(tokens, chainlinkOracles, 300);
+        ChainlinkOracle oracle = new ChainlinkOracle(tokens, chainlinkOracles, heartbeats, 3600);
         return oracle;
     }
 
