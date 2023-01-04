@@ -25,14 +25,12 @@ contract ChainlinkOracle is IOracle, Ownable {
     uint256 public constant DECIMALS = 18;
     uint256 public constant Q96 = 2**96;
 
-    /// @notice Mapping, returning price multiplier for each token
-    mapping(address => uint256) public priceMultiplier;
-
     struct PriceData {
         IAggregatorV3 feed;
         uint48 heartbeat;
         uint48 fallbackUpdatedAt;
         uint256 fallbackPriceX96;
+        uint256 priceMultiplier;
     }
 
     /// @notice Mapping, returning underlying prices for each token
@@ -74,24 +72,36 @@ contract ChainlinkOracle is IOracle, Ownable {
 
     /// @inheritdoc IOracle
     function price(address token) external view returns (bool success, uint256 priceX96) {
-        PriceData memory priceData = pricesInfo[token];
+        PriceData storage priceData = pricesInfo[token];
+        (
+            IAggregatorV3 feed,
+            uint48 heartbeat,
+            uint48 fallbackUpdatedAt,
+            uint256 fallbackPriceX96,
+            uint256 priceMultiplier
+        ) = (
+                priceData.feed,
+                priceData.heartbeat,
+                priceData.fallbackUpdatedAt,
+                priceData.fallbackPriceX96,
+                priceData.priceMultiplier
+            );
         uint256 oraclePrice;
-        uint256 fallbackUpdatedAt;
+        uint256 updatedAt;
         if (address(priceData.feed) == address(0)) {
             return (false, 0);
-        } else {
-            (success, oraclePrice, fallbackUpdatedAt) = _queryChainlinkOracle(priceData.feed);
         }
-        if (!success || fallbackUpdatedAt + priceData.heartbeat < block.timestamp) {
-            if (block.timestamp <= priceData.fallbackUpdatedAt + validPeriod) {
-                return (true, priceData.fallbackPriceX96);
+        (success, oraclePrice, updatedAt) = _queryChainlinkOracle(feed);
+        if (!success || updatedAt + heartbeat < block.timestamp) {
+            if (block.timestamp <= fallbackUpdatedAt + validPeriod) {
+                return (true, fallbackPriceX96);
             } else {
                 return (false, 0);
             }
         }
 
         success = true;
-        priceX96 = oraclePrice * priceMultiplier[token];
+        priceX96 = oraclePrice * priceMultiplier;
     }
 
     // -------------------------  EXTERNAL, MUTATING  ------------------------------
@@ -130,14 +140,10 @@ contract ChainlinkOracle is IOracle, Ownable {
             revert PriceUpdateFailed();
         }
 
-        PriceData memory priceData = pricesInfo[token];
+        PriceData storage priceData = pricesInfo[token];
 
-        pricesInfo[token] = PriceData({
-            feed: priceData.feed,
-            heartbeat: priceData.heartbeat,
-            fallbackUpdatedAt: fallbackUpdatedAt,
-            fallbackPriceX96: fallbackPriceX96
-        });
+        priceData.fallbackUpdatedAt = fallbackUpdatedAt;
+        priceData.fallbackPriceX96 = fallbackPriceX96;
 
         emit PricePosted(tx.origin, msg.sender, token, fallbackPriceX96, fallbackUpdatedAt);
     }
@@ -177,7 +183,7 @@ contract ChainlinkOracle is IOracle, Ownable {
         address[] memory oracles,
         uint48[] memory heartbeats
     ) internal {
-        if (tokens.length != oracles.length && oracles.length != heartbeats.length) {
+        if (tokens.length != oracles.length || oracles.length != heartbeats.length) {
             revert InvalidLength();
         }
         for (uint256 i = 0; i < tokens.length; i++) {
@@ -193,19 +199,22 @@ contract ChainlinkOracle is IOracle, Ownable {
             }
 
             _tokens.add(token);
+
+            uint256 decimals = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
+            uint256 priceMultiplier;
+            if (DECIMALS > decimals) {
+                priceMultiplier = (10**(DECIMALS - decimals)) * Q96;
+            } else {
+                priceMultiplier = Q96 / 10**(decimals - DECIMALS);
+            }
+
             pricesInfo[token] = PriceData({
                 feed: chainlinkOracle,
                 heartbeat: heartbeat,
                 fallbackUpdatedAt: 0,
-                fallbackPriceX96: 0
+                fallbackPriceX96: 0,
+                priceMultiplier: priceMultiplier
             });
-
-            uint256 decimals = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
-            if (DECIMALS > decimals) {
-                priceMultiplier[token] = (10**(DECIMALS - decimals)) * Q96;
-            } else {
-                priceMultiplier[token] = Q96 / 10**(decimals - DECIMALS);
-            }
         }
         emit OraclesAdded(tx.origin, msg.sender, tokens, oracles, heartbeats);
     }
