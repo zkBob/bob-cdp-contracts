@@ -1,26 +1,21 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
-import "forge-std/Vm.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "../lib/forge-std/src/Test.sol";
-import "./configs/PolygonConfigContract.sol";
-import "./SetupContract.sol";
+import "@zkbob/proxy/EIP1967Proxy.sol";
 import "../src/Vault.sol";
-import "./mocks/MUSD.sol";
-import "./mocks/MockOracle.sol";
-import "../src/interfaces/external/univ3/IUniswapV3Factory.sol";
-import "../src/interfaces/external/univ3/IUniswapV3Pool.sol";
-import "../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
-import "./utils/Utilities.sol";
-import "../src/proxy/EIP1967Proxy.sol";
 import "../src/VaultRegistry.sol";
 import "../src/oracles/UniV3Oracle.sol";
+import "./configs/PolygonConfigContract.sol";
+import "./SetupContract.sol";
+import "./mocks/BobTokenMock.sol";
+import "./mocks/MockOracle.sol";
+import "./utils/Utilities.sol";
 
 contract IntegrationTestForVault is Test, SetupContract, Utilities {
     MockOracle oracle;
-    MUSD token;
+    BobTokenMock token;
     Vault vault;
     VaultRegistry vaultRegistry;
     UniV3Oracle univ3Oracle;
@@ -49,7 +44,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         treasury = getNextUserAddress();
 
-        token = new MUSD("Mock USD", "MUSD");
+        token = new BobTokenMock();
 
         vault = new Vault(
             INonfungiblePositionManager(UniV3PositionManager),
@@ -74,6 +69,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
+        token.updateMinter(address(vault), true, true);
         token.approve(address(vault), type(uint256).max);
 
         vault.changeLiquidationFee(3 * 10**7);

@@ -1,18 +1,20 @@
 // SPDX-License-Identifier: BSL-1.1
-pragma solidity 0.8.13;
+pragma solidity 0.8.15;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/Multicall.sol";
-import "./interfaces/IMUSD.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import "@zkbob/proxy/EIP1967Admin.sol";
 import "./interfaces/oracles/IOracle.sol";
-import "./libraries/external/FullMath.sol";
-import "./proxy/EIP1967Admin.sol";
-import "./utils/VaultAccessControl.sol";
+import "./interfaces/external/univ3/INonfungiblePositionLoader.sol";
+import "./interfaces/IBobToken.sol";
 import "./interfaces/IVaultRegistry.sol";
 import "./interfaces/oracles/INFTOracle.sol";
-import "./interfaces/external/univ3/INonfungiblePositionManager.sol";
 import "./interfaces/ICDP.sol";
+import "./libraries/UniswapV3FeesCalculation.sol";
+import "./utils/VaultAccessControl.sol";
 
 /// @notice Contract of the system vault manager
 contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multicall {
@@ -73,8 +75,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Oracle for price estimations
     INFTOracle public immutable oracle;
 
-    /// @notice Mellow Stable Token
-    IMUSD public immutable token;
+    /// @notice Bob Stable Token
+    IBobToken public immutable token;
 
     /// @notice Vault fees treasury address
     address public immutable treasury;
@@ -156,7 +158,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         positionManager = positionManager_;
         oracle = oracle_;
         treasury = treasury_;
-        token = IMUSD(token_);
+        token = IBobToken(token_);
         isInitialized = true;
     }
 
@@ -483,9 +485,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         (returnAmount0, returnAmount1) = positionManager.collect(collectParams);
 
-        INonfungiblePositionManager.PositionInfo memory info = positionManager.positions(
-            increaseLiquidityParams.tokenId
-        );
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+            .positions(increaseLiquidityParams.tokenId);
 
         IERC20(info.token0).transferFrom(msg.sender, address(this), increaseLiquidityParams.amount0Desired);
         IERC20(info.token1).transferFrom(msg.sender, address(this), increaseLiquidityParams.amount1Desired);

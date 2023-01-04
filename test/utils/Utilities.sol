@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: Unlicense
-pragma solidity >=0.8.0;
+pragma solidity ^0.8.0;
 
-import "../../lib/forge-std/src/Script.sol";
-import "../configs/PolygonConfigContract.sol";
-import "forge-std/Vm.sol";
-import "forge-std/console2.sol";
-import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "forge-std/Test.sol";
-import "../../src/interfaces/external/univ3/IUniswapV3Pool.sol";
-import "../../src/interfaces/external/univ3/ISwapRouter.sol";
-import "../../src/interfaces/external/univ3/IUniswapV3Factory.sol";
-import "../../src/interfaces/external/univ3/INonfungiblePositionManager.sol";
-import "../../src/libraries/external/TickMath.sol";
-import "../../src/libraries/external/FullMath.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
+import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
+import "@uniswap/v3-core/contracts/libraries/FullMath.sol";
+import "../configs/PolygonConfigContract.sol";
 
 //common utilities for forge tests
 contract Utilities is Test, PolygonConfigContract {
@@ -78,7 +76,7 @@ contract Utilities is Test, PolygonConfigContract {
             targetPriceX96 = FullMath.mulDiv(Q96, Q96, targetPriceX96);
         }
 
-        uint160 sqrtRatioX96 = uint160(FullMath.sqrt(targetPriceX96) * Q48);
+        uint160 sqrtRatioX96 = uint160(Math.sqrt(targetPriceX96) * Q48);
         int24 tick = TickMath.getTickAtSqrtRatio(sqrtRatioX96);
         IUniswapV3Pool pool = IUniswapV3Pool(IUniswapV3Factory(UniV3Factory).getPool(token0, token1, 3000));
 

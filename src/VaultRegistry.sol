@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: BSL-1.1
-pragma solidity 0.8.13;
+pragma solidity 0.8.15;
 
-import "./ERC721/ERC721Enumerable.sol";
-import "./proxy/EIP1967Admin.sol";
+import "@zkbob/proxy/EIP1967Admin.sol";
 import "./interfaces/ICDP.sol";
+import "./token/ERC721/ERC721Enumerable.sol";
 
 contract VaultRegistry is EIP1967Admin, ERC721Enumerable {
     /// @notice Thrown when not minter trying to mint

@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts v4.4.1 (token/ERC721/extensions/ERC721Enumerable.sol)
 
-pragma solidity 0.8.13;
+pragma solidity 0.8.15;
 
-import "./ERC721.sol";
 import "@openzeppelin/contracts/token/ERC721/extensions/IERC721Enumerable.sol";
+import "./ERC721.sol";
 
 /**
  * @dev This implements an optional extension of {ERC721} defined in the EIP that adds

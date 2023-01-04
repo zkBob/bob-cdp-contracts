@@ -1,17 +1,13 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.13;
+pragma solidity ^0.8.0;
 
 import "forge-std/Script.sol";
+import "@zkbob/proxy/EIP1967Proxy.sol";
 import "../interfaces/oracles/IOracle.sol";
-import "../interfaces/IMUSD.sol";
 import "../oracles/ChainlinkOracle.sol";
-import "../Vault.sol";
-import "../interfaces/external/univ3/IUniswapV3Factory.sol";
-import "../interfaces/external/univ3/IUniswapV3Pool.sol";
-import "../interfaces/external/univ3/INonfungiblePositionManager.sol";
-import "../proxy/EIP1967Proxy.sol";
-import "../VaultRegistry.sol";
 import "../oracles/UniV3Oracle.sol";
+import "../Vault.sol";
+import "../VaultRegistry.sol";
 
 abstract contract AbstractDeployment is Script {
     function tokens()
