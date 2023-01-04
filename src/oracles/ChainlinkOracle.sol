@@ -2,7 +2,6 @@
 pragma solidity 0.8.13;
 
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
-import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/external/chainlink/IAggregatorV3.sol";
 import "../interfaces/oracles/IOracle.sol";
@@ -20,8 +19,6 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @notice Price update error
     error PriceUpdateFailed();
 
-    using EnumerableSet for EnumerableSet.AddressSet;
-
     uint256 public constant DECIMALS = 18;
     uint256 public constant Q96 = 2**96;
 
@@ -35,9 +32,6 @@ contract ChainlinkOracle is IOracle, Ownable {
 
     /// @notice Mapping, returning underlying prices for each token
     mapping(address => PriceData) public pricesInfo;
-
-    /// @notice Address set, containing tokens, supported by the oracles
-    EnumerableSet.AddressSet private _tokens;
 
     /// @notice Valid period of underlying prices (in seconds)
     uint256 public validPeriod;
@@ -61,13 +55,7 @@ contract ChainlinkOracle is IOracle, Ownable {
 
     /// @inheritdoc IOracle
     function hasOracle(address token) external view returns (bool) {
-        return _tokens.contains(token);
-    }
-
-    /// @notice Get all tokens which have approved oracles
-    /// @return address[] Array of supported tokens
-    function supportedTokens() external view returns (address[] memory) {
-        return _tokens.values();
+        return address(pricesInfo[token].feed) != address(0);
     }
 
     /// @inheritdoc IOracle
@@ -189,8 +177,6 @@ contract ChainlinkOracle is IOracle, Ownable {
             if (!flag) {
                 revert InvalidOracle(); // hence a token for this 'oracle' can not be added
             }
-
-            _tokens.add(token);
 
             uint256 decimals = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
             uint256 priceMultiplier;

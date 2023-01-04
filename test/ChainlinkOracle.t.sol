@@ -54,15 +54,6 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
         assertFalse(oracle.hasOracle(getNextUserAddress()));
     }
 
-    // supportedTokens
-
-    function testSupportedTokensSuccess() public {
-        address[] memory supportedTokens = oracle.supportedTokens();
-        for (uint256 i = 0; i < 3; ++i) {
-            assertEq(supportedTokens[i], tokens[i]);
-        }
-    }
-
     // addChainlinkOracles
 
     function testAddChainlinkOraclesSuccess() public {
