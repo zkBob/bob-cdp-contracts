@@ -34,7 +34,7 @@ contract ChainlinkOracle is IOracle, Ownable {
     }
 
     /// @notice Mapping, returning underlying prices for each token
-    mapping(address => PriceData) internal pricesInfo;
+    mapping(address => PriceData) public pricesInfo;
 
     /// @notice Address set, containing tokens, supported by the oracles
     EnumerableSet.AddressSet private _tokens;
