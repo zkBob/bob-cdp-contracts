@@ -73,19 +73,11 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @inheritdoc IOracle
     function price(address token) external view returns (bool success, uint256 priceX96) {
         PriceData storage priceData = pricesInfo[token];
-        (
-            IAggregatorV3 feed,
-            uint48 heartbeat,
-            uint48 fallbackUpdatedAt,
-            uint256 fallbackPriceX96,
-            uint256 priceMultiplier
-        ) = (
-                priceData.feed,
-                priceData.heartbeat,
-                priceData.fallbackUpdatedAt,
-                priceData.fallbackPriceX96,
-                priceData.priceMultiplier
-            );
+        (IAggregatorV3 feed, uint48 heartbeat, uint48 fallbackUpdatedAt) = (
+            priceData.feed,
+            priceData.heartbeat,
+            priceData.fallbackUpdatedAt
+        );
         uint256 oraclePrice;
         uint256 updatedAt;
         if (address(priceData.feed) == address(0)) {
@@ -94,14 +86,14 @@ contract ChainlinkOracle is IOracle, Ownable {
         (success, oraclePrice, updatedAt) = _queryChainlinkOracle(feed);
         if (!success || updatedAt + heartbeat < block.timestamp) {
             if (block.timestamp <= fallbackUpdatedAt + validPeriod) {
-                return (true, fallbackPriceX96);
+                return (true, priceData.fallbackPriceX96);
             } else {
                 return (false, 0);
             }
         }
 
         success = true;
-        priceX96 = oraclePrice * priceMultiplier;
+        priceX96 = oraclePrice * priceData.priceMultiplier;
     }
 
     // -------------------------  EXTERNAL, MUTATING  ------------------------------
