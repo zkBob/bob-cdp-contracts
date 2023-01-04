@@ -19,7 +19,16 @@ contract RinkebyDeployment is AbstractDeployment {
         usdc = address(0x4DBCdF9B62e891a7cec5A2568C3F4FAF9E8Abe2b);
     }
 
-    function oracleParams() public pure override returns (address[] memory oracleTokens, address[] memory oracles) {
+    function oracleParams()
+        public
+        pure
+        override
+        returns (
+            address[] memory oracleTokens,
+            address[] memory oracles,
+            uint48[] memory heartbeats
+        )
+    {
         oracleTokens = new address[](3);
 
         oracleTokens[0] = address(0x577D296678535e4903D59A4C929B718e1D575e0A); // wbtc
@@ -31,6 +40,12 @@ contract RinkebyDeployment is AbstractDeployment {
         oracles[0] = address(0xECe365B379E1dD183B20fc5f022230C044d51404); // btc
         oracles[1] = address(0xa24de01df22b63d23Ebc1882a5E3d4ec0d907bFB); // usdc
         oracles[2] = address(0x8A753747A1Fa494EC906cE90E9f37563A8AF630e); // eth
+
+        heartbeats = new uint48[](3);
+
+        heartbeats[0] = 1500;
+        heartbeats[1] = 36000;
+        heartbeats[2] = 1500;
     }
 
     function vaultParams()

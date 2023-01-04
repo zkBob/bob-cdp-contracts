@@ -19,7 +19,16 @@ contract MainnetDeployment is AbstractDeployment {
         usdc = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
     }
 
-    function oracleParams() public pure override returns (address[] memory oracleTokens, address[] memory oracles) {
+    function oracleParams()
+        public
+        pure
+        override
+        returns (
+            address[] memory oracleTokens,
+            address[] memory oracles,
+            uint48[] memory heartbeats
+        )
+    {
         oracleTokens = new address[](3);
 
         oracleTokens[0] = address(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599); // wbtc
@@ -31,6 +40,12 @@ contract MainnetDeployment is AbstractDeployment {
         oracles[0] = address(0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c); // btc
         oracles[1] = address(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6); // usdc
         oracles[2] = address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419); // eth
+
+        heartbeats = new uint48[](3);
+
+        heartbeats[0] = 1500;
+        heartbeats[1] = 36000;
+        heartbeats[2] = 1500;
     }
 
     function vaultParams()

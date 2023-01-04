@@ -36,5 +36,5 @@ jobs:
 
       - name: Run Forge tests
         run: |
-          forge test -v --fork-url=${{secrets.NODE}} --fork-block-number=15035420
+          forge test -v --fork-url=${{secrets.NODE}} --fork-block-number=37610791
         id: test

@@ -19,7 +19,16 @@ contract PolygonDeployment is AbstractDeployment {
         usdc = address(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174);
     }
 
-    function oracleParams() public pure override returns (address[] memory oracleTokens, address[] memory oracles) {
+    function oracleParams()
+        public
+        pure
+        override
+        returns (
+            address[] memory oracleTokens,
+            address[] memory oracles,
+            uint48[] memory heartbeats
+        )
+    {
         oracleTokens = new address[](3);
 
         oracleTokens[0] = address(0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6); // wbtc
@@ -31,6 +40,12 @@ contract PolygonDeployment is AbstractDeployment {
         oracles[0] = address(0xc907E116054Ad103354f2D350FD2514433D57F6f); // btc
         oracles[1] = address(0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7); // usdc
         oracles[2] = address(0xF9680D99D6C9589e2a93a78A04A279e509205945); // eth
+
+        heartbeats = new uint48[](3);
+
+        heartbeats[0] = 120;
+        heartbeats[1] = 120;
+        heartbeats[2] = 120;
     }
 
     function vaultParams()

@@ -24,7 +24,15 @@ abstract contract AbstractDeployment is Script {
             address usdc
         );
 
-    function oracleParams() public pure virtual returns (address[] memory oracleTokens, address[] memory oracles);
+    function oracleParams()
+        public
+        pure
+        virtual
+        returns (
+            address[] memory oracleTokens,
+            address[] memory oracles,
+            uint48[] memory heartbeats
+        );
 
     function vaultParams()
         public
@@ -76,10 +84,10 @@ abstract contract AbstractDeployment is Script {
         vm.startBroadcast();
 
         (address positionManager, address factory, address treasury, uint256 stabilisationFee) = vaultParams();
-        (address[] memory oracleTokens, address[] memory oracles) = oracleParams();
+        (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) = oracleParams();
         address token = targetToken();
 
-        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles);
+        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, heartbeats, 3600);
         console2.log("Chainlink Oracle", address(oracle));
 
         UniV3Oracle univ3Oracle = new UniV3Oracle(
