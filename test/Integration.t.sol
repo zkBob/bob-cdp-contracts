@@ -7,14 +7,14 @@ import "@zkbob/proxy/EIP1967Proxy.sol";
 import "../src/Vault.sol";
 import "../src/VaultRegistry.sol";
 import "../src/oracles/UniV3Oracle.sol";
-import "./configs/PolygonConfigContract.sol";
+
 import "./SetupContract.sol";
 import "./mocks/BobTokenMock.sol";
 import "./mocks/MockOracle.sol";
-import "./utils/Utilities.sol";
+import "./shared/ForkTests.sol";
 
-contract IntegrationTestForVault is Test, SetupContract, Utilities {
-    MockOracle oracle;
+abstract contract AbstractIntegrationTestForVault is Test, SetupContract, AbstractForkTest {
+    IMockOracle oracle;
     BobTokenMock token;
     Vault vault;
     VaultRegistry vaultRegistry;
@@ -28,13 +28,15 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
     uint256 YEAR = 365 * 24 * 60 * 60;
 
     function setUp() public {
+        vm.createSelectFork(forkRpcUrl, forkBlock);
         positionManager = INonfungiblePositionManager(UniV3PositionManager);
 
-        oracle = new MockOracle();
+        MockOracle oracleImpl = new MockOracle();
+        oracle = IMockOracle(address(oracleImpl));
 
-        oracle.setPrice(wbtc, uint256(20000 << 96) * uint256(10**10));
-        oracle.setPrice(weth, uint256(1000 << 96));
-        oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
+        setTokenPrice(oracle, wbtc, uint256(20000 << 96) * uint256(10**10));
+        setTokenPrice(oracle, weth, uint256(1000 << 96));
+        setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
 
         univ3Oracle = new UniV3Oracle(
             INonfungiblePositionManager(UniV3PositionManager),
@@ -155,7 +157,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         // bankrupt first vault
 
-        oracle.setPrice(weth, 400 << 96);
+        setTokenPrice(oracle, weth, 400 << 96);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultA, 1 * 10**18);
 
@@ -238,13 +240,13 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 800
-        oracle.setPrice(weth, 800 << 96);
+        setTokenPrice(oracle, weth, 800 << 96);
 
         (, uint256 healthFactor) = vault.calculateVaultCollateral(vaultId);
         uint256 overallDebt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
         assertTrue(healthFactor <= overallDebt); // hence subject to liquidation
 
-        oracle.setPrice(weth, 1200 << 96); // price got back
+        setTokenPrice(oracle, weth, 1200 << 96); // price got back
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 10000 * 10**18, true);
@@ -282,7 +284,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
             uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
             vault.depositCollateral(vaultId, tokenId);
             vault.mintDebt(vaultId, 1000 * 10**18);
-            oracle.setPrice(weth, 800 << 96);
+            setTokenPrice(oracle, weth, 800 << 96);
 
             address liquidator = getNextUserAddress();
             deal(address(token), liquidator, 10000 * 10**18, true);
@@ -296,7 +298,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
             oldTreasuryBalance = newTreasuryBalance;
             vm.stopPrank();
 
-            oracle.setPrice(weth, 1000 << 96);
+            setTokenPrice(oracle, weth, 1000 << 96);
         }
     }
 
@@ -423,7 +425,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, 100);
 
-        oracle.setPrice(weth, 999 << 96); // small price change to make position slightly lower than health threshold
+        setTokenPrice(oracle, weth, 999 << 96); // small price change to make position slightly lower than health threshold
         (, uint256 healthAfterPriceChanged) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.vaultDebt(vaultId);
 
@@ -464,5 +466,47 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         token.approve(address(vault), type(uint256).max);
         vault.liquidate(vaultId);
         vm.stopPrank();
+    }
+}
+
+contract MainnetUniswapIntegrationTestForVault is AbstractIntegrationTestForVault, AbstractMainnetForkTest {
+    constructor() {
+        UniV3PositionManager = address(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
+        UniV3Factory = address(0x1F98431c8aD98523631AE4a59f267346ea31F984);
+        SwapRouter = address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+
+        wbtc = address(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);
+        usdc = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
+        weth = address(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+        ape = address(0x4d224452801ACEd8B2F0aebE155379bb5D594381);
+
+        chainlinkBtc = address(0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c);
+        chainlinkUsdc = address(0x8fFfFfd4AfB6115b954Bd326cbe7B4BA576818f6);
+        chainlinkEth = address(0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419);
+
+        tokens = [wbtc, usdc, weth];
+        chainlinkOracles = [chainlinkBtc, chainlinkUsdc, chainlinkEth];
+        heartbeats = [1500, 36000, 1500];
+    }
+}
+
+contract PolygonUniswapIntegrationTestForVault is AbstractIntegrationTestForVault, AbstractPolygonForkTest {
+    constructor() {
+        UniV3PositionManager = address(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
+        UniV3Factory = address(0x1F98431c8aD98523631AE4a59f267346ea31F984);
+        SwapRouter = address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
+
+        wbtc = address(0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6);
+        usdc = address(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174);
+        weth = address(0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619);
+        ape = address(0xB7b31a6BC18e48888545CE79e83E06003bE70930);
+
+        chainlinkBtc = address(0xc907E116054Ad103354f2D350FD2514433D57F6f);
+        chainlinkUsdc = address(0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7);
+        chainlinkEth = address(0xF9680D99D6C9589e2a93a78A04A279e509205945);
+
+        tokens = [wbtc, usdc, weth];
+        chainlinkOracles = [chainlinkBtc, chainlinkUsdc, chainlinkEth];
+        heartbeats = [120, 120, 120];
     }
 }
