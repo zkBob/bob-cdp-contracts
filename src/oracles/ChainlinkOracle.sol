@@ -6,8 +6,6 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "../interfaces/external/chainlink/IAggregatorV3.sol";
 import "../interfaces/oracles/IOracle.sol";
 
-import "forge-std/console2.sol";
-
 /// @notice Contract for getting chainlink data
 contract ChainlinkOracle is IOracle, Ownable {
     /// @notice Thrown when tokens.length != oracles.length
