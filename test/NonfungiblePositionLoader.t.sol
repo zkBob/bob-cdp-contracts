@@ -8,7 +8,7 @@ import "./shared/ForkTests.sol";
 
 contract NonfungiblePositionLoaderTest is Test, SetupContract, AbstractMainnetForkTest {
     INonfungiblePositionManager positionManager;
-    uint256 tokenId = 3;
+    uint256 tokenId = 1;
 
     constructor() {
         UniV3PositionManager = address(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
@@ -34,38 +34,24 @@ contract NonfungiblePositionLoaderTest is Test, SetupContract, AbstractMainnetFo
         positionManager = INonfungiblePositionManager(UniV3PositionManager);
     }
 
-    // integration scenarios
-
     function testPositionInfoGetter() public {
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
             .positions(tokenId);
 
-        (
-            uint96 nonce,
-            address operator,
-            address token0,
-            address token1,
-            uint24 fee,
-            int24 tickLower,
-            int24 tickUpper,
-            uint128 liquidity,
-            uint256 feeGrowthInside0LastX128,
-            uint256 feeGrowthInside1LastX128,
-            uint128 tokensOwed0,
-            uint128 tokensOwed1
-        ) = positionManager.positions(tokenId);
+        // stack too deep :/
+        // (...) = positionManager.positions(tokenId);
 
-        assertEq(info.nonce, nonce);
-        assertEq(info.operator, operator);
-        assertEq(info.token0, token0);
-        assertEq(info.token1, token1);
-        assertEq(info.fee, fee);
-        assertEq(info.tickLower, tickLower);
-        assertEq(info.tickUpper, tickUpper);
-        assertEq(info.liquidity, liquidity);
-        assertEq(info.feeGrowthInside0LastX128, feeGrowthInside0LastX128);
-        assertEq(info.feeGrowthInside1LastX128, feeGrowthInside1LastX128);
-        assertEq(info.tokensOwed0, tokensOwed0);
-        assertEq(info.tokensOwed1, tokensOwed1);
+        assertEq(info.nonce, 0);
+        assertEq(info.operator, address(0));
+        assertEq(info.token0, address(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174));
+        assertEq(info.token1, address(0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619));
+        assertEq(info.fee, 3000);
+        assertEq(info.tickLower, 193320);
+        assertEq(info.tickUpper, 193620);
+        assertEq(info.liquidity, 512574837727510);
+        assertEq(info.feeGrowthInside0LastX128, 642091474819610939118051681932097);
+        assertEq(info.feeGrowthInside1LastX128, 421246762958241140452438236726845208880797);
+        assertEq(info.tokensOwed0, 0);
+        assertEq(info.tokensOwed1, 0);
     }
 }
