@@ -46,7 +46,7 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
 
         tokens = [wbtc, usdc, weth];
         chainlinkOracles = [chainlinkBtc, chainlinkUsdc, chainlinkEth];
-        heartbeats = [1500, 36000, 1500];
+        heartbeats = [4000, 360000, 4000];
     }
 
     function setUp() public {

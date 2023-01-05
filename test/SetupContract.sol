@@ -211,7 +211,11 @@ contract SetupContract is Test, AbstractConfigContract {
         IERC20(ape).approve(UniV3PositionManager, type(uint256).max);
     }
 
-    function setTokenPrice(IMockOracle oracle, address token, uint256 newPrice) public {
+    function setTokenPrice(
+        IMockOracle oracle,
+        address token,
+        uint256 newPrice
+    ) public {
         oracle.setPrice(token, newPrice);
         if (token != usdc && newPrice != 0) {
             // align to USDC decimals
