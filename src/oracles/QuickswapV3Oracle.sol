@@ -59,7 +59,8 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
             bool deviationSafety,
             uint256 positionAmount,
             address pool
-        ) {
+        )
+    {
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
             .positions(nft);
 

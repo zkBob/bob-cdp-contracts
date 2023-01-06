@@ -30,14 +30,15 @@ library QuickswapV3FeesCalculation {
         uint256 feeGrowthGlobal0X128 = pool.totalFeeGrowth0Token();
         uint256 feeGrowthGlobal1X128 = pool.totalFeeGrowth1Token();
 
-        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = UniswapV3FeesCalculation._getUniswapFeeGrowthInside(
-            address(pool),
-            positionInfo.tickLower,
-            positionInfo.tickUpper,
-            tick,
-            feeGrowthGlobal0X128,
-            feeGrowthGlobal1X128
-        );
+        (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = UniswapV3FeesCalculation
+            ._getUniswapFeeGrowthInside(
+                address(pool),
+                positionInfo.tickLower,
+                positionInfo.tickUpper,
+                tick,
+                feeGrowthGlobal0X128,
+                feeGrowthGlobal1X128
+            );
 
         uint256 feeGrowthInside0DeltaX128;
         uint256 feeGrowthInside1DeltaX128;

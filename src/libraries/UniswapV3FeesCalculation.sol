@@ -66,12 +66,10 @@ library UniswapV3FeesCalculation {
         uint256 feeGrowthGlobal1X128
     ) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
         unchecked {
-            (, , uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128, , , , ) = IUniV3Pool(pool).ticks(
-                tickLower
-            );
-            (, , uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128, , , , ) = IUniV3Pool(pool).ticks(
-                tickUpper
-            );
+            (, , uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128, , , , ) = IUniV3Pool(pool)
+                .ticks(tickLower);
+            (, , uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128, , , , ) = IUniV3Pool(pool)
+                .ticks(tickUpper);
 
             // calculate fee growth below
             uint256 feeGrowthBelow0X128;
