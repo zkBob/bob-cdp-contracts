@@ -17,3 +17,7 @@
 [submodule "lib/@zkbob"]
 	path = lib/@zkbob
 	url = https://github.com/zkbob/zkbob-contracts
+[submodule "lib/algebra-solidity-interfaces"]
+	path = lib/algebra-solidity-interfaces
+	url = https://github.com/cryptoalgebra/algebra-solidity-interfaces
+	branch = v2.0.0

@@ -30,7 +30,7 @@ library UniswapV3FeesCalculation {
         uint256 feeGrowthGlobal1X128 = pool.feeGrowthGlobal1X128();
 
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getUniswapFeeGrowthInside(
-            pool,
+            address(pool),
             positionInfo.tickLower,
             positionInfo.tickUpper,
             tick,
@@ -58,7 +58,7 @@ library UniswapV3FeesCalculation {
     /// @param feeGrowthGlobal1X128 UniswapV3 fees of token1 collected per unit of liquidity for the entire life of the pool
     /// @return feeGrowthInside0X128 The all-time fee growth in token0, per unit of liquidity, inside the position's tick boundaries, feeGrowthInside1X128 The all-time fee growth in token1, per unit of liquidity, inside the position's tick boundaries
     function _getUniswapFeeGrowthInside(
-        IUniswapV3Pool pool,
+        address pool,
         int24 tickLower,
         int24 tickUpper,
         int24 tickCurrent,
@@ -66,10 +66,10 @@ library UniswapV3FeesCalculation {
         uint256 feeGrowthGlobal1X128
     ) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
         unchecked {
-            (, , uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128, , , , ) = pool.ticks(
+            (, , uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128, , , , ) = IUniV3Pool(pool).ticks(
                 tickLower
             );
-            (, , uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128, , , , ) = pool.ticks(
+            (, , uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128, , , , ) = IUniV3Pool(pool).ticks(
                 tickUpper
             );
 
