@@ -7,11 +7,11 @@ import "../src/VaultRegistry.sol";
 import "../src/Vault.sol";
 import "../src/oracles/UniV3Oracle.sol";
 import "./SetupContract.sol";
-import "./utils/Utilities.sol";
 import "./mocks/MockOracle.sol";
 import "./mocks/BobTokenMock.sol";
+import "./shared/ForkTests.sol";
 
-contract VaultRegistryTest is Test, SetupContract, Utilities {
+contract VaultRegistryTest is Test, SetupContract, AbstractMainnetForkTest {
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
     EIP1967Proxy univ3OracleProxy;
@@ -24,13 +24,14 @@ contract VaultRegistryTest is Test, SetupContract, Utilities {
     address treasury;
 
     function setUp() public {
+        vm.createSelectFork(forkRpcUrl, forkBlock);
         positionManager = INonfungiblePositionManager(UniV3PositionManager);
 
         oracle = new MockOracle();
 
-        oracle.setPrice(wbtc, uint256(20000 << 96) * uint256(10**10));
-        oracle.setPrice(weth, uint256(1000 << 96));
-        oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
+        setTokenPrice(oracle, wbtc, uint256(20000 << 96) * uint256(10**10));
+        setTokenPrice(oracle, weth, uint256(1000 << 96));
+        setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
 
         univ3Oracle = new UniV3Oracle(
             INonfungiblePositionManager(UniV3PositionManager),

@@ -7,14 +7,14 @@ import "@zkbob/proxy/EIP1967Proxy.sol";
 import "../src/Vault.sol";
 import "../src/VaultRegistry.sol";
 import "../src/oracles/UniV3Oracle.sol";
-import "./configs/PolygonConfigContract.sol";
+
 import "./SetupContract.sol";
 import "./mocks/BobTokenMock.sol";
 import "./mocks/MockOracle.sol";
-import "./utils/Utilities.sol";
+import "./shared/ForkTests.sol";
 
-contract IntegrationTestForVault is Test, SetupContract, Utilities {
-    MockOracle oracle;
+abstract contract AbstractIntegrationTestForVault is Test, SetupContract, AbstractForkTest {
+    IMockOracle oracle;
     BobTokenMock token;
     Vault vault;
     VaultRegistry vaultRegistry;
@@ -28,13 +28,15 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
     uint256 YEAR = 365 * 24 * 60 * 60;
 
     function setUp() public {
+        vm.createSelectFork(forkRpcUrl, forkBlock);
         positionManager = INonfungiblePositionManager(UniV3PositionManager);
 
-        oracle = new MockOracle();
+        MockOracle oracleImpl = new MockOracle();
+        oracle = IMockOracle(address(oracleImpl));
 
-        oracle.setPrice(wbtc, uint256(20000 << 96) * uint256(10**10));
-        oracle.setPrice(weth, uint256(1000 << 96));
-        oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
+        setTokenPrice(oracle, wbtc, uint256(20000 << 96) * uint256(10**10));
+        setTokenPrice(oracle, weth, uint256(1000 << 96));
+        setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
 
         univ3Oracle = new UniV3Oracle(
             INonfungiblePositionManager(UniV3PositionManager),
@@ -155,7 +157,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
 
         // bankrupt first vault
 
-        oracle.setPrice(weth, 400 << 96);
+        setTokenPrice(oracle, weth, 400 << 96);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultA, 1 * 10**18);
 
@@ -238,13 +240,13 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 800
-        oracle.setPrice(weth, 800 << 96);
+        setTokenPrice(oracle, weth, 800 << 96);
 
         (, uint256 healthFactor) = vault.calculateVaultCollateral(vaultId);
         uint256 overallDebt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
         assertTrue(healthFactor <= overallDebt); // hence subject to liquidation
 
-        oracle.setPrice(weth, 1200 << 96); // price got back
+        setTokenPrice(oracle, weth, 1200 << 96); // price got back
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 10000 * 10**18, true);
@@ -282,7 +284,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
             uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
             vault.depositCollateral(vaultId, tokenId);
             vault.mintDebt(vaultId, 1000 * 10**18);
-            oracle.setPrice(weth, 800 << 96);
+            setTokenPrice(oracle, weth, 800 << 96);
 
             address liquidator = getNextUserAddress();
             deal(address(token), liquidator, 10000 * 10**18, true);
@@ -296,7 +298,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
             oldTreasuryBalance = newTreasuryBalance;
             vm.stopPrank();
 
-            oracle.setPrice(weth, 1000 << 96);
+            setTokenPrice(oracle, weth, 1000 << 96);
         }
     }
 
@@ -423,7 +425,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, 100);
 
-        oracle.setPrice(weth, 999 << 96); // small price change to make position slightly lower than health threshold
+        setTokenPrice(oracle, weth, 999 << 96); // small price change to make position slightly lower than health threshold
         (, uint256 healthAfterPriceChanged) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.vaultDebt(vaultId);
 
@@ -466,3 +468,7 @@ contract IntegrationTestForVault is Test, SetupContract, Utilities {
         vm.stopPrank();
     }
 }
+
+contract MainnetUniswapIntegrationTestForVault is AbstractIntegrationTestForVault, AbstractMainnetForkTest {}
+
+contract PolygonUniswapIntegrationTestForVault is AbstractIntegrationTestForVault, AbstractPolygonForkTest {}

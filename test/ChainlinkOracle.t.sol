@@ -3,13 +3,13 @@ pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "./configs/PolygonConfigContract.sol";
+
 import "./SetupContract.sol";
 import "./mocks/MockOracle.sol";
 import "./mocks/MockChainlinkOracle.sol";
-import "./utils/Utilities.sol";
+import "./shared/ForkTests.sol";
 
-contract ChainlinkOracleTest is Test, SetupContract, Utilities {
+contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
     event OraclesAdded(
         address indexed origin,
         address indexed sender,
@@ -31,6 +31,7 @@ contract ChainlinkOracleTest is Test, SetupContract, Utilities {
     ChainlinkOracle oracle;
 
     function setUp() public {
+        vm.createSelectFork(forkRpcUrl, forkBlock);
         oracle = deployChainlink();
     }
 

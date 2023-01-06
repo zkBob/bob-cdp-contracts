@@ -7,13 +7,12 @@ import "@zkbob/proxy/EIP1967Proxy.sol";
 import "../src/Vault.sol";
 import "../src/VaultRegistry.sol";
 import "../src/oracles/UniV3Oracle.sol";
-import "./configs/PolygonConfigContract.sol";
 import "./SetupContract.sol";
-import "./utils/Utilities.sol";
 import "./mocks/BobTokenMock.sol";
 import "./mocks/MockOracle.sol";
+import "./shared/ForkTests.sol";
 
-contract VaultTest is Test, SetupContract, Utilities {
+abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     event VaultOpened(address indexed sender, uint256 vaultId);
     event VaultLiquidated(address indexed sender, uint256 vaultId);
     event VaultClosed(address indexed sender, uint256 vaultId);
@@ -53,7 +52,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     EIP1967Proxy vaultRegistryProxy;
     EIP1967Proxy univ3OracleProxy;
     UniV3Oracle univ3Oracle;
-    MockOracle oracle;
+    IMockOracle oracle;
     BobTokenMock token;
     Vault vault;
     VaultRegistry vaultRegistry;
@@ -63,13 +62,18 @@ contract VaultTest is Test, SetupContract, Utilities {
     uint256 YEAR = 365 * 24 * 60 * 60;
 
     function setUp() public {
+        console2.log(forkRpcUrl, forkBlock);
+        vm.createSelectFork(forkRpcUrl, forkBlock);
+
         positionManager = INonfungiblePositionManager(UniV3PositionManager);
 
-        oracle = new MockOracle();
+        MockOracle oracleImpl = new MockOracle();
 
-        oracle.setPrice(wbtc, uint256(20000 << 96) * uint256(10**10));
-        oracle.setPrice(weth, uint256(1000 << 96));
-        oracle.setPrice(usdc, uint256(1 << 96) * uint256(10**12));
+        oracle = IMockOracle(address(oracleImpl));
+
+        setTokenPrice(oracle, wbtc, uint256(20000 << 96) * uint256(10**10));
+        setTokenPrice(oracle, weth, uint256(1000 << 96));
+        setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
 
         univ3Oracle = new UniV3Oracle(
             INonfungiblePositionManager(UniV3PositionManager),
@@ -240,7 +244,7 @@ contract VaultTest is Test, SetupContract, Utilities {
     function testDepositCollateralNotApprovedToken() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        oracle.setPrice(weth, 0);
+        setTokenPrice(oracle, weth, 0);
 
         vm.expectRevert(UniV3Oracle.MissingOracle.selector);
         vault.depositCollateral(vaultId, tokenId);
@@ -819,7 +823,7 @@ contract VaultTest is Test, SetupContract, Utilities {
             .positions(tokenId);
         (uint256 adjustedCollateral, ) = vault.calculateVaultCollateral(vaultId);
         vault.mintDebt(vaultId, 1190 * 10**18);
-        oracle.setPrice(weth, 800 << 96);
+        setTokenPrice(oracle, weth, 800 << 96);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -1315,9 +1319,9 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
 
         (, uint256 healthPreAction) = vault.calculateVaultCollateral(vaultId);
-        oracle.setPrice(weth, 800 << 96);
+        setTokenPrice(oracle, weth, 800 << 96);
         (, uint256 healthLowPrice) = vault.calculateVaultCollateral(vaultId);
-        oracle.setPrice(weth, 1400 << 96);
+        setTokenPrice(oracle, weth, 1400 << 96);
         (, uint256 healthHighPrice) = vault.calculateVaultCollateral(vaultId);
 
         assertTrue(healthLowPrice < healthPreAction);
@@ -1375,7 +1379,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 800
-        oracle.setPrice(weth, 700 << 96);
+        setTokenPrice(oracle, weth, 700 << 96);
 
         address randomAddress = getNextUserAddress();
         token.transfer(randomAddress, vault.vaultDebt(vaultId));
@@ -1425,7 +1429,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 1
-        oracle.setPrice(weth, 1 << 96);
+        setTokenPrice(oracle, weth, 1 << 96);
 
         address liquidator = getNextUserAddress();
         (, uint256 health) = vault.calculateVaultCollateral(vaultId);
@@ -1444,7 +1448,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 1
-        oracle.setPrice(weth, 1 << 96);
+        setTokenPrice(oracle, weth, 1 << 96);
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 1100 * 10**18, true);
@@ -1470,7 +1474,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
-        oracle.setPrice(weth, 600 << 96);
+        setTokenPrice(oracle, weth, 600 << 96);
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 20000 * 10**18, true);
@@ -1499,7 +1503,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1100 * 10**18);
         // eth 1000 -> 800
-        oracle.setPrice(weth, 800 << 96);
+        setTokenPrice(oracle, weth, 800 << 96);
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 2000 * 10**18, true);
@@ -1530,7 +1534,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1100 * 10**18);
         // eth 1000 -> 800
-        oracle.setPrice(weth, 800 << 96);
+        setTokenPrice(oracle, weth, 800 << 96);
 
         vm.warp(block.timestamp + 5 * YEAR);
         (, uint256 health) = vault.calculateVaultCollateral(vaultId);
@@ -2128,3 +2132,7 @@ contract VaultTest is Test, SetupContract, Utilities {
         vault.setLiquidationThreshold(pool, 10**6);
     }
 }
+
+contract MainnetUniswapVaultTest is AbstractVaultTest, AbstractMainnetForkTest {}
+
+contract PolygonUniswapVaultTest is AbstractVaultTest, AbstractPolygonForkTest {}

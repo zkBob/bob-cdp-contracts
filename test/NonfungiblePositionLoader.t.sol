@@ -4,13 +4,14 @@ pragma solidity ^0.8.0;
 import "forge-std/Test.sol";
 import "../src/interfaces/external/univ3/INonfungiblePositionLoader.sol";
 import "./SetupContract.sol";
-import "./utils/Utilities.sol";
+import "./shared/ForkTests.sol";
 
-contract NonfungiblePositionLoaderTest is Test, SetupContract, Utilities {
+contract NonfungiblePositionLoaderTest is Test, SetupContract, AbstractPolygonForkTest {
     INonfungiblePositionManager positionManager;
     uint256 tokenId = 1;
 
     function setUp() public {
+        vm.createSelectFork(forkRpcUrl, forkBlock);
         positionManager = INonfungiblePositionManager(UniV3PositionManager);
     }
 
