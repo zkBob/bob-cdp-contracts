@@ -6,7 +6,7 @@ import "forge-std/Test.sol";
 import "./Env.sol";
 import "./AbstractConfigContract.sol";
 
-abstract contract AbstractForkTest is Test, AbstractConfigContract {
+abstract contract AbstractForkTest is AbstractConfigContract {
     string forkRpcUrl;
     uint256 forkBlock;
 }
@@ -15,10 +15,6 @@ abstract contract AbstractMainnetForkTest is AbstractForkTest {
     constructor() {
         forkRpcUrl = forkRpcUrlMainnet;
         forkBlock = forkBlockMainnet;
-
-        UniV3PositionManager = address(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
-        UniV3Factory = address(0x1F98431c8aD98523631AE4a59f267346ea31F984);
-        SwapRouter = address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
 
         wbtc = address(0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599);
         usdc = address(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48);
@@ -39,10 +35,6 @@ abstract contract AbstractPolygonForkTest is AbstractForkTest {
     constructor() {
         forkRpcUrl = forkRpcUrlPolygon;
         forkBlock = forkBlockPolygon;
-
-        UniV3PositionManager = address(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
-        UniV3Factory = address(0x1F98431c8aD98523631AE4a59f267346ea31F984);
-        SwapRouter = address(0xE592427A0AEce92De3Edee1F18E0157C05861564);
 
         wbtc = address(0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6);
         usdc = address(0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174);

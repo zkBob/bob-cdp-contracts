@@ -9,7 +9,7 @@ import "./mocks/MockOracle.sol";
 import "./mocks/MockChainlinkOracle.sol";
 import "./shared/ForkTests.sol";
 
-contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
+contract ChainlinkOracleTest is AbstractMainnetForkTest {
     event OraclesAdded(
         address indexed origin,
         address indexed sender,
@@ -28,23 +28,23 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
 
     uint256 YEAR = 365 * 24 * 60 * 60;
 
-    ChainlinkOracle oracle;
+    ChainlinkOracle chainlinkOracle;
 
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
-        oracle = deployChainlink();
+        chainlinkOracle = new ChainlinkOracle(tokens, chainlinkOracles, heartbeats, 3600);
     }
 
     // hasOracle
 
     function testHasOracleExistedToken() public {
         for (uint256 i = 0; i < 3; ++i) {
-            assertTrue(oracle.hasOracle(tokens[i]));
+            assertTrue(chainlinkOracle.hasOracle(tokens[i]));
         }
     }
 
     function testHasOracleNonExistedToken() public {
-        assertFalse(oracle.hasOracle(getNextUserAddress()));
+        assertFalse(chainlinkOracle.hasOracle(getNextUserAddress()));
     }
 
     // addChainlinkOracles
@@ -79,15 +79,15 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
         address[] memory currentOracles = new address[](0);
 
         vm.expectRevert(ChainlinkOracle.InvalidLength.selector);
-        oracle.addChainlinkOracles(currentTokens, currentOracles, heartbeats);
+        chainlinkOracle.addChainlinkOracles(currentTokens, currentOracles, heartbeats);
     }
 
     // price
 
     function testPrice() public {
-        (bool wethSuccess, uint256 wethPriceX96) = oracle.price(weth);
-        (bool usdcSuccess, uint256 usdcPriceX96) = oracle.price(usdc);
-        (bool wbtcSuccess, uint256 wbtcPriceX96) = oracle.price(wbtc);
+        (bool wethSuccess, uint256 wethPriceX96) = chainlinkOracle.price(weth);
+        (bool usdcSuccess, uint256 usdcPriceX96) = chainlinkOracle.price(usdc);
+        (bool wbtcSuccess, uint256 wbtcPriceX96) = chainlinkOracle.price(wbtc);
         assertEq(wethSuccess, true);
         assertEq(usdcSuccess, true);
         assertEq(wbtcSuccess, true);
@@ -97,7 +97,7 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
     }
 
     function testPriceReturnsZeroForNonSetToken() public {
-        (bool success, uint256 priceX96) = oracle.price(getNextUserAddress());
+        (bool success, uint256 priceX96) = chainlinkOracle.price(getNextUserAddress());
         assertEq(success, false);
         assertEq(priceX96, 0);
     }
@@ -113,26 +113,26 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
         currentHeartbeats[0] = 1500;
 
         vm.expectRevert(ChainlinkOracle.InvalidOracle.selector);
-        oracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
+        chainlinkOracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
     }
 
     // setValidPeriod
 
     function testSetValidPeriodSuccess() public {
-        oracle.setValidPeriod(500);
-        assertEq(oracle.validPeriod(), 500);
+        chainlinkOracle.setValidPeriod(500);
+        assertEq(chainlinkOracle.validPeriod(), 500);
     }
 
     function testSetValidPeriodEmit() public {
         vm.expectEmit(false, true, false, true);
-        oracle.setValidPeriod(500);
+        chainlinkOracle.setValidPeriod(500);
         emit ValidPeriodUpdated(getNextUserAddress(), address(this), 500);
     }
 
     function testSetValidPeriodWhenNotOwner() public {
         vm.prank(getNextUserAddress());
         vm.expectRevert("Ownable: caller is not the owner");
-        oracle.setValidPeriod(500);
+        chainlinkOracle.setValidPeriod(500);
     }
 
     // setUnderlyingPriceX96
@@ -145,14 +145,14 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
         uint48[] memory currentHeartbeats = new uint48[](1);
         currentHeartbeats[0] = 1500;
 
-        oracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
+        chainlinkOracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
 
         vm.warp(block.timestamp + YEAR);
 
-        (bool success, uint256 priceX96) = oracle.price(ape);
+        (bool success, uint256 priceX96) = chainlinkOracle.price(ape);
         assertEq(success, false);
-        oracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp));
-        (success, priceX96) = oracle.price(ape);
+        chainlinkOracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp));
+        (success, priceX96) = chainlinkOracle.price(ape);
         assertEq(success, true);
         assertEq(priceX96, 30 << 96);
     }
@@ -165,11 +165,11 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
         uint48[] memory currentHeartbeats = new uint48[](1);
         currentHeartbeats[0] = 1500;
 
-        oracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
+        chainlinkOracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
 
         vm.expectEmit(false, true, false, true);
         emit PricePosted(getNextUserAddress(), address(this), ape, 30 << 96, uint48(block.timestamp));
-        oracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp));
+        chainlinkOracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp));
     }
 
     function testSetUnderlyingPriceX96WhenNotOwner() public {
@@ -180,11 +180,11 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
         uint48[] memory currentHeartbeats = new uint48[](1);
         currentHeartbeats[0] = 1500;
 
-        oracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
+        chainlinkOracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
 
         vm.prank(getNextUserAddress());
         vm.expectRevert("Ownable: caller is not the owner");
-        oracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp));
+        chainlinkOracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp));
     }
 
     function testSetUnderlyingPriceX96WhenPriceIsTooOld() public {
@@ -195,9 +195,9 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
         uint48[] memory currentHeartbeats = new uint48[](1);
         currentHeartbeats[0] = 1500;
 
-        oracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
+        chainlinkOracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
 
         vm.expectRevert(ChainlinkOracle.PriceUpdateFailed.selector);
-        oracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp) - 86400);
+        chainlinkOracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp) - 86400);
     }
 }

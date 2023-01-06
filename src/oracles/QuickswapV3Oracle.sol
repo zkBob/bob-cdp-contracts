@@ -2,13 +2,16 @@
 pragma solidity 0.8.15;
 
 import "../interfaces/oracles/INFTOracle.sol";
-import "../interfaces/external/quickswapv3/INonfungiblePositionLoader.sol";
+import "../interfaces/external/quickswapv3/INonfungibleQuickswapPositionLoader.sol";
 import "../interfaces/oracles/IOracle.sol";
 import "../libraries/QuickswapV3FeesCalculation.sol";
 import "@quickswap/contracts/periphery/INonfungiblePositionManager.sol";
 import "@quickswap/contracts/core/IAlgebraFactory.sol";
 import "@quickswap/contracts/core/IAlgebraPool.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
+import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 
 contract QuickswapV3Oracle is INFTOracle, Ownable {
     /// @notice Thrown when a given address is zero
@@ -46,7 +49,7 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
         }
 
         positionManager = positionManager_;
-        factory = IUniswapV3Factory(positionManager.factory());
+        factory = IAlgebraFactory(positionManager.factory());
         oracle = oracle_;
         maxPriceRatioDeviation = maxPriceRatioDeviation_;
     }
@@ -61,7 +64,7 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
             address pool
         )
     {
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+        INonfungibleQuickswapPositionLoader.PositionInfo memory info = INonfungibleQuickswapPositionLoader(address(positionManager))
             .positions(nft);
 
         pool = factory.poolByPair(info.token0, info.token1);
@@ -102,7 +105,7 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
             );
 
             (uint256 actualTokensOwed0, uint256 actualTokensOwed1) = QuickswapV3FeesCalculation._calculateQuickswapFees(
-                pool,
+                IAlgebraPool(pool),
                 tick,
                 info
             );
@@ -117,7 +120,7 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
 
     /// @inheritdoc INFTOracle
     function getPositionTokens(uint256 nft) external view returns (address token0, address token1) {
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+        INonfungibleQuickswapPositionLoader.PositionInfo memory info = INonfungibleQuickswapPositionLoader(address(positionManager))
             .positions(nft);
         return (info.token0, info.token1);
     }

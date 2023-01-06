@@ -10,13 +10,12 @@ import "./SetupContract.sol";
 import "./mocks/MockOracle.sol";
 import "./mocks/BobTokenMock.sol";
 import "./shared/ForkTests.sol";
+import "./shared/AbstractUniswapConfigContract.sol";
 
-contract VaultRegistryTest is Test, SetupContract, AbstractMainnetForkTest {
+contract VaultRegistryTest is AbstractMainnetForkTest, AbstractUniswapConfigContract {
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
-    EIP1967Proxy univ3OracleProxy;
-    UniV3Oracle univ3Oracle;
-    MockOracle oracle;
+    EIP1967Proxy nftOracleProxy;
     BobToken token;
     Vault vault;
     VaultRegistry vaultRegistry;
@@ -25,27 +24,20 @@ contract VaultRegistryTest is Test, SetupContract, AbstractMainnetForkTest {
 
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
-        positionManager = INonfungiblePositionManager(UniV3PositionManager);
-
-        oracle = new MockOracle();
+        _setUp();
+        positionManager = INonfungiblePositionManager(PositionManager);
 
         setTokenPrice(oracle, wbtc, uint256(20000 << 96) * uint256(10**10));
         setTokenPrice(oracle, weth, uint256(1000 << 96));
         setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
-
-        univ3Oracle = new UniV3Oracle(
-            INonfungiblePositionManager(UniV3PositionManager),
-            IOracle(address(oracle)),
-            10**16
-        );
 
         treasury = getNextUserAddress();
 
         token = new BobTokenMock();
 
         vault = new Vault(
-            INonfungiblePositionManager(UniV3PositionManager),
-            INFTOracle(address(univ3Oracle)),
+            INonfungiblePositionManager(PositionManager),
+            INFTOracle(address(nftOracle)),
             treasury,
             address(token)
         );
@@ -114,7 +106,7 @@ contract VaultRegistryTest is Test, SetupContract, AbstractMainnetForkTest {
 
     function testBurnWhenNonEmptyCollateral() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vm.expectRevert(VaultRegistry.NonEmptyCollateral.selector);
         vaultRegistry.burn(vaultId);

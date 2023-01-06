@@ -3,7 +3,7 @@ pragma solidity 0.8.15;
 
 import "@quickswap/contracts/core/IAlgebraPool.sol";
 import "@uniswap/v3-core/contracts/libraries/FullMath.sol";
-import "../interfaces/external/quickswapv3/INonfungiblePositionLoader.sol";
+import "../interfaces/external/quickswapv3/INonfungibleQuickswapPositionLoader.sol";
 import "./UniswapV3FeesCalculation.sol";
 
 /// @title Math library for computing fees for quickswap v3 positions
@@ -18,7 +18,7 @@ library QuickswapV3FeesCalculation {
     function _calculateQuickswapFees(
         IAlgebraPool pool,
         int24 tick,
-        INonfungiblePositionLoader.PositionInfo memory positionInfo
+        INonfungibleQuickswapPositionLoader.PositionInfo memory positionInfo
     ) internal view returns (uint128 actualTokensOwed0, uint128 actualTokensOwed1) {
         actualTokensOwed0 = positionInfo.tokensOwed0;
         actualTokensOwed1 = positionInfo.tokensOwed1;

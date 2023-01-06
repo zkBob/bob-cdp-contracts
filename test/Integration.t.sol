@@ -13,15 +13,13 @@ import "./mocks/BobTokenMock.sol";
 import "./mocks/MockOracle.sol";
 import "./shared/ForkTests.sol";
 
-abstract contract AbstractIntegrationTestForVault is Test, SetupContract, AbstractForkTest {
+abstract contract AbstractIntegrationTestForVault is AbstractForkTest, AbstractConfigSetupContract {
     IMockOracle oracle;
     BobTokenMock token;
     Vault vault;
     VaultRegistry vaultRegistry;
-    UniV3Oracle univ3Oracle;
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
-    EIP1967Proxy univ3OracleProxy;
     INonfungiblePositionManager positionManager;
     address treasury;
 
@@ -29,7 +27,8 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
 
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
-        positionManager = INonfungiblePositionManager(UniV3PositionManager);
+        _setUp();
+        positionManager = INonfungiblePositionManager(PositionManager);
 
         MockOracle oracleImpl = new MockOracle();
         oracle = IMockOracle(address(oracleImpl));
@@ -38,8 +37,8 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
         setTokenPrice(oracle, weth, uint256(1000 << 96));
         setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
 
-        univ3Oracle = new UniV3Oracle(
-            INonfungiblePositionManager(UniV3PositionManager),
+        nftOracle = new UniV3Oracle(
+            INonfungiblePositionManager(PositionManager),
             IOracle(address(oracle)),
             10**16
         );
@@ -49,8 +48,8 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
         token = new BobTokenMock();
 
         vault = new Vault(
-            INonfungiblePositionManager(UniV3PositionManager),
-            INFTOracle(address(univ3Oracle)),
+            INonfungiblePositionManager(PositionManager),
+            INFTOracle(address(nftOracle)),
             treasury,
             address(token)
         );
@@ -91,12 +90,12 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
 
     function testMultipleDepositAndWithdrawsSuccessSingleVault() public {
         uint256 vaultId = vault.openVault();
-        uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault)); // 2000 USD
-        uint256 nftB = openUniV3Position(wbtc, usdc, 5 * 10**8, 100000 * 10**6, address(vault)); // 200000 USD
+        uint256 nftA = openPosition(weth, usdc, 10**18, 10**9, address(vault)); // 2000 USD
+        uint256 nftB = openPosition(wbtc, usdc, 5 * 10**8, 100000 * 10**6, address(vault)); // 200000 USD
         (, uint256 wbtcPriceX96) = oracle.price(wbtc);
         (, uint256 wethPriceX96) = oracle.price(weth);
         makeDesiredPoolPrice(FullMath.mulDiv(wbtcPriceX96, Q96, wethPriceX96), wbtc, weth);
-        uint256 nftC = openUniV3Position(wbtc, weth, 10**8 / 20000, 10**18 / 1000, address(vault)); // 2 USD
+        uint256 nftC = openPosition(wbtc, weth, 10**8 / 20000, 10**18 / 1000, address(vault)); // 2 USD
 
         vault.changeMinSingleNftCollateral(18 * 10**17);
 
@@ -135,7 +134,7 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
 
     function testFailStealNft() public {
         uint256 vaultId = vault.openVault();
-        uint256 nft = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 nft = openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, nft);
         vault.mintDebt(vaultId, 100 * 10**18);
 
@@ -146,8 +145,8 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
         uint256 vaultA = vault.openVault();
         uint256 vaultB = vault.openVault();
 
-        uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        uint256 nftB = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 nftA = openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 nftB = openPosition(weth, usdc, 10**18, 10**9, address(vault));
 
         vault.depositCollateral(vaultA, nftA);
         vault.depositCollateral(vaultB, nftB);
@@ -206,8 +205,8 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
         vault.addDepositorsToAllowlist(depositors);
 
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        uint256 secondNft = openUniV3Position(weth, usdc, 10**18, 10**9, secondAddress);
+        uint256 tokenId = openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 secondNft = openPosition(weth, usdc, 10**18, 10**9, secondAddress);
 
         positionManager.transferFrom(address(this), secondAddress, secondNft);
         vault.depositCollateral(vaultId, tokenId);
@@ -236,7 +235,7 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
     function testPriceDroppedAndGotBackNotLiquidated() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 800
@@ -260,7 +259,7 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
     function testLiquidatedAfterDebtFeesCame() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
 
@@ -281,7 +280,7 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
 
         for (uint8 i = 0; i < 5; ++i) {
             uint256 vaultId = vault.openVault();
-            uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+            uint256 tokenId = openPosition(weth, usdc, 10**18, 10**9, address(vault));
             vault.depositCollateral(vaultId, tokenId);
             vault.mintDebt(vaultId, 1000 * 10**18);
             setTokenPrice(oracle, weth, 800 << 96);
@@ -306,7 +305,7 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
         vm.warp(block.timestamp + YEAR);
 
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**20, 10**11, address(vault));
+        uint256 tokenId = openPosition(weth, usdc, 10**20, 10**11, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         vault.mintDebt(vaultId, 1000 * 10**18);
@@ -352,7 +351,7 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
 
     function testFeesUpdatedAfterSecond() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**20, 10**11, address(vault));
+        uint256 tokenId = openPosition(weth, usdc, 10**20, 10**11, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         vault.mintDebt(vaultId, 1000 * 10**18);
@@ -367,7 +366,7 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
 
     function testFeesCalculatedProportionally() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**20, 10**11, address(vault));
+        uint256 tokenId = openPosition(weth, usdc, 10**20, 10**11, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         vault.mintDebt(vaultId, 1000 * 10**18);
@@ -383,8 +382,8 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
 
     function testFeesUpdatedAfterAllOnlyMintBurn() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenA = openUniV3Position(weth, usdc, 10**20, 10**11, address(vault));
-        uint256 tokenB = openUniV3Position(weth, usdc, 10**20, 10**11, address(vault));
+        uint256 tokenA = openPosition(weth, usdc, 10**20, 10**11, address(vault));
+        uint256 tokenB = openPosition(weth, usdc, 10**20, 10**11, address(vault));
         vault.depositCollateral(vaultId, tokenA);
         vault.mintDebt(vaultId, 1000 * 10**18);
 
@@ -416,7 +415,7 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
 
     function testReasonablePoolFeesCalculating() public {
         uint256 vaultId = vault.openVault();
-        uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 nftA = openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, nftA);
 
         (, uint256 healthBeforeSwaps) = vault.calculateVaultCollateral(vaultId);
@@ -451,11 +450,11 @@ abstract contract AbstractIntegrationTestForVault is Test, SetupContract, Abstra
     function LiquidationThresholdChangedHenceLiquidated() public {
         uint256 vaultId = vault.openVault();
 
-        uint256 nftA = openUniV3Position(weth, usdc, 10**19, 10**10, address(vault)); // 20000 USD
+        uint256 nftA = openPosition(weth, usdc, 10**19, 10**10, address(vault)); // 20000 USD
         vault.depositCollateral(vaultId, nftA);
         vault.mintDebt(vaultId, 10000 * (10**18));
 
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = IUniswapV3Factory(Factory).getPool(weth, usdc, 3000);
 
         vault.setLiquidationThreshold(pool, 2 * 10**8);
         vault.burnDebt(vaultId, 5000 * (10**18)); // repaid debt partially and anyway liquidated

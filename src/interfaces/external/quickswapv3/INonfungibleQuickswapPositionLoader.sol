@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-interface INonfungiblePositionLoader {
+interface INonfungibleQuickswapPositionLoader {
     struct PositionInfo {
         uint96 nonce;
         address operator;
