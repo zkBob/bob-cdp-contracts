@@ -10,13 +10,13 @@ import "./SetupContract.sol";
 import "./mocks/MockOracle.sol";
 import "./mocks/BobTokenMock.sol";
 import "./shared/ForkTests.sol";
+import "./shared/AbstractUniswapHelper.sol";
 
-contract VaultRegistryTest is Test, SetupContract, AbstractMainnetForkTest {
+abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractForkTest, AbstractLateSetup {
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
-    EIP1967Proxy univ3OracleProxy;
-    UniV3Oracle univ3Oracle;
-    MockOracle oracle;
+    INFTOracle nftOracle;
+    IMockOracle oracle;
     BobToken token;
     Vault vault;
     VaultRegistry vaultRegistry;
@@ -25,27 +25,20 @@ contract VaultRegistryTest is Test, SetupContract, AbstractMainnetForkTest {
 
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
-        positionManager = INonfungiblePositionManager(UniV3PositionManager);
+        _setUp();
+        positionManager = INonfungiblePositionManager(PositionManager);
 
-        oracle = new MockOracle();
-
-        setTokenPrice(oracle, wbtc, uint256(20000 << 96) * uint256(10**10));
-        setTokenPrice(oracle, weth, uint256(1000 << 96));
-        setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
-
-        univ3Oracle = new UniV3Oracle(
-            INonfungiblePositionManager(UniV3PositionManager),
-            IOracle(address(oracle)),
-            10**16
-        );
+        helper.setTokenPrice(oracle, wbtc, uint256(20000 << 96) * uint256(10**10));
+        helper.setTokenPrice(oracle, weth, uint256(1000 << 96));
+        helper.setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
 
         treasury = getNextUserAddress();
 
         token = new BobTokenMock();
 
         vault = new Vault(
-            INonfungiblePositionManager(UniV3PositionManager),
-            INFTOracle(address(univ3Oracle)),
+            INonfungiblePositionManager(PositionManager),
+            INFTOracle(address(nftOracle)),
             treasury,
             address(token)
         );
@@ -72,9 +65,10 @@ contract VaultRegistryTest is Test, SetupContract, AbstractMainnetForkTest {
         vault.changeLiquidationPremium(3 * 10**7);
         vault.changeMinSingleNftCollateral(10**17);
         vault.changeMaxNftsPerVault(12);
+        vault.grantRole(vault.ADMIN_ROLE(), address(helper));
 
-        setPools(ICDP(vault));
-        setApprovals();
+        helper.setPools(ICDP(vault));
+        helper.setApprovals();
 
         address[] memory depositors = new address[](1);
         depositors[0] = address(this);
@@ -114,7 +108,7 @@ contract VaultRegistryTest is Test, SetupContract, AbstractMainnetForkTest {
 
     function testBurnWhenNonEmptyCollateral() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vm.expectRevert(VaultRegistry.NonEmptyCollateral.selector);
         vaultRegistry.burn(vaultId);
@@ -138,5 +132,39 @@ contract VaultRegistryTest is Test, SetupContract, AbstractMainnetForkTest {
         vm.prank(address(vault));
         vaultRegistry.mint(getNextUserAddress(), 1);
         assertEq(vaultRegistry.tokenURI(1), "baseURI/1");
+    }
+}
+
+contract MainnetUniswapVaultRegistryTest is
+    AbstractVaultRegistryTest,
+    AbstractMainnetForkTest,
+    AbstractMainnetUniswapConfigContract
+{
+    function _setUp() internal virtual override {
+        MainnetUniswapHelper helperImpl = new MainnetUniswapHelper();
+        helper = IHelper(address(helperImpl));
+
+        MockOracle oracleImpl = new MockOracle();
+        oracle = IMockOracle(address(oracleImpl));
+
+        UniV3Oracle nftOracleImpl = new UniV3Oracle(PositionManager, IOracle(address(oracle)), 10**16);
+        nftOracle = INFTOracle(address(nftOracleImpl));
+    }
+}
+
+contract PolygonUniswapVaultRegistryTest is
+    AbstractVaultRegistryTest,
+    AbstractPolygonForkTest,
+    AbstractPolygonUniswapConfigContract
+{
+    function _setUp() internal virtual override {
+        PolygonUniswapHelper helperImpl = new PolygonUniswapHelper();
+        helper = IHelper(address(helperImpl));
+
+        MockOracle oracleImpl = new MockOracle();
+        oracle = IMockOracle(address(oracleImpl));
+
+        UniV3Oracle nftOracleImpl = new UniV3Oracle(PositionManager, IOracle(address(oracle)), 10**16);
+        nftOracle = INFTOracle(address(nftOracleImpl));
     }
 }

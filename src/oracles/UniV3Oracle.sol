@@ -39,7 +39,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
     /// @param oracle_ Oracle
     /// @param maxPriceRatioDeviation_ Maximum price deviation allowed between oracle and spot ticks
     constructor(
-        INonfungiblePositionManager positionManager_,
+        address positionManager_,
         IOracle oracle_,
         uint256 maxPriceRatioDeviation_
     ) {
@@ -47,7 +47,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
             revert AddressZero();
         }
 
-        positionManager = positionManager_;
+        positionManager = INonfungiblePositionManager(positionManager_);
         factory = IUniswapV3Factory(positionManager.factory());
         oracle = oracle_;
         maxPriceRatioDeviation = maxPriceRatioDeviation_;

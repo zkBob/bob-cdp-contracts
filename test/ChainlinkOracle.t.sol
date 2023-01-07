@@ -8,6 +8,7 @@ import "./SetupContract.sol";
 import "./mocks/MockOracle.sol";
 import "./mocks/MockChainlinkOracle.sol";
 import "./shared/ForkTests.sol";
+import "../src/oracles/ChainlinkOracle.sol";
 
 contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
     event OraclesAdded(
@@ -32,7 +33,7 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
 
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
-        oracle = deployChainlink();
+        oracle = new ChainlinkOracle(tokens, chainlinkOracles, heartbeats, 3600);
     }
 
     // hasOracle

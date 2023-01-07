@@ -6,13 +6,12 @@ import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@zkbob/proxy/EIP1967Proxy.sol";
 import "../src/Vault.sol";
 import "../src/VaultRegistry.sol";
-import "../src/oracles/UniV3Oracle.sol";
 import "./SetupContract.sol";
 import "./mocks/BobTokenMock.sol";
 import "./mocks/MockOracle.sol";
 import "./shared/ForkTests.sol";
 
-abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
+abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, AbstractLateSetup {
     event VaultOpened(address indexed sender, uint256 vaultId);
     event VaultLiquidated(address indexed sender, uint256 vaultId);
     event VaultClosed(address indexed sender, uint256 vaultId);
@@ -50,8 +49,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
-    EIP1967Proxy univ3OracleProxy;
-    UniV3Oracle univ3Oracle;
+    INFTOracle nftOracle;
     IMockOracle oracle;
     BobTokenMock token;
     Vault vault;
@@ -62,32 +60,22 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     uint256 YEAR = 365 * 24 * 60 * 60;
 
     function setUp() public {
-        console2.log(forkRpcUrl, forkBlock);
         vm.createSelectFork(forkRpcUrl, forkBlock);
+        _setUp();
 
-        positionManager = INonfungiblePositionManager(UniV3PositionManager);
+        positionManager = INonfungiblePositionManager(PositionManager);
 
-        MockOracle oracleImpl = new MockOracle();
-
-        oracle = IMockOracle(address(oracleImpl));
-
-        setTokenPrice(oracle, wbtc, uint256(20000 << 96) * uint256(10**10));
-        setTokenPrice(oracle, weth, uint256(1000 << 96));
-        setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
-
-        univ3Oracle = new UniV3Oracle(
-            INonfungiblePositionManager(UniV3PositionManager),
-            IOracle(address(oracle)),
-            10**16
-        );
+        helper.setTokenPrice(oracle, wbtc, uint256(20000 << 96) * uint256(10**10));
+        helper.setTokenPrice(oracle, weth, uint256(1000 << 96));
+        helper.setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
 
         treasury = getNextUserAddress();
 
         token = new BobTokenMock();
 
         vault = new Vault(
-            INonfungiblePositionManager(UniV3PositionManager),
-            INFTOracle(address(univ3Oracle)),
+            INonfungiblePositionManager(PositionManager),
+            INFTOracle(address(nftOracle)),
             treasury,
             address(token)
         );
@@ -115,9 +103,10 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
         vault.changeLiquidationPremium(3 * 10**7);
         vault.changeMinSingleNftCollateral(10**17);
         vault.changeMaxNftsPerVault(12);
+        vault.grantRole(vault.ADMIN_ROLE(), address(helper));
 
-        setPools(vault);
-        setApprovals();
+        helper.setPools(vault);
+        helper.setApprovals();
 
         address[] memory depositors = new address[](1);
         depositors[0] = address(this);
@@ -183,7 +172,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testDepositCollateralSuccess() public {
         uint256 vaultId = vault.openVault();
 
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
 
         vault.depositCollateral(vaultId, tokenId);
 
@@ -195,7 +184,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testFailDepositCollateralNotApproved() public {
         uint256 vaultId = vault.openVault();
 
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
 
         vault.depositCollateral(vaultId, tokenId);
         vault.withdrawCollateral(tokenId);
@@ -205,7 +194,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testFailTryDepositTwice() public {
         uint256 vaultId = vault.openVault();
 
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.depositCollateral(vaultId, tokenId);
     }
@@ -216,7 +205,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
         addresses[0] = newAddress;
         vault.addDepositorsToAllowlist(addresses);
 
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         positionManager.transferFrom(address(this), newAddress, tokenId);
 
         vm.startPrank(newAddress);
@@ -234,8 +223,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testDepositCollateralInvalidPool() public {
         uint256 vaultId = vault.openVault();
 
-        vault.revokeWhitelistedPool(IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000));
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**25, address(vault));
+        vault.revokeWhitelistedPool(helper.getPool(weth, usdc));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**25, address(vault));
 
         vm.expectRevert(Vault.InvalidPool.selector);
         vault.depositCollateral(vaultId, tokenId);
@@ -243,8 +232,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testDepositCollateralNotApprovedToken() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        setTokenPrice(oracle, weth, 0);
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        helper.setTokenPrice(oracle, weth, 0);
 
         vm.expectRevert(UniV3Oracle.MissingOracle.selector);
         vault.depositCollateral(vaultId, tokenId);
@@ -252,26 +241,26 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testDepositCollateralWhenPositionDoesNotExceedMinCapital() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**10, 10**5, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**10, 10**5, address(vault));
 
         vm.expectRevert(Vault.CollateralUnderflow.selector);
         vault.depositCollateral(vaultId, tokenId);
     }
 
     function testDepositCollateralWhenPositionExceedsMinCapitalButEstimationNotSuccess() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setLiquidationThreshold(pool, 10**7); // 1%
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**15, 10**6, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**15, 10**6, address(vault));
 
         vault.depositCollateral(vaultId, tokenId);
     }
 
     function testDepositCollateralNFTLimitExceeded() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.changeMaxNftsPerVault(1);
 
         vm.expectRevert(Vault.NFTLimitExceeded.selector);
@@ -280,7 +269,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testDepositCollateralWhenPaused() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
 
         vault.pause();
 
@@ -290,7 +279,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testDepositCollateralEmit() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
 
         vm.expectEmit(true, false, false, true);
         emit CollateralDeposited(address(this), vaultId, tokenId);
@@ -301,7 +290,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCloseVaultSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.closeVault(vaultId, address(this));
         assertEq(vaultRegistry.balanceOf(address(this)), 1);
@@ -310,7 +299,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testCloseVaultSuccessWithCollaterals() public {
         uint256 vaultId = vault.openVault();
 
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         vault.closeVault(vaultId, address(this));
@@ -322,7 +311,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testCloseVaultSuccessWithCollateralsToAnotherRecipient() public {
         uint256 vaultId = vault.openVault();
 
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         address recipient = getNextUserAddress();
@@ -334,7 +323,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testClosedVaultAcceptingCollateral() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.closeVault(vaultId, address(this));
 
         vault.depositCollateral(vaultId, tokenId);
@@ -344,7 +333,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testCloseWithUnpaidDebt() public {
         uint256 vaultId = vault.openVault();
 
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 10);
 
@@ -355,7 +344,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testCloseVaultWithUnpaidFees() public {
         uint256 vaultId = vault.openVault();
 
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
 
@@ -385,7 +374,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testMintDebtSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 10);
         assertEq(token.balanceOf(address(this)), 10);
@@ -393,9 +382,9 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testMintDebtWhenManipulatingPrice() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        makeSwap(weth, usdc, 10**22);
+        helper.makeSwap(weth, usdc, 10**22);
         vm.expectRevert(Vault.TickDeviation.selector);
         vault.mintDebt(vaultId, 10);
     }
@@ -415,7 +404,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testMintDebtWhenPositionUnhealthy() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
@@ -424,7 +413,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testMintDebtEmit() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         vm.expectEmit(true, false, false, true);
@@ -435,7 +424,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCorrectFeesWhenMintAfterTimeComes() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         vm.warp(block.timestamp + YEAR);
@@ -450,7 +439,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     // mintDebtFromScratch
 
     function testMintDebtFromScratchSuccess() public {
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         uint256 vaultId = vault.mintDebtFromScratch(tokenId, 10**18);
 
         assertTrue(vault.vaultDebt(vaultId) == 10**18);
@@ -461,7 +450,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testMintDebtFromScratchWhenTooMuchDebtTried() public {
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebtFromScratch(tokenId, 10**22);
@@ -470,7 +459,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     // deposit collateral via safeTransferFrom
 
     function testSafeTransferFromSuccess() public {
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         uint256 vaultId = vault.openVault();
         bytes memory data = abi.encode(vaultId);
 
@@ -483,7 +472,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testSafeTransferFromWhenCallingDirectly() public {
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         uint256 vaultId = vault.openVault();
         bytes memory data = abi.encode(vaultId);
 
@@ -492,7 +481,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testSafeTransferFromEmit() public {
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         uint256 vaultId = vault.openVault();
         bytes memory data = abi.encode(vaultId);
 
@@ -504,7 +493,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     // depositAndMint via multicall
 
     function testDepositAndMintSuccess() public {
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         uint256 vaultId = vault.openVault();
 
         bytes[] memory data = new bytes[](2);
@@ -521,8 +510,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testDepositAndMintSeveralNfts() public {
-        uint256 tokenAId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        uint256 tokenBId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenAId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenBId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         uint256 vaultId = vault.openVault();
 
         bytes[] memory data = new bytes[](3);
@@ -541,7 +530,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testDepositAndMintWhenTooMuchDebtTried() public {
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         uint256 vaultId = vault.openVault();
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
@@ -556,7 +545,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testBurnDebtSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 10);
         vault.burnDebt(vaultId, 10);
@@ -565,7 +554,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testBurnMoreThanDebtSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 10);
         vault.burnDebt(vaultId, 1000);
@@ -574,7 +563,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testFailBurnMoreThanBalance() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000);
         vm.warp(block.timestamp + YEAR);
@@ -583,7 +572,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testFailBurnAfterTransferPartOfBalance() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000);
 
@@ -595,7 +584,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testPartialBurnSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 300 * 10**18);
         vm.warp(block.timestamp + YEAR);
@@ -609,7 +598,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testPartialFeesBurnSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 300 * 10**18);
         vm.warp(block.timestamp + YEAR);
@@ -625,7 +614,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testBurnDebtSuccessWithFees() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 300 * 10**18);
         vm.warp(block.timestamp + YEAR);
@@ -641,7 +630,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testBurnDebtWhenPaused() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 300 * 10**18);
         vm.warp(block.timestamp + YEAR);
@@ -665,7 +654,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testBurnDebtEmit() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         vault.mintDebt(vaultId, 10);
@@ -680,7 +669,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testWithdrawCollateralSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.withdrawCollateral(tokenId);
         assertEq(getLength(vault.vaultNftsById(vaultId)), 0);
@@ -689,7 +678,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testWithdrawCollateralWhenPaused() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
         vault.withdrawCollateral(tokenId);
@@ -699,9 +688,9 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testWithdrawCollateralWhenManipulatingPriceAndEmptyingVault() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        makeSwap(weth, usdc, 10**22);
+        helper.makeSwap(weth, usdc, 10**22);
         vault.withdrawCollateral(tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         assertEq(overallCollateral, 0);
@@ -710,18 +699,18 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testWithdrawCollateralWhenManipulatingPriceAndVaultNonEmpty() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenAId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        uint256 tokenBId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenAId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenBId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenAId);
         vault.depositCollateral(vaultId, tokenBId);
-        makeSwap(weth, usdc, 10**22);
+        helper.makeSwap(weth, usdc, 10**22);
         vm.expectRevert(Vault.TickDeviation.selector);
         vault.withdrawCollateral(tokenAId);
     }
 
     function testWithdrawCollateralWhenNotOwner() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         vm.prank(getNextUserAddress());
@@ -731,7 +720,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testWithdrawCollateralWhenPositionGoingUnhealthy() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
@@ -740,7 +729,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testWithdrawCollateralEmit() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vm.expectEmit(true, false, false, true);
         emit CollateralWithdrew(address(this), vaultId, tokenId);
@@ -751,12 +740,12 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testDecreaseLiquiditySuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
             .positions(tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        (, uint256 price, ) = univ3Oracle.price(tokenId);
+        (, uint256 price, ) = nftOracle.price(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -766,7 +755,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
                 deadline: type(uint256).max
             })
         );
-        (, uint256 newPrice, ) = univ3Oracle.price(tokenId);
+        (, uint256 newPrice, ) = nftOracle.price(tokenId);
         (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         info = INonfungiblePositionLoader(address(positionManager)).positions(tokenId);
         assertEq(info.liquidity, 0);
@@ -777,7 +766,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testDecreaseLiquidityWhenPaused() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
@@ -797,7 +786,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testDecreaseLiquidityWhenNotOwner() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
@@ -817,13 +806,13 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testDecreaseLiquidityWhenPositionBecomingUnhealthy() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
             .positions(tokenId);
         (uint256 adjustedCollateral, ) = vault.calculateVaultCollateral(vaultId);
         vault.mintDebt(vaultId, 1190 * 10**18);
-        setTokenPrice(oracle, weth, 800 << 96);
+        helper.setTokenPrice(oracle, weth, 800 << 96);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -840,7 +829,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
@@ -869,7 +858,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectWhenPaused() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
@@ -899,7 +888,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectWhenManipulatingPrice() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
@@ -913,7 +902,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
                 deadline: type(uint256).max
             })
         );
-        makeSwap(weth, usdc, 10**22);
+        helper.makeSwap(weth, usdc, 10**22);
         vm.expectRevert(Vault.TickDeviation.selector);
         vault.collect(
             INonfungiblePositionManager.CollectParams({
@@ -927,7 +916,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectWhenCollateralUnderflow() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
             .positions(tokenId);
@@ -953,7 +942,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectWhenNotOwner() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
@@ -972,7 +961,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectWhenPositionGoingUnhealthy() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
@@ -1001,7 +990,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testDecreaseAndCollectSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
@@ -1038,7 +1027,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectAndIncreaseAmountSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
@@ -1078,7 +1067,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectAndIncreaseAmountWhenPaused() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
@@ -1119,7 +1108,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectAndIncreaseAmountWhenManipulatingPrice() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
             .positions(tokenId);
@@ -1132,7 +1121,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
                 deadline: type(uint256).max
             })
         );
-        makeSwap(weth, usdc, 10**22);
+        helper.makeSwap(weth, usdc, 10**22);
         deal(weth, address(this), 10000 ether);
         deal(usdc, address(this), 10000 ether);
         deal(wbtc, address(this), 10000 ether);
@@ -1157,7 +1146,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectAndIncreaseAmountWhenCollateralUnderflow() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
@@ -1195,7 +1184,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectAndIncreaseAmountWhenNotOwner() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
@@ -1234,7 +1223,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testCollectAndIncreaseAmountWhenPositionGoingUnhealthy() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 ether);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
@@ -1281,7 +1270,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testHealthFactorAfterDeposit() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         uint256 lowCapitalBound = 10**18 * 1100;
         uint256 upCapitalBound = 10**18 * 1300; // health apparently ~1200USD est: (1000(eth price) + 1000) * 0.6 = 1200
         vault.depositCollateral(vaultId, tokenId);
@@ -1291,7 +1280,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testHealthFactorAfterDepositWithdraw() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.withdrawCollateral(tokenId);
         (, uint256 health) = vault.calculateVaultCollateral(vaultId);
@@ -1300,8 +1289,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testHealthFactorMultipleDeposits() public {
         uint256 vaultId = vault.openVault();
-        uint256 nftA = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
-        uint256 nftB = openUniV3Position(wbtc, weth, 10**8, 10**18 * 20, address(vault));
+        uint256 nftA = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 nftB = helper.openPosition(wbtc, weth, 10**8, 10**18 * 20, address(vault));
         vault.depositCollateral(vaultId, nftA);
         (, uint256 healthOneAsset) = vault.calculateVaultCollateral(vaultId);
         vault.depositCollateral(vaultId, nftB);
@@ -1315,13 +1304,13 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testHealthFactorAfterPriceChange() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         (, uint256 healthPreAction) = vault.calculateVaultCollateral(vaultId);
-        setTokenPrice(oracle, weth, 800 << 96);
+        helper.setTokenPrice(oracle, weth, 800 << 96);
         (, uint256 healthLowPrice) = vault.calculateVaultCollateral(vaultId);
-        setTokenPrice(oracle, weth, 1400 << 96);
+        helper.setTokenPrice(oracle, weth, 1400 << 96);
         (, uint256 healthHighPrice) = vault.calculateVaultCollateral(vaultId);
 
         assertTrue(healthLowPrice < healthPreAction);
@@ -1330,11 +1319,11 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testHealthFactorAfterPoolChange() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
         (, uint256 healthPreAction) = vault.calculateVaultCollateral(vaultId);
-        makeSwap(weth, usdc, 10**18);
+        helper.makeSwap(weth, usdc, 10**18);
         (, uint256 healthPostAction) = vault.calculateVaultCollateral(vaultId);
         assertTrue(healthPreAction != healthPostAction);
         assertApproxEqual(healthPreAction, healthPostAction, 1);
@@ -1342,9 +1331,9 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testHealthFactorAfterThresholdChange() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
 
         vault.setLiquidationThreshold(pool, 1e8);
         uint256 lowCapitalBound = 10**18 * 150;
@@ -1375,11 +1364,11 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testLiquidateSuccess() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 800
-        setTokenPrice(oracle, weth, 700 << 96);
+        helper.setTokenPrice(oracle, weth, 700 << 96);
 
         address randomAddress = getNextUserAddress();
         token.transfer(randomAddress, vault.vaultDebt(vaultId));
@@ -1425,11 +1414,11 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testFailLiquidateWithProfitWhenPricePlummets() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 1
-        setTokenPrice(oracle, weth, 1 << 96);
+        helper.setTokenPrice(oracle, weth, 1 << 96);
 
         address liquidator = getNextUserAddress();
         (, uint256 health) = vault.calculateVaultCollateral(vaultId);
@@ -1444,11 +1433,11 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testLiquidateWhenPricePlummets() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
         // eth 1000 -> 1
-        setTokenPrice(oracle, weth, 1 << 96);
+        helper.setTokenPrice(oracle, weth, 1 << 96);
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 1100 * 10**18, true);
@@ -1471,10 +1460,10 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testLiquidateWhenVaultOwnerReceiveNothingButDaoReceiveSomething() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 * 10**18);
-        setTokenPrice(oracle, weth, 600 << 96);
+        helper.setTokenPrice(oracle, weth, 600 << 96);
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 20000 * 10**18, true);
@@ -1499,11 +1488,11 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testFailLiquidateWithSmallAmount() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1100 * 10**18);
         // eth 1000 -> 800
-        setTokenPrice(oracle, weth, 800 << 96);
+        helper.setTokenPrice(oracle, weth, 800 << 96);
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 2000 * 10**18, true);
@@ -1515,7 +1504,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testLiquidateWhenPositionHealthy() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
 
         (, uint256 health) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
@@ -1530,11 +1519,11 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testLiquidateEmit() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1100 * 10**18);
         // eth 1000 -> 800
-        setTokenPrice(oracle, weth, 800 << 96);
+        helper.setTokenPrice(oracle, weth, 800 << 96);
 
         vm.warp(block.timestamp + 5 * YEAR);
         (, uint256 health) = vault.calculateVaultCollateral(vaultId);
@@ -1654,8 +1643,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testSetVaultRegistrySuccess() public {
         Vault newVault = new Vault(
-            INonfungiblePositionManager(UniV3PositionManager),
-            INFTOracle(address(univ3Oracle)),
+            INonfungiblePositionManager(PositionManager),
+            INFTOracle(address(nftOracle)),
             treasury,
             address(token)
         );
@@ -1687,8 +1676,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testSetVaultRegistryWhenAddressZero() public {
         Vault newVault = new Vault(
-            INonfungiblePositionManager(UniV3PositionManager),
-            INFTOracle(address(univ3Oracle)),
+            INonfungiblePositionManager(PositionManager),
+            INFTOracle(address(nftOracle)),
             treasury,
             address(token)
         );
@@ -1708,8 +1697,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testSetVaultRegistryEmit() public {
         Vault newVault = new Vault(
-            INonfungiblePositionManager(UniV3PositionManager),
-            INFTOracle(address(univ3Oracle)),
+            INonfungiblePositionManager(PositionManager),
+            INFTOracle(address(nftOracle)),
             treasury,
             address(token)
         );
@@ -1734,7 +1723,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testVaultNftsByIdSuccess() public {
         uint256 vaultId = vault.openVault();
         assertEq(getLength(vault.vaultNftsById(vaultId)), 0);
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         uint256[] memory nfts = vault.vaultNftsById(vaultId);
         assertEq(getLength(nfts), 1);
@@ -1745,7 +1734,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testOverallDebtSuccess() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 300 * 10**18);
         uint256 overallDebt = vault.getOverallDebt(vaultId);
@@ -1754,7 +1743,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testOverallDebtSuccessWithFees() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 300 * 10**18);
         vm.warp(block.timestamp + YEAR); // 1 YEAR
@@ -1771,7 +1760,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
 
     function testUpdateStabilisationFeeSuccessWithCalculations() public {
         uint256 vaultId = vault.openVault();
-        uint256 tokenId = openUniV3Position(weth, usdc, 10**18, 10**9, address(vault));
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 300 * 10**18);
         vm.warp(block.timestamp + YEAR);
@@ -1828,18 +1817,18 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     // isPoolWhitelisted + setWhitelistedPool + revokeWhitelistedPool
 
     function testSetGetWhitelistedPoolSuccess() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setWhitelistedPool(pool);
         assertTrue(vault.isPoolWhitelisted(pool));
     }
 
     function testPoolNotWhitelisted() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(ape, usdc, 3000);
+        address pool = helper.getPool(ape, usdc);
         assertTrue(!vault.isPoolWhitelisted(pool));
     }
 
     function testRevokedPool() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setWhitelistedPool(pool);
         vault.revokeWhitelistedPool(pool);
         assertTrue(!vault.isPoolWhitelisted(pool));
@@ -1848,14 +1837,14 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     // whitelistedPool
 
     function testGetWhitelistedPoolSuccess() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(ape, usdc, 3000);
+        address pool = helper.getPool(ape, usdc);
         vault.setWhitelistedPool(pool);
         assertTrue(pool == vault.whitelistedPool(3));
     }
 
     function testSeveralPoolsOkay() public {
-        address poolA = IUniswapV3Factory(UniV3Factory).getPool(weth, ape, 3000);
-        address poolB = IUniswapV3Factory(UniV3Factory).getPool(ape, usdc, 3000);
+        address poolA = helper.getPool(weth, ape);
+        address poolB = helper.getPool(ape, usdc);
         vault.setWhitelistedPool(poolA);
         vault.setWhitelistedPool(poolB);
 
@@ -1874,7 +1863,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     // Access control of all public methods
 
     function testAccessControlsAllAccountsMethods() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setWhitelistedPool(pool);
 
         address newAddress = getNextUserAddress();
@@ -2020,17 +2009,17 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     function testSetWhitelistedPoolAccessControl() public {
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.setWhitelistedPool(pool);
     }
 
     function testSetSeveralPoolsOkay() public {
-        setPools(ICDP(vault));
+        helper.setPools(ICDP(vault));
     }
 
     function testSetWhitelistedPoolEmitted() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vm.expectEmit(false, true, false, true);
         emit WhitelistedPoolSet(getNextUserAddress(), address(this), pool);
         vault.setWhitelistedPool(pool);
@@ -2039,7 +2028,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     // revokeWhitelistedPool
 
     function testRevokePoolAccessControl() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setWhitelistedPool(pool);
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
@@ -2048,12 +2037,12 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testTryRevokeUnstagedPoolIsOkay() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.revokeWhitelistedPool(pool);
     }
 
     function testRevokePoolEmitted() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setWhitelistedPool(pool);
 
         vm.expectEmit(false, true, false, true);
@@ -2064,7 +2053,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     // setLiquidationThreshold
 
     function testSetThresholdSuccess() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(ape, usdc, 3000);
+        address pool = helper.getPool(ape, usdc);
         vault.setWhitelistedPool(pool);
         assertEq(vault.liquidationThresholdD(pool), 0);
         vault.setLiquidationThreshold(pool, 5 * 10**8);
@@ -2072,14 +2061,14 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testSetZeroThresholdIsOkay() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setWhitelistedPool(pool);
         vault.setLiquidationThreshold(pool, 0);
         assertEq(vault.liquidationThresholdD(pool), 0);
     }
 
     function testSetNewThreshold() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setWhitelistedPool(pool);
         vault.setLiquidationThreshold(pool, 5 * 10**8);
         assertEq(vault.liquidationThresholdD(pool), 5 * 10**8);
@@ -2088,13 +2077,13 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testSetThresholdNotWhitelisted() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(ape, usdc, 3000);
+        address pool = helper.getPool(ape, usdc);
         vm.expectRevert(Vault.InvalidPool.selector);
         vault.setLiquidationThreshold(pool, 5 * 10**8);
     }
 
     function testSetThresholdWhitelistedThenRevoked() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setWhitelistedPool(pool);
         vault.setLiquidationThreshold(pool, 5 * 10**8);
         vault.revokeWhitelistedPool(pool);
@@ -2104,7 +2093,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testSetTooLargeThreshold() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setWhitelistedPool(pool);
         vm.expectRevert(Vault.InvalidValue.selector);
         vault.setLiquidationThreshold(pool, 2 * 10**9);
@@ -2116,7 +2105,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testSetThresholdAccessControl() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
         vm.expectRevert(VaultAccessControl.Forbidden.selector);
@@ -2124,7 +2113,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
     }
 
     function testSetThresholdEmitted() public {
-        address pool = IUniswapV3Factory(UniV3Factory).getPool(weth, usdc, 3000);
+        address pool = helper.getPool(weth, usdc);
         vault.setWhitelistedPool(pool);
 
         vm.expectEmit(false, true, false, true);
@@ -2132,7 +2121,3 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest {
         vault.setLiquidationThreshold(pool, 10**6);
     }
 }
-
-contract MainnetUniswapVaultTest is AbstractVaultTest, AbstractMainnetForkTest {}
-
-contract PolygonUniswapVaultTest is AbstractVaultTest, AbstractPolygonForkTest {}

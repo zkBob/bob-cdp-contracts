@@ -5,14 +5,20 @@ import "forge-std/Test.sol";
 import "../src/interfaces/external/univ3/INonfungiblePositionLoader.sol";
 import "./SetupContract.sol";
 import "./shared/ForkTests.sol";
+import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
-contract NonfungiblePositionLoaderTest is Test, SetupContract, AbstractPolygonForkTest {
+contract NonfungiblePositionLoaderTest is
+    Test,
+    SetupContract,
+    AbstractPolygonForkTest,
+    AbstractPolygonUniswapConfigContract
+{
     INonfungiblePositionManager positionManager;
     uint256 tokenId = 1;
 
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
-        positionManager = INonfungiblePositionManager(UniV3PositionManager);
+        positionManager = INonfungiblePositionManager(PositionManager);
     }
 
     function testPositionInfoGetter() public {

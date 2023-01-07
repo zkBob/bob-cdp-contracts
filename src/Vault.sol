@@ -5,7 +5,6 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/Multicall.sol";
-import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import "@zkbob/proxy/EIP1967Admin.sol";
 import "./interfaces/oracles/IOracle.sol";
 import "./interfaces/external/univ3/INonfungiblePositionLoader.sol";
