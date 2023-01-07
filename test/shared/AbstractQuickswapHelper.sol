@@ -1,7 +1,7 @@
 pragma solidity ^0.8.0;
 
 import "./AbstractHelper.sol";
-import "@quickswap/contracts/periphery/INonfungiblePositionManager.sol";
+import {INonfungiblePositionManager as INonfungibleQuickswapPositionManager} from "@quickswap/contracts/periphery/INonfungiblePositionManager.sol";
 import "@quickswap/contracts/periphery/ISwapRouter.sol";
 import "@quickswap/contracts/core/IAlgebraFactory.sol";
 import "@quickswap/contracts/core/IAlgebraPool.sol";
@@ -9,10 +9,32 @@ import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "../../src/interfaces/external/quickswapv3/INonfungibleQuickswapPositionLoader.sol";
 
 contract AbstractQuickswapHelper is AbstractHelper {
     function getPool(address token0, address token1) public virtual override returns (address pool) {
         return IAlgebraFactory(Factory).poolByPair(token0, token1);
+    }
+
+    function positions(uint256 nft) external returns (INonfungiblePositionLoader.PositionInfo memory) {
+        INonfungibleQuickswapPositionLoader.PositionInfo memory info = INonfungibleQuickswapPositionLoader(
+            PositionManager
+        ).positions(nft);
+        INonfungiblePositionLoader.PositionInfo memory result = INonfungiblePositionLoader.PositionInfo({
+            nonce: info.nonce,
+            operator: info.operator,
+            token0: info.token0,
+            token1: info.token1,
+            fee: 3000,
+            tickLower: info.tickLower,
+            tickUpper: info.tickUpper,
+            liquidity: info.liquidity,
+            feeGrowthInside0LastX128: info.feeGrowthInside0LastX128,
+            feeGrowthInside1LastX128: info.feeGrowthInside1LastX128,
+            tokensOwed0: info.tokensOwed0,
+            tokensOwed1: info.tokensOwed1
+        });
+        return result;
     }
 
     function makeDesiredPoolPrice(
@@ -100,7 +122,7 @@ contract AbstractQuickswapHelper is AbstractHelper {
             (amount0, amount1) = (amount1, amount0);
         }
 
-        INonfungiblePositionManager positionManager = INonfungiblePositionManager(PositionManager);
+        INonfungibleQuickswapPositionManager positionManager = INonfungibleQuickswapPositionManager(PositionManager);
         IAlgebraPool pool = IAlgebraPool(getPool(token0, token1));
 
         deal(token0, address(this), amount0 * 100);
@@ -110,7 +132,7 @@ contract AbstractQuickswapHelper is AbstractHelper {
         (, int24 currentTick, , , , , ) = pool.globalState();
         currentTick -= currentTick % 60;
         (uint256 tokenId, , , ) = positionManager.mint(
-            INonfungiblePositionManager.MintParams({
+            INonfungibleQuickswapPositionManager.MintParams({
                 token0: token0,
                 token1: token1,
                 tickLower: currentTick - 600,

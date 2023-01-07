@@ -5,6 +5,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/Multicall.sol";
+import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import "@zkbob/proxy/EIP1967Admin.sol";
 import "./interfaces/oracles/IOracle.sol";
 import "./interfaces/external/univ3/INonfungiblePositionLoader.sol";
@@ -14,6 +15,8 @@ import "./interfaces/oracles/INFTOracle.sol";
 import "./interfaces/ICDP.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
 import "./utils/VaultAccessControl.sol";
+
+import "forge-std/console2.sol";
 
 /// @notice Contract of the system vault manager
 contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multicall {
@@ -382,6 +385,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     function liquidate(uint256 vaultId) external {
         uint256 overallDebt = getOverallDebt(vaultId);
         (uint256 vaultAmount, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, true);
+        console2.log("!!!!!!!", adjustedCollateral, overallDebt);
         if (adjustedCollateral >= overallDebt) {
             revert PositionHealthy();
         }

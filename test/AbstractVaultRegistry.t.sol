@@ -5,12 +5,10 @@ import "forge-std/Test.sol";
 import "@zkbob/proxy/EIP1967Proxy.sol";
 import "../src/VaultRegistry.sol";
 import "../src/Vault.sol";
-import "../src/oracles/UniV3Oracle.sol";
 import "./SetupContract.sol";
 import "./mocks/MockOracle.sol";
 import "./mocks/BobTokenMock.sol";
 import "./shared/ForkTests.sol";
-import "./shared/AbstractUniswapHelper.sol";
 
 abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractForkTest, AbstractLateSetup {
     EIP1967Proxy vaultProxy;
@@ -132,39 +130,5 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
         vm.prank(address(vault));
         vaultRegistry.mint(getNextUserAddress(), 1);
         assertEq(vaultRegistry.tokenURI(1), "baseURI/1");
-    }
-}
-
-contract MainnetUniswapVaultRegistryTest is
-    AbstractVaultRegistryTest,
-    AbstractMainnetForkTest,
-    AbstractMainnetUniswapConfigContract
-{
-    function _setUp() internal virtual override {
-        MainnetUniswapHelper helperImpl = new MainnetUniswapHelper();
-        helper = IHelper(address(helperImpl));
-
-        MockOracle oracleImpl = new MockOracle();
-        oracle = IMockOracle(address(oracleImpl));
-
-        UniV3Oracle nftOracleImpl = new UniV3Oracle(PositionManager, IOracle(address(oracle)), 10**16);
-        nftOracle = INFTOracle(address(nftOracleImpl));
-    }
-}
-
-contract PolygonUniswapVaultRegistryTest is
-    AbstractVaultRegistryTest,
-    AbstractPolygonForkTest,
-    AbstractPolygonUniswapConfigContract
-{
-    function _setUp() internal virtual override {
-        PolygonUniswapHelper helperImpl = new PolygonUniswapHelper();
-        helper = IHelper(address(helperImpl));
-
-        MockOracle oracleImpl = new MockOracle();
-        oracle = IMockOracle(address(oracleImpl));
-
-        UniV3Oracle nftOracleImpl = new UniV3Oracle(PositionManager, IOracle(address(oracle)), 10**16);
-        nftOracle = INFTOracle(address(nftOracleImpl));
     }
 }

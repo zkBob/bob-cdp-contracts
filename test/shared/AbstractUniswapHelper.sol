@@ -4,6 +4,7 @@ import "./AbstractHelper.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/ISwapRouter.sol";
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
+import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Factory.sol";
 import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
@@ -12,6 +13,10 @@ import "@openzeppelin/contracts/utils/math/Math.sol";
 contract AbstractUniswapHelper is AbstractHelper {
     function getPool(address token0, address token1) public virtual override returns (address pool) {
         return IUniswapV3Factory(Factory).getPool(token0, token1, 3000);
+    }
+
+    function positions(uint256 nft) external returns (INonfungiblePositionLoader.PositionInfo memory) {
+        return INonfungiblePositionLoader(PositionManager).positions(nft);
     }
 
     function makeDesiredPoolPrice(

@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 
 import "../../mocks/interfaces/IMockOracle.sol";
 import "../../../src/interfaces/ICDP.sol";
+import "../../../src/interfaces/external/univ3/INonfungiblePositionLoader.sol";
 
 interface IHelper {
     function makeDesiredPoolPrice(
@@ -11,6 +12,8 @@ interface IHelper {
         address token0,
         address token1
     ) external;
+
+    function positions(uint256 nft) external returns (INonfungiblePositionLoader.PositionInfo memory);
 
     function makeDesiredUSDCPoolPrice(uint256 targetPriceX96, address token) external;
 

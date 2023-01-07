@@ -1,11 +1,15 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import "./AbstractVault.t.sol";
 import "../src/oracles/UniV3Oracle.sol";
 import "./shared/AbstractUniswapHelper.sol";
+import "./AbstractVaultRegistry.t.sol";
 
-contract MainnetUniswapVaultTest is AbstractVaultTest, AbstractMainnetForkTest, AbstractMainnetUniswapConfigContract {
+contract MainnetUniswapVaultRegistryTest is
+    AbstractVaultRegistryTest,
+    AbstractMainnetForkTest,
+    AbstractMainnetUniswapConfigContract
+{
     function _setUp() internal virtual override {
         MainnetUniswapHelper helperImpl = new MainnetUniswapHelper();
         helper = IHelper(address(helperImpl));
@@ -18,7 +22,11 @@ contract MainnetUniswapVaultTest is AbstractVaultTest, AbstractMainnetForkTest, 
     }
 }
 
-contract PolygonUniswapVaultTest is AbstractVaultTest, AbstractPolygonForkTest, AbstractPolygonUniswapConfigContract {
+contract PolygonUniswapVaultRegistryTest is
+    AbstractVaultRegistryTest,
+    AbstractPolygonForkTest,
+    AbstractPolygonUniswapConfigContract
+{
     function _setUp() internal virtual override {
         PolygonUniswapHelper helperImpl = new PolygonUniswapHelper();
         helper = IHelper(address(helperImpl));

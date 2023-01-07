@@ -12,6 +12,7 @@ import "./mocks/MockOracle.sol";
 import "./shared/ForkTests.sol";
 
 abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, AbstractLateSetup {
+    error MissingOracle();
     event VaultOpened(address indexed sender, uint256 vaultId);
     event VaultLiquidated(address indexed sender, uint256 vaultId);
     event VaultClosed(address indexed sender, uint256 vaultId);
@@ -235,7 +236,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         helper.setTokenPrice(oracle, weth, 0);
 
-        vm.expectRevert(UniV3Oracle.MissingOracle.selector);
+        vm.expectRevert(MissingOracle.selector);
         vault.depositCollateral(vaultId, tokenId);
     }
 
@@ -742,8 +743,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         (, uint256 price, ) = nftOracle.price(tokenId);
         vault.decreaseLiquidity(
@@ -757,7 +757,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         );
         (, uint256 newPrice, ) = nftOracle.price(tokenId);
         (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        info = INonfungiblePositionLoader(address(positionManager)).positions(tokenId);
+        info = helper.positions(tokenId);
         assertEq(info.liquidity, 0);
         assertTrue(overallCollateral != newOverallCollateral);
         assertTrue(adjustedCollateral != newAdjustedCollateral);
@@ -769,8 +769,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -780,7 +779,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
                 deadline: type(uint256).max
             })
         );
-        info = INonfungiblePositionLoader(address(positionManager)).positions(tokenId);
+        info = helper.positions(tokenId);
         assertEq(info.liquidity, 0);
     }
 
@@ -789,8 +788,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vm.prank(getNextUserAddress());
         vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.decreaseLiquidity(
@@ -808,8 +806,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         (uint256 adjustedCollateral, ) = vault.calculateVaultCollateral(vaultId);
         vault.mintDebt(vaultId, 1190 * 10**18);
         helper.setTokenPrice(oracle, weth, 800 << 96);
@@ -832,8 +829,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -862,8 +858,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -891,8 +886,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -918,8 +912,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -945,8 +938,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vm.prank(getNextUserAddress());
         vm.expectRevert(VaultAccessControl.Forbidden.selector);
         vault.collect(
@@ -964,8 +956,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -993,8 +984,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
 
         bytes[] memory data = new bytes[](2);
         data[0] = abi.encodeWithSelector(
@@ -1030,8 +1020,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1071,8 +1060,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1110,8 +1098,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1149,8 +1136,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1187,8 +1173,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1227,8 +1212,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 ether);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -1823,7 +1807,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testPoolNotWhitelisted() public {
-        address pool = helper.getPool(ape, usdc);
+        address pool = helper.getPool(dai, usdc);
         assertTrue(!vault.isPoolWhitelisted(pool));
     }
 
@@ -1837,14 +1821,14 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     // whitelistedPool
 
     function testGetWhitelistedPoolSuccess() public {
-        address pool = helper.getPool(ape, usdc);
+        address pool = helper.getPool(dai, usdc);
         vault.setWhitelistedPool(pool);
         assertTrue(pool == vault.whitelistedPool(3));
     }
 
     function testSeveralPoolsOkay() public {
-        address poolA = helper.getPool(weth, ape);
-        address poolB = helper.getPool(ape, usdc);
+        address poolA = helper.getPool(weth, dai);
+        address poolB = helper.getPool(dai, usdc);
         vault.setWhitelistedPool(poolA);
         vault.setWhitelistedPool(poolB);
 
@@ -2053,7 +2037,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     // setLiquidationThreshold
 
     function testSetThresholdSuccess() public {
-        address pool = helper.getPool(ape, usdc);
+        address pool = helper.getPool(dai, usdc);
         vault.setWhitelistedPool(pool);
         assertEq(vault.liquidationThresholdD(pool), 0);
         vault.setLiquidationThreshold(pool, 5 * 10**8);
@@ -2077,7 +2061,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testSetThresholdNotWhitelisted() public {
-        address pool = helper.getPool(ape, usdc);
+        address pool = helper.getPool(dai, usdc);
         vm.expectRevert(Vault.InvalidPool.selector);
         vault.setLiquidationThreshold(pool, 5 * 10**8);
     }

@@ -15,7 +15,7 @@ contract AbstractConfigContract {
     address wbtc;
     address usdc;
     address weth;
-    address ape;
+    address dai;
 
     address chainlinkBtc;
     address chainlinkUsdc;

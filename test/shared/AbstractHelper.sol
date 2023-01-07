@@ -43,6 +43,6 @@ abstract contract AbstractHelper is IHelper, AbstractForkTest, SetupContract {
         IERC20(weth).approve(SwapRouter, type(uint256).max);
         IERC20(usdc).approve(SwapRouter, type(uint256).max);
         IERC20(usdc).approve(PositionManager, type(uint256).max);
-        IERC20(ape).approve(PositionManager, type(uint256).max);
+        IERC20(dai).approve(PositionManager, type(uint256).max);
     }
 }

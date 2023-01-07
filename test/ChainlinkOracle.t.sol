@@ -107,7 +107,7 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
         MockChainlinkOracle mockOracle = new MockChainlinkOracle();
 
         address[] memory currentTokens = new address[](1);
-        currentTokens[0] = ape;
+        currentTokens[0] = dai;
         address[] memory currentOracles = new address[](1);
         currentOracles[0] = address(mockOracle);
         uint48[] memory currentHeartbeats = new uint48[](1);
@@ -140,7 +140,7 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
 
     function testSetUnderlyingPriceX96Success() public {
         address[] memory currentTokens = new address[](1);
-        currentTokens[0] = ape;
+        currentTokens[0] = dai;
         address[] memory currentOracles = new address[](1);
         currentOracles[0] = chainlinkOracles[0];
         uint48[] memory currentHeartbeats = new uint48[](1);
@@ -150,17 +150,17 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
 
         vm.warp(block.timestamp + YEAR);
 
-        (bool success, uint256 priceX96) = oracle.price(ape);
+        (bool success, uint256 priceX96) = oracle.price(dai);
         assertEq(success, false);
-        oracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp));
-        (success, priceX96) = oracle.price(ape);
+        oracle.setUnderlyingPriceX96(dai, 2 << 96, uint48(block.timestamp));
+        (success, priceX96) = oracle.price(dai);
         assertEq(success, true);
-        assertEq(priceX96, 30 << 96);
+        assertEq(priceX96, 2 << 96);
     }
 
     function testSetUnderlyingPriceX96Emit() public {
         address[] memory currentTokens = new address[](1);
-        currentTokens[0] = ape;
+        currentTokens[0] = dai;
         address[] memory currentOracles = new address[](1);
         currentOracles[0] = chainlinkOracles[0];
         uint48[] memory currentHeartbeats = new uint48[](1);
@@ -169,13 +169,13 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
         oracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
 
         vm.expectEmit(false, true, false, true);
-        emit PricePosted(getNextUserAddress(), address(this), ape, 30 << 96, uint48(block.timestamp));
-        oracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp));
+        emit PricePosted(getNextUserAddress(), address(this), dai, 2 << 96, uint48(block.timestamp));
+        oracle.setUnderlyingPriceX96(dai, 2 << 96, uint48(block.timestamp));
     }
 
     function testSetUnderlyingPriceX96WhenNotOwner() public {
         address[] memory currentTokens = new address[](1);
-        currentTokens[0] = ape;
+        currentTokens[0] = dai;
         address[] memory currentOracles = new address[](1);
         currentOracles[0] = chainlinkOracles[0];
         uint48[] memory currentHeartbeats = new uint48[](1);
@@ -185,12 +185,12 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
 
         vm.prank(getNextUserAddress());
         vm.expectRevert("Ownable: caller is not the owner");
-        oracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp));
+        oracle.setUnderlyingPriceX96(dai, 2 << 96, uint48(block.timestamp));
     }
 
     function testSetUnderlyingPriceX96WhenPriceIsTooOld() public {
         address[] memory currentTokens = new address[](1);
-        currentTokens[0] = ape;
+        currentTokens[0] = dai;
         address[] memory currentOracles = new address[](1);
         currentOracles[0] = chainlinkOracles[0];
         uint48[] memory currentHeartbeats = new uint48[](1);
@@ -199,6 +199,6 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
         oracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
 
         vm.expectRevert(ChainlinkOracle.PriceUpdateFailed.selector);
-        oracle.setUnderlyingPriceX96(ape, 30 << 96, uint48(block.timestamp) - 86400);
+        oracle.setUnderlyingPriceX96(dai, 2 << 96, uint48(block.timestamp) - 86400);
     }
 }

@@ -5,7 +5,7 @@ import "../interfaces/oracles/INFTOracle.sol";
 import "../interfaces/external/quickswapv3/INonfungibleQuickswapPositionLoader.sol";
 import "../interfaces/oracles/IOracle.sol";
 import "../libraries/QuickswapV3FeesCalculation.sol";
-import "@quickswap/contracts/periphery/INonfungiblePositionManager.sol";
+import {INonfungiblePositionManager as INonfungibleQuickswapPositionManager} from "@quickswap/contracts/periphery/INonfungiblePositionManager.sol";
 import "@quickswap/contracts/core/IAlgebraFactory.sol";
 import "@quickswap/contracts/core/IAlgebraPool.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
@@ -21,7 +21,7 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
     error MissingOracle();
 
     /// @notice QuickswapV3 position manager
-    INonfungiblePositionManager public immutable positionManager;
+    INonfungibleQuickswapPositionManager public immutable positionManager;
 
     /// @notice QuickswapV3 factory
     IAlgebraFactory public immutable factory;
@@ -48,7 +48,7 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
             revert AddressZero();
         }
 
-        positionManager = INonfungiblePositionManager(positionManager_);
+        positionManager = INonfungibleQuickswapPositionManager(positionManager_);
         factory = IAlgebraFactory(positionManager.factory());
         oracle = oracle_;
         maxPriceRatioDeviation = maxPriceRatioDeviation_;
