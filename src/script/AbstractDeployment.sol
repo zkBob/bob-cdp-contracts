@@ -86,16 +86,12 @@ abstract contract AbstractDeployment is Script {
         ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, heartbeats, 3600);
         console2.log("Chainlink Oracle", address(oracle));
 
-        UniV3Oracle univ3Oracle = new UniV3Oracle(
-            INonfungiblePositionManager(positionManager),
-            IOracle(address(oracle)),
-            10**17
-        );
+        UniV3Oracle nftOracle = new UniV3Oracle(positionManager, IOracle(address(oracle)), 10**17);
         console2.log("UniV3 Oracle", address(oracle));
 
         Vault vault = new Vault(
             INonfungiblePositionManager(positionManager),
-            INFTOracle(address(univ3Oracle)),
+            INFTOracle(address(nftOracle)),
             treasury,
             token
         );

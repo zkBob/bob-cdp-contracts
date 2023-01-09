@@ -6,18 +6,22 @@ import "../src/interfaces/external/univ3/INonfungiblePositionLoader.sol";
 import "./SetupContract.sol";
 import "./shared/ForkTests.sol";
 
-contract NonfungiblePositionLoaderTest is Test, SetupContract, AbstractPolygonForkTest {
-    INonfungiblePositionManager positionManager;
+contract NonfungiblePositionLoaderTest is
+    Test,
+    SetupContract,
+    AbstractPolygonForkTest,
+    AbstractPolygonUniswapConfigContract
+{
     uint256 tokenId = 1;
 
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
-        positionManager = INonfungiblePositionManager(UniV3PositionManager);
     }
 
     function testPositionInfoGetter() public {
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(PositionManager).positions(
+            tokenId
+        );
 
         // stack too deep :/
         // (...) = positionManager.positions(tokenId);

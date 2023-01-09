@@ -15,4 +15,10 @@ interface INFTOracle {
             uint256 positionAmount,
             address pool
         );
+
+    /// @notice Returns tokens for the NFT position
+    /// @param nft The token id of the position
+    /// @return token0 The token0 of the position
+    /// @return token1 The token1 of the position
+    function getPositionTokens(uint256 nft) external view returns (address token0, address token1);
 }

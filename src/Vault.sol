@@ -5,7 +5,7 @@ import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/Multicall.sol";
-import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
+import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import "@zkbob/proxy/EIP1967Admin.sol";
 import "./interfaces/oracles/IOracle.sol";
 import "./interfaces/external/univ3/INonfungiblePositionLoader.sol";
@@ -485,25 +485,24 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         (returnAmount0, returnAmount1) = positionManager.collect(collectParams);
 
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
-            .positions(increaseLiquidityParams.tokenId);
+        (address token0, address token1) = oracle.getPositionTokens(increaseLiquidityParams.tokenId);
 
-        IERC20(info.token0).transferFrom(msg.sender, address(this), increaseLiquidityParams.amount0Desired);
-        IERC20(info.token1).transferFrom(msg.sender, address(this), increaseLiquidityParams.amount1Desired);
+        IERC20(token0).transferFrom(msg.sender, address(this), increaseLiquidityParams.amount0Desired);
+        IERC20(token1).transferFrom(msg.sender, address(this), increaseLiquidityParams.amount1Desired);
 
-        _checkAllowance(info.token0, increaseLiquidityParams.amount0Desired, address(positionManager));
-        _checkAllowance(info.token1, increaseLiquidityParams.amount1Desired, address(positionManager));
+        _checkAllowance(token0, increaseLiquidityParams.amount0Desired, address(positionManager));
+        _checkAllowance(token1, increaseLiquidityParams.amount1Desired, address(positionManager));
 
         (depositedLiquidity, depositedAmount0, depositedAmount1) = positionManager.increaseLiquidity(
             increaseLiquidityParams
         );
 
         if (depositedAmount0 < increaseLiquidityParams.amount0Desired) {
-            IERC20(info.token0).transfer(msg.sender, increaseLiquidityParams.amount0Desired - depositedAmount0);
+            IERC20(token0).transfer(msg.sender, increaseLiquidityParams.amount0Desired - depositedAmount0);
         }
 
         if (depositedAmount1 < increaseLiquidityParams.amount1Desired) {
-            IERC20(info.token1).transfer(msg.sender, increaseLiquidityParams.amount1Desired - depositedAmount1);
+            IERC20(token1).transfer(msg.sender, increaseLiquidityParams.amount1Desired - depositedAmount1);
         }
 
         _checkHealthOfVaultAndPosition(vaultId, tokenId);
