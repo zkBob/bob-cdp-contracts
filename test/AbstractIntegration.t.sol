@@ -440,7 +440,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         assertTrue(currentDebt == newDebt);
     }
 
-    function LiquidationThresholdChangedHenceLiquidated() public {
+    function testLiquidationThresholdChangedHenceLiquidated() public {
         uint256 vaultId = vault.openVault();
 
         uint256 nftA = helper.openPosition(weth, usdc, 10**19, 10**10, address(vault)); // 20000 USD
