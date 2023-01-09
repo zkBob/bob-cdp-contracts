@@ -9,8 +9,8 @@ import "../interfaces/external/quickswapv3/INonfungibleQuickswapPositionLoader.s
 library QuickswapV3FeesCalculation {
     uint256 public constant Q128 = 2**128;
 
-    /// @notice Calculate Uniswap token fees for the position with a given nft
-    /// @param pool UniswapV3 pool
+    /// @notice Calculate Quickswap token fees for the position with a given nft
+    /// @param pool QuickswapV3 pool
     /// @param tick The current tick for the position's pool
     /// @param positionInfo Additional position info
     /// @return actualTokensOwed0 The fees of the position in token0, actualTokensOwed1 The fees of the position in token1
@@ -30,7 +30,7 @@ library QuickswapV3FeesCalculation {
         uint256 feeGrowthGlobal1X128 = pool.totalFeeGrowth1Token();
 
         (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) = _getQuickswapFeeGrowthInside(
-            address(pool),
+            pool,
             positionInfo.tickLower,
             positionInfo.tickUpper,
             tick,
@@ -58,7 +58,7 @@ library QuickswapV3FeesCalculation {
     /// @param feeGrowthGlobal1X128 QuickswapV3 fees of token1 collected per unit of liquidity for the entire life of the pool
     /// @return feeGrowthInside0X128 The all-time fee growth in token0, per unit of liquidity, inside the position's tick boundaries, feeGrowthInside1X128 The all-time fee growth in token1, per unit of liquidity, inside the position's tick boundaries
     function _getQuickswapFeeGrowthInside(
-        address pool,
+        IAlgebraPool pool,
         int24 tickLower,
         int24 tickUpper,
         int24 tickCurrent,
@@ -66,10 +66,12 @@ library QuickswapV3FeesCalculation {
         uint256 feeGrowthGlobal1X128
     ) internal view returns (uint256 feeGrowthInside0X128, uint256 feeGrowthInside1X128) {
         unchecked {
-            (, , uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128, , , , ) = IAlgebraPool(pool)
-                .ticks(tickLower);
-            (, , uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128, , , , ) = IAlgebraPool(pool)
-                .ticks(tickUpper);
+            (, , uint256 lowerFeeGrowthOutside0X128, uint256 lowerFeeGrowthOutside1X128, , , , ) = pool.ticks(
+                tickLower
+            );
+            (, , uint256 upperFeeGrowthOutside0X128, uint256 upperFeeGrowthOutside1X128, , , , ) = pool.ticks(
+                tickUpper
+            );
 
             // calculate fee growth below
             uint256 feeGrowthBelow0X128;
