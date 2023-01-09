@@ -1,11 +1,13 @@
+// SPDX-License-Identifier: CC0-1.0
+
+pragma solidity ^0.8.0;
+
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "../../src/interfaces/ICDP.sol";
 import "./interfaces/IHelper.sol";
 import "./ForkTests.sol";
-import "../../src/interfaces/ICDP.sol";
 import "../mocks/interfaces/IMockOracle.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "../SetupContract.sol";
-
-import "forge-std/console2.sol";
 
 abstract contract AbstractHelper is IHelper, AbstractForkTest, SetupContract {
     function setPools(ICDP vault) public {
