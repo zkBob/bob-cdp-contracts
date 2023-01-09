@@ -16,8 +16,6 @@ import "./interfaces/ICDP.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
 import "./utils/VaultAccessControl.sol";
 
-import "forge-std/console2.sol";
-
 /// @notice Contract of the system vault manager
 contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multicall {
     /// @notice Thrown when a vault is private and a depositor is not allowed
@@ -385,7 +383,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     function liquidate(uint256 vaultId) external {
         uint256 overallDebt = getOverallDebt(vaultId);
         (uint256 vaultAmount, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, true);
-        console2.log("!!!!!!!", adjustedCollateral, overallDebt);
         if (adjustedCollateral >= overallDebt) {
             revert PositionHealthy();
         }

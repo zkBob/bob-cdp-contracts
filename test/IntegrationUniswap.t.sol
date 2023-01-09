@@ -30,8 +30,6 @@ abstract contract AbstractUniswapIntegrationTestForVault is AbstractIntegrationT
         assertTrue(healthBeforeSwaps * 100001 <= healthAfterSwaps * 100000);
         assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 3); // difference < 0.3% though
 
-        // quickswap deals less fees than uniswap
-        vault.burnDebt(vaultId, 1 ether);
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 10000 * 10**18, true);
         vm.startPrank(liquidator);
