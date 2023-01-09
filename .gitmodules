@@ -16,6 +16,7 @@
 [submodule "lib/@zkbob"]
 	path = lib/@zkbob
 	url = https://github.com/zkbob/zkbob-contracts
-[submodule "lib/quickswapv3-interfaces"]
-	path = lib/quickswapv3-interfaces
-	url = https://github.com/AlexSaplin/quickswapv3-interfaces
+[submodule "lib/@quickswap"]
+	path = lib/@quickswap
+	url = https://github.com/zkBob/algebra-solidity-interfaces
+	branch = main

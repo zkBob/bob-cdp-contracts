@@ -1,10 +1,10 @@
 pragma solidity ^0.8.0;
 
 import "./AbstractHelper.sol";
-import {INonfungiblePositionManager as INonfungibleQuickswapPositionManager} from "@quickswap/contracts/periphery/INonfungiblePositionManager.sol";
-import "@quickswap/contracts/periphery/ISwapRouter.sol";
-import "@quickswap/contracts/core/IAlgebraFactory.sol";
-import "@quickswap/contracts/core/IAlgebraPool.sol";
+import {INonfungiblePositionManager as INonfungibleQuickswapPositionManager} from "@quickswap/periphery/INonfungiblePositionManager.sol";
+import "@quickswap/periphery/ISwapRouter.sol";
+import "@quickswap/core/IAlgebraFactory.sol";
+import "@quickswap/core/IAlgebraPool.sol";
 import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
