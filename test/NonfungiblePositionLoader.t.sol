@@ -19,8 +19,9 @@ contract NonfungiblePositionLoaderTest is
     }
 
     function testPositionInfoGetter() public {
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(PositionManager)
-            .positions(tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(PositionManager).positions(
+            tokenId
+        );
 
         // stack too deep :/
         // (...) = positionManager.positions(tokenId);

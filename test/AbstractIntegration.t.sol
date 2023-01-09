@@ -372,6 +372,41 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         assertApproxEqual(dailyFee / 24, hourFee, 1); // <0.1% delta
     }
 
+    function testReasonablePoolFeesCalculating() public {
+        uint256 vaultId = vault.openVault();
+        uint256 nftA = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, nftA);
+
+        (, uint256 healthBeforeSwaps) = vault.calculateVaultCollateral(vaultId);
+        vault.mintDebt(vaultId, healthBeforeSwaps - 1);
+
+        vm.expectRevert(Vault.PositionUnhealthy.selector);
+        vault.mintDebt(vaultId, 100);
+
+        helper.setTokenPrice(oracle, weth, 999 << 96); // small price change to make position slightly lower than health threshold
+        (, uint256 healthAfterPriceChanged) = vault.calculateVaultCollateral(vaultId);
+        uint256 debt = vault.vaultDebt(vaultId);
+
+        assertTrue(healthAfterPriceChanged <= debt);
+
+        for (uint256 i = 0; i < 5; i++) {
+            uint256 amountOut = helper.makeSwap(weth, usdc, 10**22); // have to get a lot of fees
+            helper.makeSwap(usdc, weth, amountOut);
+        }
+
+        (, uint256 healthAfterSwaps) = vault.calculateVaultCollateral(vaultId);
+
+        assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 30); // difference < 3% though
+
+        address liquidator = getNextUserAddress();
+        deal(address(token), liquidator, 10000 * 10**18, true);
+        vm.startPrank(liquidator);
+        token.approve(address(vault), type(uint256).max);
+        vm.expectRevert(Vault.PositionHealthy.selector);
+        vault.liquidate(vaultId); // hence not liquidated
+        vm.stopPrank();
+    }
+
     function testFeesUpdatedAfterAllOnlyMintBurn() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenA = helper.openPosition(weth, usdc, 10**20, 10**11, address(vault));
