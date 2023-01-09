@@ -13,11 +13,9 @@ import "./mocks/MockOracle.sol";
 import "./shared/ForkTests.sol";
 
 abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractForkTest, AbstractLateSetup {
-    IMockOracle oracle;
     BobTokenMock token;
     Vault vault;
     VaultRegistry vaultRegistry;
-    INFTOracle nftOracle;
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
     EIP1967Proxy nftOracleProxy;

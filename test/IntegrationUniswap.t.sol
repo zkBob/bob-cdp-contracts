@@ -2,7 +2,6 @@
 pragma solidity ^0.8.0;
 
 import "./AbstractIntegration.t.sol";
-import "../src/oracles/UniV3Oracle.sol";
 import "./shared/AbstractUniswapHelper.sol";
 
 abstract contract AbstractUniswapIntegrationTestForVault is AbstractIntegrationTestForVault {
@@ -46,33 +45,13 @@ abstract contract AbstractUniswapIntegrationTestForVault is AbstractIntegrationT
 contract MainnetUniswapIntegrationTestForVault is
     AbstractUniswapIntegrationTestForVault,
     AbstractMainnetForkTest,
-    AbstractMainnetUniswapConfigContract
-{
-    function _setUp() internal virtual override {
-        MainnetUniswapHelper helperImpl = new MainnetUniswapHelper();
-        helper = IHelper(address(helperImpl));
-
-        MockOracle oracleImpl = new MockOracle();
-        oracle = IMockOracle(address(oracleImpl));
-
-        UniV3Oracle nftOracleImpl = new UniV3Oracle(PositionManager, IOracle(address(oracle)), 10**16);
-        nftOracle = INFTOracle(address(nftOracleImpl));
-    }
-}
+    AbstractMainnetUniswapConfigContract,
+    MainnetUniswapTestSuite
+{}
 
 contract PolygonUniswapIntegrationTestForVault is
     AbstractUniswapIntegrationTestForVault,
     AbstractPolygonForkTest,
-    AbstractPolygonUniswapConfigContract
-{
-    function _setUp() internal virtual override {
-        PolygonUniswapHelper helperImpl = new PolygonUniswapHelper();
-        helper = IHelper(address(helperImpl));
-
-        MockOracle oracleImpl = new MockOracle();
-        oracle = IMockOracle(address(oracleImpl));
-
-        UniV3Oracle nftOracleImpl = new UniV3Oracle(PositionManager, IOracle(address(oracle)), 10**16);
-        nftOracle = INFTOracle(address(nftOracleImpl));
-    }
-}
+    AbstractPolygonUniswapConfigContract,
+    PolygonUniswapTestSuite
+{}

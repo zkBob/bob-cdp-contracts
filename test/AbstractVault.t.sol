@@ -50,8 +50,6 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
-    INFTOracle nftOracle;
-    IMockOracle oracle;
     BobTokenMock token;
     Vault vault;
     VaultRegistry vaultRegistry;

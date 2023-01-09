@@ -9,6 +9,8 @@ import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
+import "../mocks/MockOracle.sol";
+import "../../src/oracles/UniV3Oracle.sol";
 
 contract AbstractUniswapHelper is AbstractHelper {
     function getPool(address token0, address token1) public virtual override returns (address pool) {
@@ -139,3 +141,29 @@ contract AbstractUniswapHelper is AbstractHelper {
 contract MainnetUniswapHelper is AbstractUniswapHelper, AbstractMainnetForkTest, AbstractMainnetUniswapConfigContract {}
 
 contract PolygonUniswapHelper is AbstractUniswapHelper, AbstractPolygonForkTest, AbstractPolygonUniswapConfigContract {}
+
+contract MainnetUniswapTestSuite is AbstractConfigContract, AbstractLateSetup {
+    function _setUp() internal virtual override {
+        MainnetUniswapHelper helperImpl = new MainnetUniswapHelper();
+        helper = IHelper(address(helperImpl));
+
+        MockOracle oracleImpl = new MockOracle();
+        oracle = IMockOracle(address(oracleImpl));
+
+        UniV3Oracle nftOracleImpl = new UniV3Oracle(PositionManager, IOracle(address(oracle)), 10**16);
+        nftOracle = INFTOracle(address(nftOracleImpl));
+    }
+}
+
+contract PolygonUniswapTestSuite is AbstractConfigContract, AbstractLateSetup {
+    function _setUp() internal virtual override {
+        PolygonUniswapHelper helperImpl = new PolygonUniswapHelper();
+        helper = IHelper(address(helperImpl));
+
+        MockOracle oracleImpl = new MockOracle();
+        oracle = IMockOracle(address(oracleImpl));
+
+        UniV3Oracle nftOracleImpl = new UniV3Oracle(PositionManager, IOracle(address(oracle)), 10**16);
+        nftOracle = INFTOracle(address(nftOracleImpl));
+    }
+}

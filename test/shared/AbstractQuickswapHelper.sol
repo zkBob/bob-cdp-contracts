@@ -10,6 +10,8 @@ import "@uniswap/v3-core/contracts/libraries/FullMath.sol";
 import "@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 import "../../src/interfaces/external/quickswapv3/INonfungibleQuickswapPositionLoader.sol";
+import "../../src/oracles/QuickswapV3Oracle.sol";
+import "../mocks/MockOracle.sol";
 
 contract AbstractQuickswapHelper is AbstractHelper {
     function getPool(address token0, address token1) public virtual override returns (address pool) {
@@ -156,3 +158,16 @@ contract PolygonQuickswapHelper is
     AbstractPolygonForkTest,
     AbstractPolygonQuickswapConfigContract
 {}
+
+contract PolygonQuickswapTestSuite is AbstractConfigContract, AbstractLateSetup {
+    function _setUp() internal virtual override {
+        PolygonQuickswapHelper helperImpl = new PolygonQuickswapHelper();
+        helper = IHelper(address(helperImpl));
+
+        MockOracle oracleImpl = new MockOracle();
+        oracle = IMockOracle(address(oracleImpl));
+
+        QuickswapV3Oracle nftOracleImpl = new QuickswapV3Oracle(PositionManager, IOracle(address(oracle)), 10**16);
+        nftOracle = INFTOracle(address(nftOracleImpl));
+    }
+}

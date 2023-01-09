@@ -4,12 +4,15 @@ pragma solidity ^0.8.0;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721.sol";
 import "./interfaces/IHelper.sol";
+import "../../src/interfaces/oracles/INFTOracle.sol";
 
 contract AbstractConfigContract {
     address PositionManager;
     address Factory;
     address SwapRouter;
 
+    INFTOracle nftOracle;
+    IMockOracle oracle;
     IHelper helper;
 
     address wbtc;
