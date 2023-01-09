@@ -5,7 +5,6 @@ import "forge-std/Test.sol";
 import "../src/interfaces/external/univ3/INonfungiblePositionLoader.sol";
 import "./SetupContract.sol";
 import "./shared/ForkTests.sol";
-import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 contract NonfungiblePositionLoaderTest is
     Test,
@@ -13,16 +12,14 @@ contract NonfungiblePositionLoaderTest is
     AbstractPolygonForkTest,
     AbstractPolygonUniswapConfigContract
 {
-    INonfungiblePositionManager positionManager;
     uint256 tokenId = 1;
 
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
-        positionManager = INonfungiblePositionManager(PositionManager);
     }
 
     function testPositionInfoGetter() public {
-        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(address(positionManager))
+        INonfungiblePositionLoader.PositionInfo memory info = INonfungiblePositionLoader(PositionManager)
             .positions(tokenId);
 
         // stack too deep :/
