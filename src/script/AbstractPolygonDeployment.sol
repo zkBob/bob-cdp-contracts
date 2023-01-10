@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import "./AbstractDeployment.sol";
 
-contract PolygonDeployment is AbstractDeployment {
+abstract contract AbstractPolygonDeployment is AbstractDeployment {
     function tokens()
         public
         pure
@@ -48,19 +48,7 @@ contract PolygonDeployment is AbstractDeployment {
         heartbeats[2] = 120;
     }
 
-    function vaultParams()
-        public
-        pure
-        override
-        returns (
-            address positionManager,
-            address factory,
-            address treasury,
-            uint256 stabilisationFee
-        )
-    {
-        positionManager = address(0xC36442b4a4522E871399CD717aBDD847Ab11FE88);
-        factory = address(0x1F98431c8aD98523631AE4a59f267346ea31F984);
+    function vaultParams() public pure override returns (address treasury, uint256 stabilisationFee) {
         treasury = address(0x07883EbD6f178420f24969279BD425Ab0B99F10B);
         stabilisationFee = 10**7;
     }

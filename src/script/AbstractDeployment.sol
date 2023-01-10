@@ -5,7 +5,6 @@ import "forge-std/Script.sol";
 import "@zkbob/proxy/EIP1967Proxy.sol";
 import "../interfaces/oracles/IOracle.sol";
 import "../oracles/ChainlinkOracle.sol";
-import "../oracles/UniV3Oracle.sol";
 import "../Vault.sol";
 import "../VaultRegistry.sol";
 
@@ -30,18 +29,19 @@ abstract contract AbstractDeployment is Script {
             uint48[] memory heartbeats
         );
 
-    function vaultParams()
-        public
-        pure
-        virtual
-        returns (
-            address positionManager,
-            address factory,
-            address treasury,
-            uint256 stabilisationFee
-        );
+    function vaultParams() public pure virtual returns (address treasury, uint256 stabilisationFee);
 
     function targetToken() public pure virtual returns (address token);
+
+    function _deployOracle(
+        address positionManager_,
+        IOracle oracle_,
+        uint256 maxPriceRatioDeviation_
+    ) internal virtual returns (INFTOracle oracle);
+
+    function ammParams() public pure virtual returns (address positionManager, address factory);
+
+    function _getPool(address token0, address token1) internal view virtual returns (address pool);
 
     function governanceParams(address factory)
         public
@@ -66,9 +66,9 @@ abstract contract AbstractDeployment is Script {
 
         (address wbtc, address weth, address usdc) = tokens();
 
-        pools[0] = IUniswapV3Factory(factory).getPool(wbtc, usdc, 3000);
-        pools[1] = IUniswapV3Factory(factory).getPool(weth, usdc, 3000);
-        pools[2] = IUniswapV3Factory(factory).getPool(wbtc, weth, 3000);
+        pools[0] = _getPool(wbtc, usdc);
+        pools[1] = _getPool(weth, usdc);
+        pools[2] = _getPool(wbtc, weth);
 
         liquidationThresholds = new uint256[](3);
         for (uint256 i = 0; i < 3; ++i) {
@@ -79,15 +79,16 @@ abstract contract AbstractDeployment is Script {
     function run() external {
         vm.startBroadcast();
 
-        (address positionManager, address factory, address treasury, uint256 stabilisationFee) = vaultParams();
+        (address positionManager, address factory) = ammParams();
+        (address treasury, uint256 stabilisationFee) = vaultParams();
         (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) = oracleParams();
         address token = targetToken();
 
         ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, heartbeats, 3600);
         console2.log("Chainlink Oracle", address(oracle));
 
-        UniV3Oracle nftOracle = new UniV3Oracle(positionManager, IOracle(address(oracle)), 10**17);
-        console2.log("UniV3 Oracle", address(oracle));
+        INFTOracle nftOracle = _deployOracle(positionManager, IOracle(address(oracle)), 10**16);
+        console2.log("NFT Oracle", address(oracle));
 
         Vault vault = new Vault(
             INonfungiblePositionManager(positionManager),
