@@ -1,0 +1,11 @@
+{
+  "stabilisationFee": 10000000,
+  "liquidationFeeD": 30000000,
+  "liquidationPremiumD": 30000000,
+  "minSingleNftCollateral": 100000000000000000,
+  "maxDebtPerVault": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+  "maxNftsPerVault": 20,
+  "wbtcUsdcPoolLiquidationThreshold": 600000000,
+  "wethUsdcPoolLiquidationThreshold": 600000000,
+  "wbtcWethPoolLiquidationThreshold": 600000000
+}

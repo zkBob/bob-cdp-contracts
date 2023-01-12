@@ -6,6 +6,10 @@ import "../AbstractDeployment.sol";
 import "@quickswap/core/IAlgebraFactory.sol";
 
 abstract contract AbstractQuickswapDeployment is AbstractDeployment {
+    constructor() {
+        amm = "quickswap";
+    }
+
     function _deployOracle(
         address positionManager_,
         IOracle oracle_,
@@ -16,7 +20,6 @@ abstract contract AbstractQuickswapDeployment is AbstractDeployment {
     }
 
     function _getPool(address token0, address token1) internal view virtual override returns (address pool) {
-        (, address factory) = ammParams();
-        return IAlgebraFactory(factory).poolByPair(token0, token1);
+        return IAlgebraFactory(ammParams.factory).poolByPair(token0, token1);
     }
 }

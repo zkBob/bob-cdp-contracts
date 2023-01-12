@@ -5,6 +5,10 @@ import "../../oracles/UniV3Oracle.sol";
 import "../AbstractDeployment.sol";
 
 abstract contract AbstractUniswapDeployment is AbstractDeployment {
+    constructor() {
+        amm = "uniswap";
+    }
+
     function _deployOracle(
         address positionManager_,
         IOracle oracle_,
@@ -15,7 +19,6 @@ abstract contract AbstractUniswapDeployment is AbstractDeployment {
     }
 
     function _getPool(address token0, address token1) internal view virtual override returns (address pool) {
-        (, address factory) = ammParams();
-        return IUniswapV3Factory(factory).getPool(token0, token1, 3000);
+        return IUniswapV3Factory(ammParams.factory).getPool(token0, token1, 3000);
     }
 }

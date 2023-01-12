@@ -19,7 +19,9 @@
     "test-v:better": "forge test -vvvv --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2)",
     "size": "forge build --sizes --force --via-ir",
     "compile": "forge build",
-    "deploy:mainnet": "forge script src/script/MainnetDeployment.s.sol:MainnetDeployment --rpc-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --broadcast --verify --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv",
+    "deploy:mainnet:uniswap": "forge script src/script/uniswap/UniswapMainnetDeployment.s.sol:UniswapMainnetDeployment --rpc-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --broadcast --verify --etherscan-api-key $(grep MAINNET_ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv",
+    "deploy:polygon:uniswap": "forge script src/script/uniswap/UniswapPolygonDeployment.s.sol:UniswapPolygonDeployment --rpc-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --broadcast --verify --etherscan-api-key $(grep POLYGON_ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv",
+    "deploy:polygon:quickswap": "forge script src/script/quickswap/QuickswapPolygonDeployment.s.sol:QuickswapPolygonDeployment --rpc-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --broadcast --verify --etherscan-api-key $(grep POLYGON_ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv",
     "deploy:rinkeby": "forge script src/script/RinkebyDeployment.s.sol:RinkebyDeployment --rpc-url $(grep RINKEBY_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --broadcast --verify --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv",
     "deploy:polygon": "forge script src/script/PolygonDeployment.s.sol:RinkebyDeployment --rpc-url $(grep POLYGON_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --broadcast --verify --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv"
   }
