@@ -34,14 +34,17 @@ abstract contract AbstractDeployment is ConfigContract {
     function run() external {
         _parseConfigs();
         vm.startBroadcast();
+        string memory deploymentJson;
 
         (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) = oracleParams();
 
         ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, heartbeats, 3600);
         console2.log("Chainlink Oracle", address(oracle));
+        vm.serializeAddress(deploymentJson, "ChainlinkOracle", address(oracle));
 
         INFTOracle nftOracle = _deployOracle(ammParams.positionManager, IOracle(address(oracle)), 10**16);
-        console2.log("NFT Oracle", address(oracle));
+        console2.log("NFT Oracle", address(nftOracle));
+        vm.serializeAddress(deploymentJson, "NFTOracle", address(nftOracle));
 
         Vault vault = new Vault(
             INonfungiblePositionManager(ammParams.positionManager),
@@ -62,6 +65,7 @@ abstract contract AbstractDeployment is ConfigContract {
         setupGovernance(ICDP(address(vault)));
 
         console2.log("Vault", address(vault));
+        vm.serializeAddress(deploymentJson, "Vault", address(vault));
 
         VaultRegistry vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
 
@@ -71,8 +75,9 @@ abstract contract AbstractDeployment is ConfigContract {
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
         console2.log("VaultRegistry", address(vaultRegistry));
-
+        string memory finalDeploymentJson = vm.serializeAddress(deploymentJson, "VaultRegistry", address(vaultRegistry));
         vm.stopBroadcast();
+        vm.writeJson(finalDeploymentJson, string.concat(vm.projectRoot(), "/deployments/", chain, "_", amm, "_deployment.json"));
     }
 
     function setupGovernance(ICDP cdp) public {
