@@ -75,9 +75,16 @@ abstract contract AbstractDeployment is ConfigContract {
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
         console2.log("VaultRegistry", address(vaultRegistry));
-        string memory finalDeploymentJson = vm.serializeAddress(deploymentJson, "VaultRegistry", address(vaultRegistry));
+        string memory finalDeploymentJson = vm.serializeAddress(
+            deploymentJson,
+            "VaultRegistry",
+            address(vaultRegistry)
+        );
         vm.stopBroadcast();
-        vm.writeJson(finalDeploymentJson, string.concat(vm.projectRoot(), "/deployments/", chain, "_", amm, "_deployment.json"));
+        vm.writeJson(
+            finalDeploymentJson,
+            string.concat(vm.projectRoot(), "/deployments/", chain, "_", amm, "_deployment.json")
+        );
     }
 
     function setupGovernance(ICDP cdp) public {
