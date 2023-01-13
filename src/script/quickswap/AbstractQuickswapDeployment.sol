@@ -19,7 +19,11 @@ abstract contract AbstractQuickswapDeployment is AbstractDeployment {
         return INFTOracle(address(nftOracle));
     }
 
-    function _getPool(address token0, address token1) internal view virtual override returns (address pool) {
-        return IAlgebraFactory(ammParams.factory).poolByPair(token0, token1);
+    function _getPool(
+        address token0,
+        address token1,
+        uint256 fee
+    ) internal view virtual override returns (address pool) {
+        return IAlgebraFactory(baseParams.factory).poolByPair(token0, token1);
     }
 }

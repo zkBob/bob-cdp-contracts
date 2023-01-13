@@ -110,3 +110,5 @@ out/
 
 # Coverage
 *lcov.info
+
+deployments/

@@ -10,48 +10,50 @@ contract ConfigContract is Script {
     string amm;
 
     struct BaseParams {
-        address wbtc;
-        address weth;
-        address usdc;
-        address chainlinkBtc;
-        address chainlinkUsdc;
-        address chainlinkEth;
-        uint256 chainlinkBtcHeartbeat;
-        uint256 chainlinkUsdcHeartbeat;
-        uint256 chainlinkEthHeartbeat;
         address bobToken;
         address treasury;
-    }
-
-    struct GovernanceParams {
+        address positionManager;
+        address factory;
         uint256 stabilisationFee;
         uint256 liquidationFeeD;
         uint256 liquidationPremiumD;
         uint256 minSingleNftCollateral;
         uint256 maxDebtPerVault;
         uint256 maxNftsPerVault;
-        uint256 wbtcUsdcPoolLiquidationThreshold;
-        uint256 wethUsdcPoolLiquidationThreshold;
-        uint256 wbtcWethPoolLiquidationThreshold;
+        uint256 validPeriod;
+        uint256 maxPriceRatioDeviation;
     }
 
-    struct AmmParams {
-        address positionManager;
-        address factory;
+    struct TokenParams {
+        address tokenAddress;
+        address chainlinkOracle;
+        uint256 chainlinkOracleHeartbeat;
+    }
+
+    struct PoolParams {
+        address token0;
+        address token1;
+        uint256 fee;
+        uint256 liquidationThreshold;
     }
 
     BaseParams public baseParams;
-    AmmParams public ammParams;
-    GovernanceParams public governanceParams;
+    TokenParams[] public tokensParams;
+    PoolParams[] public poolsParams;
 
     function _parseConfigs() internal {
         string memory root = vm.projectRoot();
-        string memory baseParamsPath = string.concat(root, "/src/script/configs/", chain, "/base.json");
-        string memory ammParamsPath = string.concat(root, "/src/script/configs/", chain, "/", amm, ".json");
-        string memory governanceParamsPath = string.concat(root, "/src/script/configs/", chain, "/", amm, ".json");
-        baseParams = abi.decode(vm.parseJson(vm.readFile(baseParamsPath)), (BaseParams));
-        ammParams = abi.decode(vm.parseJson(vm.readFile(ammParamsPath)), (AmmParams));
-        governanceParams = abi.decode(vm.parseJson(vm.readFile(governanceParamsPath)), (GovernanceParams));
+        string memory paramsPath = string.concat(root, "/src/script/configs/", chain, "/", amm, ".json");
+        string memory rawJson = vm.readFile(paramsPath);
+        baseParams = abi.decode(vm.parseJson(rawJson, ".baseParams"), (BaseParams));
+        TokenParams[] memory tokensParams_ = abi.decode(vm.parseJson(rawJson, ".tokens"), (TokenParams[]));
+        for (uint256 i = 0; i < tokensParams_.length; ++i) {
+            tokensParams.push(tokensParams_[i]);
+        }
+        PoolParams[] memory poolsParams_ = abi.decode(vm.parseJson(rawJson, ".pools"), (PoolParams[]));
+        for (uint256 i = 0; i < poolsParams_.length; ++i) {
+            poolsParams.push(poolsParams_[i]);
+        }
     }
 
     function oracleParams()
@@ -63,22 +65,15 @@ contract ConfigContract is Script {
             uint48[] memory heartbeats
         )
     {
-        oracleTokens = new address[](3);
+        uint256 tokensCount = tokensParams.length;
+        oracleTokens = new address[](tokensCount);
+        oracles = new address[](tokensCount);
+        heartbeats = new uint48[](tokensCount);
 
-        oracleTokens[0] = baseParams.wbtc;
-        oracleTokens[1] = baseParams.usdc;
-        oracleTokens[2] = baseParams.weth;
-
-        oracles = new address[](3);
-
-        oracles[0] = baseParams.chainlinkBtc;
-        oracles[1] = baseParams.chainlinkUsdc;
-        oracles[2] = baseParams.chainlinkEth;
-
-        heartbeats = new uint48[](3);
-
-        heartbeats[0] = uint48(baseParams.chainlinkBtcHeartbeat);
-        heartbeats[1] = uint48(baseParams.chainlinkUsdcHeartbeat);
-        heartbeats[2] = uint48(baseParams.chainlinkEthHeartbeat);
+        for (uint256 i = 0; i < tokensCount; ++i) {
+            oracleTokens[i] = tokensParams[i].tokenAddress;
+            oracles[i] = tokensParams[i].chainlinkOracle;
+            heartbeats[i] = uint48(tokensParams[i].chainlinkOracleHeartbeat);
+        }
     }
 }

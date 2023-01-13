@@ -15,20 +15,21 @@ abstract contract AbstractDeployment is ConfigContract {
         uint256 maxPriceRatioDeviation_
     ) internal virtual returns (INFTOracle oracle);
 
-    function _getPool(address token0, address token1) internal view virtual returns (address pool);
+    function _getPool(
+        address token0,
+        address token1,
+        uint256 fee
+    ) internal view virtual returns (address pool);
 
     function governancePools() public view returns (address[] memory pools, uint256[] memory liquidationThresholds) {
-        pools = new address[](3);
+        uint256 poolsCount = poolsParams.length;
+        pools = new address[](poolsCount);
+        liquidationThresholds = new uint256[](poolsCount);
 
-        pools[0] = _getPool(baseParams.wbtc, baseParams.usdc);
-        pools[1] = _getPool(baseParams.weth, baseParams.usdc);
-        pools[2] = _getPool(baseParams.wbtc, baseParams.weth);
-
-        liquidationThresholds = new uint256[](3);
-
-        liquidationThresholds[0] = governanceParams.wbtcUsdcPoolLiquidationThreshold;
-        liquidationThresholds[1] = governanceParams.wethUsdcPoolLiquidationThreshold;
-        liquidationThresholds[2] = governanceParams.wbtcWethPoolLiquidationThreshold;
+        for (uint256 i = 0; i < poolsCount; ++i) {
+            pools[i] = _getPool(poolsParams[i].token0, poolsParams[i].token1, poolsParams[i].fee);
+            liquidationThresholds[i] = poolsParams[i].liquidationThreshold;
+        }
     }
 
     function run() external {
@@ -38,16 +39,20 @@ abstract contract AbstractDeployment is ConfigContract {
 
         (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) = oracleParams();
 
-        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, heartbeats, 3600);
+        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, heartbeats, baseParams.validPeriod);
         console2.log("Chainlink Oracle", address(oracle));
         vm.serializeAddress(deploymentJson, "ChainlinkOracle", address(oracle));
 
-        INFTOracle nftOracle = _deployOracle(ammParams.positionManager, IOracle(address(oracle)), 10**16);
+        INFTOracle nftOracle = _deployOracle(
+            baseParams.positionManager,
+            IOracle(address(oracle)),
+            baseParams.maxPriceRatioDeviation
+        );
         console2.log("NFT Oracle", address(nftOracle));
         vm.serializeAddress(deploymentJson, "NFTOracle", address(nftOracle));
 
         Vault vault = new Vault(
-            INonfungiblePositionManager(ammParams.positionManager),
+            INonfungiblePositionManager(baseParams.positionManager),
             INFTOracle(address(nftOracle)),
             baseParams.treasury,
             baseParams.bobToken
@@ -56,7 +61,7 @@ abstract contract AbstractDeployment is ConfigContract {
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             msg.sender,
-            governanceParams.stabilisationFee,
+            baseParams.stabilisationFee,
             type(uint256).max
         );
         EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
@@ -90,11 +95,11 @@ abstract contract AbstractDeployment is ConfigContract {
     function setupGovernance(ICDP cdp) public {
         (address[] memory pools, uint256[] memory liquidationThresholds) = governancePools();
 
-        cdp.changeLiquidationFee(uint32(governanceParams.liquidationFeeD));
-        cdp.changeLiquidationPremium(uint32(governanceParams.liquidationPremiumD));
-        cdp.changeMinSingleNftCollateral(governanceParams.minSingleNftCollateral);
-        cdp.changeMaxDebtPerVault(governanceParams.maxDebtPerVault);
-        cdp.changeMaxNftsPerVault(uint8(governanceParams.maxNftsPerVault));
+        cdp.changeLiquidationFee(uint32(baseParams.liquidationFeeD));
+        cdp.changeLiquidationPremium(uint32(baseParams.liquidationPremiumD));
+        cdp.changeMinSingleNftCollateral(baseParams.minSingleNftCollateral);
+        cdp.changeMaxDebtPerVault(baseParams.maxDebtPerVault);
+        cdp.changeMaxNftsPerVault(uint8(baseParams.maxNftsPerVault));
 
         for (uint256 i = 0; i < pools.length; ++i) {
             cdp.setWhitelistedPool(pools[i]);
