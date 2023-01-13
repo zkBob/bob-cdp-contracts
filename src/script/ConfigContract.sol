@@ -11,30 +11,30 @@ contract ConfigContract is Script {
 
     struct BaseParams {
         address bobToken;
-        address treasury;
-        address positionManager;
         address factory;
-        uint256 stabilisationFee;
         uint256 liquidationFeeD;
         uint256 liquidationPremiumD;
-        uint256 minSingleNftCollateral;
         uint256 maxDebtPerVault;
-        uint256 maxNftsPerVault;
-        uint256 validPeriod;
         uint256 maxPriceRatioDeviation;
+        uint256 minSingleNftCollateral;
+        uint256 maxNftsPerVault;
+        address positionManager;
+        uint256 stabilisationFee;
+        address treasury;
+        uint256 validPeriod;
     }
 
     struct TokenParams {
-        address tokenAddress;
         address chainlinkOracle;
         uint256 chainlinkOracleHeartbeat;
+        address tokenAddress;
     }
 
     struct PoolParams {
-        address token0;
-        address token1;
         uint256 fee;
         uint256 liquidationThreshold;
+        address token0;
+        address token1;
     }
 
     BaseParams public baseParams;

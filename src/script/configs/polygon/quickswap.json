@@ -1,53 +1,53 @@
 {
   "baseParams": {
     "bobToken": "0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B",
-    "treasury": "0x07883EbD6f178420f24969279BD425Ab0B99F10B",
-    "positionManager": "0x8eF88E4c7CfbbaC1C163f7eddd4B578792201de6",
     "factory": "0x411b0fAcC3489691f28ad58c47006AF5E3Ab3A28",
-    "stabilisationFee": 10000000,
     "liquidationFeeD": 30000000,
     "liquidationPremiumD": 30000000,
-    "minSingleNftCollateral": 100000000000000000,
     "maxDebtPerVault": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
     "maxNftsPerVault": 20,
-    "validPeriod": 3600,
-    "maxPriceRatioDeviation": 10000000000000000
+    "maxPriceRatioDeviation": 10000000000000000,
+    "minSingleNftCollateral": 100000000000000000,
+    "positionManager": "0x8eF88E4c7CfbbaC1C163f7eddd4B578792201de6",
+    "stabilisationFee": 10000000,
+    "treasury": "0x07883EbD6f178420f24969279BD425Ab0B99F10B",
+    "validPeriod": 3600
   },
   "tokens": [
     {
-      "tokenAddress": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
       "chainlinkOracle": "0xc907E116054Ad103354f2D350FD2514433D57F6f",
-      "chainlinkOracleHeartbeat": 120
+      "chainlinkOracleHeartbeat": 120,
+      "tokenAddress": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6"
     },
     {
-      "tokenAddress": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
       "chainlinkOracle": "0xF9680D99D6C9589e2a93a78A04A279e509205945",
-      "chainlinkOracleHeartbeat": 120
+      "chainlinkOracleHeartbeat": 120,
+      "tokenAddress": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
     },
     {
-      "tokenAddress": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
       "chainlinkOracle": "0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7",
-      "chainlinkOracleHeartbeat": 120
+      "chainlinkOracleHeartbeat": 120,
+      "tokenAddress": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
     }
   ],
   "pools": [
     {
-      "token0": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
-      "token1": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
       "fee": 3000,
-      "liquidationThreshold": 600000000
+      "liquidationThreshold": 600000000,
+      "token0": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
+      "token1": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
     },
     {
-      "token0": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
-      "token1": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
       "fee": 3000,
-      "liquidationThreshold": 600000000
+      "liquidationThreshold": 600000000,
+      "token0": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
+      "token1": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
     },
     {
+      "fee": 3000,
+      "liquidationThreshold": 600000000,
       "token0": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-      "token1": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
-      "fee": 3000,
-      "liquidationThreshold": 600000000
+      "token1": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
     }
   ]
 }
