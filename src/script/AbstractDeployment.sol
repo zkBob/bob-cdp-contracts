@@ -95,9 +95,10 @@ abstract contract AbstractDeployment is ConfigContract {
         cdp.changeMaxNftsPerVault(uint8(params.maxNftsPerVault));
 
         for (uint256 i = 0; i < params.pools.length; ++i) {
-            address pool = _getPool(params.factory, params.pools[i].token0, params.pools[i].token1, params.pools[i].fee);
-            cdp.setWhitelistedPool(pool);
-            cdp.setLiquidationThreshold(pool, params.pools[i].liquidationThreshold);
+            PoolParams memory pool = params.pools[i];
+            address poolAddr = _getPool(params.factory, pool.token0, pool.token1, pool.fee);
+            cdp.setWhitelistedPool(poolAddr);
+            cdp.setLiquidationThreshold(poolAddr, pool.liquidationThreshold);
         }
     }
 }
