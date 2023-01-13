@@ -42,11 +42,13 @@ contract ConfigContract is Script {
         address token1;
     }
 
-    function _parseConfigs() internal returns (Params memory) {
+    function _parseConfigs() internal returns (Params memory res) {
         string memory root = vm.projectRoot();
         string memory paramsPath = string.concat(root, "/src/script/configs/", chain, "/", amm, ".json");
         string memory rawJson = vm.readFile(paramsPath);
-        return abi.decode(vm.parseJson(rawJson), (Params));
+        bytes memory abiEncodedJson = vm.parseJson(rawJson);
+        res = abi.decode(abiEncodedJson, (Params));
+        require(keccak256(abiEncodedJson) == keccak256(abi.encode(res)), "Invalid config");
     }
 
     function recordDeployedContract(string memory contractName, address contractAddress) internal {
