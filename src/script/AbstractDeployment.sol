@@ -36,7 +36,7 @@ abstract contract AbstractDeployment is ConfigContract {
         string memory deploymentJson,
         string memory contractName,
         address contractAddress
-    ) returns (string memory) {
+    ) public returns (string memory) {
         console2.log(contractName, contractAddress);
         return vm.serializeAddress(deploymentJson, contractName, contractAddress);
     }
