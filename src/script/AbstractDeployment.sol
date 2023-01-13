@@ -32,6 +32,15 @@ abstract contract AbstractDeployment is ConfigContract {
         }
     }
 
+    function outDeployInfo(
+        string memory deploymentJson,
+        string memory contractName,
+        address contractAddress
+    ) returns (string memory) {
+        console2.log(contractName, contractAddress);
+        return vm.serializeAddress(deploymentJson, contractName, contractAddress);
+    }
+
     function run() external {
         _parseConfigs();
         vm.startBroadcast();
@@ -40,16 +49,14 @@ abstract contract AbstractDeployment is ConfigContract {
         (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) = oracleParams();
 
         ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, heartbeats, baseParams.validPeriod);
-        console2.log("Chainlink Oracle", address(oracle));
-        vm.serializeAddress(deploymentJson, "ChainlinkOracle", address(oracle));
+        deploymentJson = outDeployInfo(deploymentJson, "ChainlinkOracle", address(oracle));
 
         INFTOracle nftOracle = _deployOracle(
             baseParams.positionManager,
             IOracle(address(oracle)),
             baseParams.maxPriceRatioDeviation
         );
-        console2.log("NFT Oracle", address(nftOracle));
-        vm.serializeAddress(deploymentJson, "NFTOracle", address(nftOracle));
+        deploymentJson = outDeployInfo(deploymentJson, "NFTOracle", address(nftOracle));
 
         Vault vault = new Vault(
             INonfungiblePositionManager(baseParams.positionManager),
@@ -69,8 +76,7 @@ abstract contract AbstractDeployment is ConfigContract {
 
         setupGovernance(ICDP(address(vault)));
 
-        console2.log("Vault", address(vault));
-        vm.serializeAddress(deploymentJson, "Vault", address(vault));
+        deploymentJson = outDeployInfo(deploymentJson, "Vault", address(vault));
 
         VaultRegistry vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
 
@@ -79,15 +85,10 @@ abstract contract AbstractDeployment is ConfigContract {
 
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
-        console2.log("VaultRegistry", address(vaultRegistry));
-        string memory finalDeploymentJson = vm.serializeAddress(
-            deploymentJson,
-            "VaultRegistry",
-            address(vaultRegistry)
-        );
+        deploymentJson = outDeployInfo(deploymentJson, "VaultRegistry", address(vaultRegistry));
         vm.stopBroadcast();
         vm.writeJson(
-            finalDeploymentJson,
+            deploymentJson,
             string.concat(vm.projectRoot(), "/deployments/", chain, "_", amm, "_deployment.json")
         );
     }
