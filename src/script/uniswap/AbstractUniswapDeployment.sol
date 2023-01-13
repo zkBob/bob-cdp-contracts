@@ -14,15 +14,15 @@ abstract contract AbstractUniswapDeployment is AbstractDeployment {
         IOracle oracle_,
         uint256 maxPriceRatioDeviation_
     ) internal virtual override returns (INFTOracle oracle) {
-        UniV3Oracle nftOracle = new UniV3Oracle(positionManager_, oracle_, maxPriceRatioDeviation_);
-        return INFTOracle(address(nftOracle));
+        return new UniV3Oracle(positionManager_, oracle_, maxPriceRatioDeviation_);
     }
 
     function _getPool(
+        address factory,
         address token0,
         address token1,
         uint256 fee
     ) internal view virtual override returns (address pool) {
-        return IUniswapV3Factory(baseParams.factory).getPool(token0, token1, uint24(fee));
+        return IUniswapV3Factory(factory).getPool(token0, token1, uint24(fee));
     }
 }

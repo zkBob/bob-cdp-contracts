@@ -15,15 +15,15 @@ abstract contract AbstractQuickswapDeployment is AbstractDeployment {
         IOracle oracle_,
         uint256 maxPriceRatioDeviation_
     ) internal virtual override returns (INFTOracle oracle) {
-        QuickswapV3Oracle nftOracle = new QuickswapV3Oracle(positionManager_, oracle_, maxPriceRatioDeviation_);
-        return INFTOracle(address(nftOracle));
+        return new QuickswapV3Oracle(positionManager_, oracle_, maxPriceRatioDeviation_);
     }
 
     function _getPool(
+        address factory,
         address token0,
         address token1,
         uint256 fee
     ) internal view virtual override returns (address pool) {
-        return IAlgebraFactory(baseParams.factory).poolByPair(token0, token1);
+        return IAlgebraFactory(factory).poolByPair(token0, token1);
     }
 }

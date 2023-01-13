@@ -1,18 +1,16 @@
 {
-  "baseParams": {
-    "bobToken": "0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B",
-    "factory": "0x411b0fAcC3489691f28ad58c47006AF5E3Ab3A28",
-    "liquidationFeeD": 30000000,
-    "liquidationPremiumD": 30000000,
-    "maxDebtPerVault": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
-    "maxNftsPerVault": 20,
-    "maxPriceRatioDeviation": 10000000000000000,
-    "minSingleNftCollateral": 100000000000000000,
-    "positionManager": "0x8eF88E4c7CfbbaC1C163f7eddd4B578792201de6",
-    "stabilisationFee": 10000000,
-    "treasury": "0x07883EbD6f178420f24969279BD425Ab0B99F10B",
-    "validPeriod": 3600
-  },
+  "bobToken": "0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B",
+  "factory": "0x411b0fAcC3489691f28ad58c47006AF5E3Ab3A28",
+  "liquidationFeeD": 30000000,
+  "liquidationPremiumD": 30000000,
+  "maxDebtPerVault": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+  "maxNftsPerVault": 20,
+  "maxPriceRatioDeviation": 10000000000000000,
+  "minSingleNftCollateral": 100000000000000000,
+  "positionManager": "0x8eF88E4c7CfbbaC1C163f7eddd4B578792201de6",
+  "stabilisationFee": 10000000,
+  "treasury": "0x07883EbD6f178420f24969279BD425Ab0B99F10B",
+  "validPeriod": 3600,
   "tokens": [
     {
       "chainlinkOracle": "0xc907E116054Ad103354f2D350FD2514433D57F6f",

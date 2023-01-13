@@ -16,67 +16,64 @@ abstract contract AbstractDeployment is ConfigContract {
     ) internal virtual returns (INFTOracle oracle);
 
     function _getPool(
+        address factory,
         address token0,
         address token1,
         uint256 fee
     ) internal view virtual returns (address pool);
 
-    function governancePools() public view returns (address[] memory pools, uint256[] memory liquidationThresholds) {
-        uint256 poolsCount = poolsParams.length;
-        pools = new address[](poolsCount);
-        liquidationThresholds = new uint256[](poolsCount);
+    function oracleParams(Params memory params)
+        public
+        view
+        returns (
+            address[] memory oracleTokens,
+            address[] memory oracles,
+            uint48[] memory heartbeats
+        )
+    {
+        uint256 tokensCount = params.tokens.length;
+        oracleTokens = new address[](tokensCount);
+        oracles = new address[](tokensCount);
+        heartbeats = new uint48[](tokensCount);
 
-        for (uint256 i = 0; i < poolsCount; ++i) {
-            pools[i] = _getPool(poolsParams[i].token0, poolsParams[i].token1, poolsParams[i].fee);
-            liquidationThresholds[i] = poolsParams[i].liquidationThreshold;
+        for (uint256 i = 0; i < tokensCount; ++i) {
+            oracleTokens[i] = params.tokens[i].tokenAddress;
+            oracles[i] = params.tokens[i].chainlinkOracle;
+            heartbeats[i] = uint48(params.tokens[i].chainlinkOracleHeartbeat);
         }
     }
 
-    function outDeployInfo(
-        string memory deploymentJson,
-        string memory contractName,
-        address contractAddress
-    ) public returns (string memory) {
-        console2.log(contractName, contractAddress);
-        return vm.serializeAddress(deploymentJson, contractName, contractAddress);
-    }
-
     function run() external {
-        _parseConfigs();
+        Params memory params = _parseConfigs();
         vm.startBroadcast();
-        string memory deploymentJson;
 
-        (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) = oracleParams();
+        (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) = oracleParams(params);
 
-        ChainlinkOracle oracle = new ChainlinkOracle(oracleTokens, oracles, heartbeats, baseParams.validPeriod);
-        deploymentJson = outDeployInfo(deploymentJson, "ChainlinkOracle", address(oracle));
+        IOracle oracle = new ChainlinkOracle(oracleTokens, oracles, heartbeats, params.validPeriod);
+        recordDeployedContract("ChainlinkOracle", address(oracle));
 
-        INFTOracle nftOracle = _deployOracle(
-            baseParams.positionManager,
-            IOracle(address(oracle)),
-            baseParams.maxPriceRatioDeviation
-        );
-        deploymentJson = outDeployInfo(deploymentJson, "NFTOracle", address(nftOracle));
+        INFTOracle nftOracle = _deployOracle(params.positionManager, oracle, params.maxPriceRatioDeviation);
+        recordDeployedContract("NFTOracle", address(nftOracle));
 
         Vault vault = new Vault(
-            INonfungiblePositionManager(baseParams.positionManager),
-            INFTOracle(address(nftOracle)),
-            baseParams.treasury,
-            baseParams.bobToken
+            INonfungiblePositionManager(params.positionManager),
+            nftOracle,
+            params.treasury,
+            params.bobToken
         );
 
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             msg.sender,
-            baseParams.stabilisationFee,
+            params.stabilisationFee,
             type(uint256).max
         );
         EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
         vault = Vault(address(vaultProxy));
 
-        setupGovernance(ICDP(address(vault)));
+        setupGovernance(params, ICDP(address(vault)));
 
-        deploymentJson = outDeployInfo(deploymentJson, "Vault", address(vault));
+        recordDeployedContract("Vault", address(vault));
 
         VaultRegistry vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
 
@@ -85,26 +82,22 @@ abstract contract AbstractDeployment is ConfigContract {
 
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
-        deploymentJson = outDeployInfo(deploymentJson, "VaultRegistry", address(vaultRegistry));
+        recordDeployedContract("VaultRegistry", address(vaultRegistry));
         vm.stopBroadcast();
-        vm.writeJson(
-            deploymentJson,
-            string.concat(vm.projectRoot(), "/deployments/", chain, "_", amm, "_deployment.json")
-        );
+        writeDeployment(string.concat(vm.projectRoot(), "/deployments/", chain, "_", amm, "_deployment.json"));
     }
 
-    function setupGovernance(ICDP cdp) public {
-        (address[] memory pools, uint256[] memory liquidationThresholds) = governancePools();
+    function setupGovernance(Params memory params, ICDP cdp) public {
+        cdp.changeLiquidationFee(uint32(params.liquidationFeeD));
+        cdp.changeLiquidationPremium(uint32(params.liquidationPremiumD));
+        cdp.changeMinSingleNftCollateral(params.minSingleNftCollateral);
+        cdp.changeMaxDebtPerVault(params.maxDebtPerVault);
+        cdp.changeMaxNftsPerVault(uint8(params.maxNftsPerVault));
 
-        cdp.changeLiquidationFee(uint32(baseParams.liquidationFeeD));
-        cdp.changeLiquidationPremium(uint32(baseParams.liquidationPremiumD));
-        cdp.changeMinSingleNftCollateral(baseParams.minSingleNftCollateral);
-        cdp.changeMaxDebtPerVault(baseParams.maxDebtPerVault);
-        cdp.changeMaxNftsPerVault(uint8(baseParams.maxNftsPerVault));
-
-        for (uint256 i = 0; i < pools.length; ++i) {
-            cdp.setWhitelistedPool(pools[i]);
-            cdp.setLiquidationThreshold(pools[i], liquidationThresholds[i]);
+        for (uint256 i = 0; i < params.pools.length; ++i) {
+            address pool = _getPool(params.factory, params.pools[i].token0, params.pools[i].token1, params.pools[i].fee);
+            cdp.setWhitelistedPool(pool);
+            cdp.setLiquidationThreshold(pool, params.pools[i].liquidationThreshold);
         }
     }
 }

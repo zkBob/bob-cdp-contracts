@@ -9,17 +9,22 @@ contract ConfigContract is Script {
     string chain;
     string amm;
 
-    struct BaseParams {
+    string deploymentJson = "deployment";
+    string deploymentJsonSerialized = "{}";
+
+    struct Params {
         address bobToken;
         address factory;
         uint256 liquidationFeeD;
         uint256 liquidationPremiumD;
         uint256 maxDebtPerVault;
+        uint256 maxNftsPerVault;
         uint256 maxPriceRatioDeviation;
         uint256 minSingleNftCollateral;
-        uint256 maxNftsPerVault;
+        PoolParams[] pools;
         address positionManager;
         uint256 stabilisationFee;
+        TokenParams[] tokens;
         address treasury;
         uint256 validPeriod;
     }
@@ -37,43 +42,19 @@ contract ConfigContract is Script {
         address token1;
     }
 
-    BaseParams public baseParams;
-    TokenParams[] public tokensParams;
-    PoolParams[] public poolsParams;
-
-    function _parseConfigs() internal {
+    function _parseConfigs() internal returns (Params memory) {
         string memory root = vm.projectRoot();
         string memory paramsPath = string.concat(root, "/src/script/configs/", chain, "/", amm, ".json");
         string memory rawJson = vm.readFile(paramsPath);
-        baseParams = abi.decode(vm.parseJson(rawJson, ".baseParams"), (BaseParams));
-        TokenParams[] memory tokensParams_ = abi.decode(vm.parseJson(rawJson, ".tokens"), (TokenParams[]));
-        for (uint256 i = 0; i < tokensParams_.length; ++i) {
-            tokensParams.push(tokensParams_[i]);
-        }
-        PoolParams[] memory poolsParams_ = abi.decode(vm.parseJson(rawJson, ".pools"), (PoolParams[]));
-        for (uint256 i = 0; i < poolsParams_.length; ++i) {
-            poolsParams.push(poolsParams_[i]);
-        }
+        return abi.decode(vm.parseJson(rawJson), (Params));
     }
 
-    function oracleParams()
-        public
-        view
-        returns (
-            address[] memory oracleTokens,
-            address[] memory oracles,
-            uint48[] memory heartbeats
-        )
-    {
-        uint256 tokensCount = tokensParams.length;
-        oracleTokens = new address[](tokensCount);
-        oracles = new address[](tokensCount);
-        heartbeats = new uint48[](tokensCount);
+    function recordDeployedContract(string memory contractName, address contractAddress) internal {
+        console2.log(contractName, contractAddress);
+        deploymentJsonSerialized = deploymentJson.serialize(contractName, contractAddress);
+    }
 
-        for (uint256 i = 0; i < tokensCount; ++i) {
-            oracleTokens[i] = tokensParams[i].tokenAddress;
-            oracles[i] = tokensParams[i].chainlinkOracle;
-            heartbeats[i] = uint48(tokensParams[i].chainlinkOracleHeartbeat);
-        }
+    function writeDeployment(string memory path) internal {
+        deploymentJsonSerialized.write(path);
     }
 }
