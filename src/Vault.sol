@@ -64,7 +64,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     error DebtLimitExceeded();
 
     using EnumerableSet for EnumerableSet.AddressSet;
-    using EnumerableSet for EnumerableSet.UintSet;
 
     uint256 public constant DENOMINATOR = 10**9;
     uint256 public constant YEAR = 365 * 24 * 3600;
@@ -106,7 +105,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     mapping(address => uint256) public liquidationThresholdD;
 
     /// @notice Mapping, returning set of all nfts, managed by vault
-    mapping(uint256 => EnumerableSet.UintSet) private _vaultNfts;
+    mapping(uint256 => uint256[]) private _vaultNfts;
 
     /// @notice Mapping, returning debt by vault id (in MUSD weis)
     mapping(uint256 => uint256) public vaultDebt;
@@ -116,9 +115,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @notice Mapping, returning id of a vault, that storing specific nft
     mapping(uint256 => uint256) public vaultIdByNft;
-
-    /// @notice Mapping, returning timestamp of latest debt fee update, generated during last deposit / withdraw / mint / burn
-    mapping(uint256 => uint256) private _stabilisationFeeVaultSnapshotTimestamp;
 
     /// @notice Mapping, returning last cumulative sum of time-weighted debt fees by vault id, generated during last deposit / withdraw / mint / burn
     mapping(uint256 => uint256) private _globalStabilisationFeePerUSDVaultSnapshotD;
@@ -234,7 +230,12 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @inheritdoc ICDP
     function getOverallDebt(uint256 vaultId) public view returns (uint256) {
         uint256 currentDebt = vaultDebt[vaultId];
-        return currentDebt + stabilisationFeeVaultSnapshot[vaultId] + _accruedStabilisationFee(vaultId, currentDebt);
+        uint256 deltaGlobalStabilisationFeeD = globalStabilisationFeePerUSDD() -
+            _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
+        return
+            currentDebt +
+            stabilisationFeeVaultSnapshot[vaultId] +
+            FullMath.mulDiv(currentDebt, deltaGlobalStabilisationFeeD, DENOMINATOR);
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
@@ -243,7 +244,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param vaultId Id of the vault
     /// @return uint256[] Array of NFTs, managed by vault
     function vaultNftsById(uint256 vaultId) external view returns (uint256[] memory) {
-        return _vaultNfts[vaultId].values();
+        return _vaultNfts[vaultId];
     }
 
     /// @notice Get all verified depositors
@@ -279,9 +280,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         vaultId = vaultCount + 1;
         vaultCount = vaultId;
 
-        _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
-        _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = globalStabilisationFeePerUSDD();
-
         vaultRegistry.mint(msg.sender, vaultId);
 
         emit VaultOpened(msg.sender, vaultId);
@@ -315,7 +313,17 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         uint256 vaultId = vaultIdByNft[nft];
         _requireVaultOwner(vaultId);
 
-        _vaultNfts[vaultId].remove(nft);
+        uint256[] storage vaultNfts = _vaultNfts[vaultId];
+        for (uint256 i = 0; i < vaultNfts.length; i++) {
+            if (vaultNfts[i] == nft) {
+                if (i < vaultNfts.length - 1) {
+                    vaultNfts[i] = vaultNfts[vaultNfts.length - 1];
+                }
+                vaultNfts.pop();
+                break;
+            }
+        }
+        delete vaultIdByNft[nft];
 
         positionManager.transferFrom(address(this), msg.sender, nft);
 
@@ -324,8 +332,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         if (adjustedCollateral < getOverallDebt(vaultId)) {
             revert PositionUnhealthy();
         }
-
-        delete vaultIdByNft[nft];
 
         emit CollateralWithdrew(msg.sender, vaultId, nft);
     }
@@ -669,15 +675,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         }
     }
 
-    /// @notice Calculate accured stabilisation fee for a given vault (in MUSD weis)
-    /// @param vaultId Id of the vault
-    /// @return uint256 Accrued stablisation fee of the vault (in MUSD weis)
-    function _accruedStabilisationFee(uint256 vaultId, uint256 currentVaultDebt) internal view returns (uint256) {
-        uint256 deltaGlobalStabilisationFeeD = globalStabilisationFeePerUSDD() -
-            _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
-        return FullMath.mulDiv(currentVaultDebt, deltaGlobalStabilisationFeeD, DENOMINATOR);
-    }
-
     /// @notice Calculate overall collateral and adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis) and price of tokenId if it contains in vault
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
@@ -698,14 +695,14 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             uint256 positionAmount
         )
     {
-        uint256[] memory nfts = _vaultNfts[vaultId].values();
+        uint256[] storage vaultNfts = _vaultNfts[vaultId];
 
         overallCollateral = 0;
         adjustedCollateral = 0;
         positionAmount = 0;
 
-        for (uint256 i = 0; i < nfts.length; ++i) {
-            uint256 nft = nfts[i];
+        for (uint256 i = 0; i < vaultNfts.length; ++i) {
+            uint256 nft = vaultNfts[i];
             (bool deviationSafety, uint256 price, address pool) = oracle.price(nft);
 
             if (isSafe && !deviationSafety) {
@@ -765,7 +762,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert AllowList();
         }
 
-        if (_protocolParams.maxNftsPerVault <= _vaultNfts[vaultId].length()) {
+        uint256[] storage vaultNfts = _vaultNfts[vaultId];
+        if (_protocolParams.maxNftsPerVault <= vaultNfts.length) {
             revert NFTLimitExceeded();
         }
 
@@ -784,7 +782,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         }
 
         vaultIdByNft[nft] = vaultId;
-        _vaultNfts[vaultId].add(nft);
+        vaultNfts.push(nft);
 
         emit CollateralDeposited(caller, vaultId, nft);
     }
@@ -793,35 +791,36 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param vaultId Id of the vault
     /// @param nftsRecipient Address to receive nft of the positions in the closed vault
     function _closeVault(uint256 vaultId, address nftsRecipient) internal {
-        uint256[] memory nfts = _vaultNfts[vaultId].values();
-        INonfungiblePositionManager positionManager_ = positionManager;
+        uint256[] storage vaultNfts = _vaultNfts[vaultId];
 
-        for (uint256 i = 0; i < nfts.length; ++i) {
-            uint256 nft = nfts[i];
-
+        for (uint256 i = 0; i < vaultNfts.length; ++i) {
+            uint256 nft = vaultNfts[i];
             delete vaultIdByNft[nft];
 
-            positionManager_.transferFrom(address(this), nftsRecipient, nft);
+            positionManager.transferFrom(address(this), nftsRecipient, nft);
         }
 
         delete vaultDebt[vaultId];
         delete stabilisationFeeVaultSnapshot[vaultId];
         delete _vaultNfts[vaultId];
-        delete _stabilisationFeeVaultSnapshotTimestamp[vaultId];
         delete _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
     }
 
     /// @notice Update stabilisation fee for a given vault (in MUSD weis)
     /// @param vaultId Id of the vault
     function _updateVaultStabilisationFee(uint256 vaultId) internal {
-        uint256 currentVaultDebt = vaultDebt[vaultId];
-        if (block.timestamp == _stabilisationFeeVaultSnapshotTimestamp[vaultId]) {
-            return;
-        }
+        uint256 deltaGlobalStabilisationFeeD = globalStabilisationFeePerUSDD() -
+            _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
 
-        stabilisationFeeVaultSnapshot[vaultId] += _accruedStabilisationFee(vaultId, currentVaultDebt);
-        _stabilisationFeeVaultSnapshotTimestamp[vaultId] = block.timestamp;
-        _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = globalStabilisationFeePerUSDD();
+        if (deltaGlobalStabilisationFeeD > 0) {
+            uint256 currentVaultDebt = vaultDebt[vaultId];
+            stabilisationFeeVaultSnapshot[vaultId] += FullMath.mulDiv(
+                currentVaultDebt,
+                deltaGlobalStabilisationFeeD,
+                DENOMINATOR
+            );
+            _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] += deltaGlobalStabilisationFeeD;
+        }
     }
 
     // -----------------------  MODIFIERS  --------------------------
