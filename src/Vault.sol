@@ -235,8 +235,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         return
             currentDebt +
             stabilisationFeeVaultSnapshot[vaultId] +
-            (currentDebt * deltaGlobalStabilisationFeeD) /
-            DENOMINATOR;
+            FullMath.mulDiv(currentDebt, deltaGlobalStabilisationFeeD, DENOMINATOR);
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
@@ -815,7 +814,11 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         if (deltaGlobalStabilisationFeeD > 0) {
             uint256 currentVaultDebt = vaultDebt[vaultId];
-            stabilisationFeeVaultSnapshot[vaultId] += (currentVaultDebt * deltaGlobalStabilisationFeeD) / DENOMINATOR;
+            stabilisationFeeVaultSnapshot[vaultId] += FullMath.mulDiv(
+                currentVaultDebt,
+                deltaGlobalStabilisationFeeD,
+                DENOMINATOR
+            );
             _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] += deltaGlobalStabilisationFeeD;
         }
     }
