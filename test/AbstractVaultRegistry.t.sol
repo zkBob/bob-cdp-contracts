@@ -48,10 +48,11 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
-        vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "baseURI/");
+        vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "baseURI/");
 
         vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+        vaultRegistry.setMinter(address(vault), true);
 
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
@@ -74,16 +75,22 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
     // mint
 
     function testMintSuccess() public {
-        vm.prank(address(vault));
-        address userAddress = getNextUserAddress();
-        vaultRegistry.mint(userAddress, 1);
-        assertEq(vaultRegistry.ownerOf(1), userAddress);
+        for (uint256 i = 1; i < 4; i++) {
+            address userAddress = getNextUserAddress();
+            vm.prank(address(vault));
+            uint256 vaultId = vaultRegistry.mint(userAddress);
+            assertEq(vaultId, i);
+            assertEq(vaultRegistry.totalSupply(), i);
+            assertEq(vaultRegistry.ownerOf(i), userAddress);
+            assertEq(vaultRegistry.balanceOf(userAddress), 1);
+            assertEq(vaultRegistry.minterOf(i), address(vault));
+        }
     }
 
     function testMintWhenNotMinter() public {
         vm.prank(getNextUserAddress());
         vm.expectRevert(VaultRegistry.Forbidden.selector);
-        vaultRegistry.mint(getNextUserAddress(), 1);
+        vaultRegistry.mint(getNextUserAddress());
     }
 
     // burn
@@ -91,23 +98,31 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
     function testBurnSuccess() public {
         uint256 vaultId = vault.openVault();
         assertEq(vaultRegistry.balanceOf(address(this)), 1);
-        vaultRegistry.burn(vaultId);
+        vault.burnVault(vaultId);
         assertEq(vaultRegistry.balanceOf(address(this)), 0);
     }
 
-    function testBurnWhenNotOwner() public {
+    function testBurnWhenNotMinter() public {
         uint256 vaultId = vault.openVault();
         vm.expectRevert(VaultRegistry.Forbidden.selector);
         vm.prank(getNextUserAddress());
         vaultRegistry.burn(vaultId);
     }
 
+    function testBurnWhenAnotherMinter() public {
+        vaultRegistry.setMinter(address(this), true);
+        uint256 vaultId = vaultRegistry.mint(address(this));
+
+        vm.expectRevert(VaultRegistry.Forbidden.selector);
+        vault.burnVault(vaultId);
+    }
+
     function testBurnWhenNonEmptyCollateral() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vm.expectRevert(VaultRegistry.NonEmptyCollateral.selector);
-        vaultRegistry.burn(vaultId);
+        vm.expectRevert(Vault.VaultNonEmpty.selector);
+        vault.burnVault(vaultId);
     }
 
     // name
@@ -126,7 +141,7 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
 
     function testBaseURI() public {
         vm.prank(address(vault));
-        vaultRegistry.mint(getNextUserAddress(), 1);
-        assertEq(vaultRegistry.tokenURI(1), "baseURI/1");
+        uint256 vaultId = vaultRegistry.mint(getNextUserAddress());
+        assertEq(vaultRegistry.tokenURI(vaultId), "baseURI/1");
     }
 }

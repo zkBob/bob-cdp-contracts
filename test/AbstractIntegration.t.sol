@@ -54,10 +54,11 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
-        vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
+        vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "");
 
         vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+        vaultRegistry.setMinter(address(vault), true);
 
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
@@ -76,6 +77,8 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         address[] memory depositors = new address[](1);
         depositors[0] = address(this);
         vault.addDepositorsToAllowlist(depositors);
+
+        skip(1 days);
     }
 
     // integration scenarios

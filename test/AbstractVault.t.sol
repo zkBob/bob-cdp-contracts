@@ -88,10 +88,11 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
-        vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
+        vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "");
 
         vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+        vaultRegistry.setMinter(address(vault), true);
 
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
@@ -114,6 +115,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         IERC20(weth).approve(address(vault), type(uint256).max);
         IERC20(usdc).approve(address(vault), type(uint256).max);
         IERC20(wbtc).approve(address(vault), type(uint256).max);
+
+        skip(1 days);
     }
 
     // addDepositorsToAllowlist
@@ -162,7 +165,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
     function testOpenVaultEmit() public {
         vm.expectEmit(true, false, false, true);
-        emit VaultOpened(address(this), vault.vaultCount() + 1);
+        emit VaultOpened(address(this), vaultRegistry.totalSupply() + 1);
         vault.openVault();
     }
 
@@ -646,9 +649,18 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
     function testBurnDebtWhenNotOwner() public {
         uint256 vaultId = vault.openVault();
-        vm.prank(getNextUserAddress());
-        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 10);
+
+        address user = getNextUserAddress();
+        vm.startPrank(user);
+        deal(address(token), user, 10);
+        token.approve(address(vault), 10);
         vault.burnDebt(vaultId, 1);
+        assertEq(token.balanceOf(address(this)), 10);
+        assertEq(token.balanceOf(user), 9);
+        vm.stopPrank();
     }
 
     function testBurnDebtEmit() public {
@@ -1336,7 +1348,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testHealthFactorNonExistingVault() public {
-        uint256 nextId = vault.vaultCount();
+        uint256 nextId = vaultRegistry.totalSupply() + 123;
         (, uint256 health) = vault.calculateVaultCollateral(nextId);
         assertEq(health, 0);
     }
@@ -1384,7 +1396,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         assertEq(positionManager.ownerOf(tokenId), liquidator);
 
         uint256 lowerBoundRemaning = 100 * 10**18;
-        uint256 gotBack = token.balanceOf(address(this));
+        uint256 gotBack = vault.vaultOwed(vaultId);
 
         assertTrue(lowerBoundRemaning <= gotBack);
         assertEq(gotBack + debtToBeRepaid + treasuryGot, liquidatorSpent);
@@ -1524,6 +1536,42 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         emit VaultLiquidated(liquidator, vaultId);
         vault.liquidate(vaultId);
         vm.stopPrank();
+    }
+
+    // withdrawOwed
+
+    function testWithdrawOwed() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1000 * 10**18);
+        helper.setTokenPrice(oracle, weth, 700 << 96);
+
+        address liquidator = getNextUserAddress();
+        deal(address(token), liquidator, 2000 * 10**18, true);
+
+        vm.startPrank(liquidator);
+        token.approve(address(vault), type(uint256).max);
+        vault.liquidate(vaultId);
+        vm.stopPrank();
+
+        uint256 owed = vault.vaultOwed(vaultId);
+
+        assertGt(owed, 100 * 10**18);
+
+        address user = getNextUserAddress();
+        vm.prank(user);
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.withdrawOwed(vaultId, user, 100);
+
+        assertEq(token.balanceOf(user), 0);
+        assertEq(vault.vaultOwed(vaultId), owed);
+        vault.withdrawOwed(vaultId, user, 100);
+        assertEq(token.balanceOf(user), 100);
+        assertEq(vault.vaultOwed(vaultId), owed - 100);
+        vault.withdrawOwed(vaultId, user, type(uint256).max);
+        assertEq(token.balanceOf(user), owed);
+        assertEq(vault.vaultOwed(vaultId), 0);
     }
 
     // makePublic

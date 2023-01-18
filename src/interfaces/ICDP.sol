@@ -89,4 +89,15 @@ interface ICDP {
     /// @notice Liquidate a vault
     /// @param vaultId Id of the vault subject to liquidation
     function liquidate(uint256 vaultId) external;
+
+    /// @notice Withdraws vault owed tokens, left after liquidation
+    /// @param vaultId id of the liquidated vault
+    /// @param to address where to sent withdrawn tokens
+    /// @param maxAmount max amount of tokens to withdraw
+    /// @return withdrawnAmount final amount of withdrawn tokens
+    function withdrawOwed(
+        uint256 vaultId,
+        address to,
+        uint256 maxAmount
+    ) external returns (uint256 withdrawnAmount);
 }

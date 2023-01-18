@@ -75,10 +75,11 @@ abstract contract AbstractDeployment is ConfigContract {
 
         recordDeployedContract("Vault", address(vault));
 
-        VaultRegistry vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
+        VaultRegistry vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "");
 
         EIP1967Proxy vaultRegistryProxy = new EIP1967Proxy(msg.sender, address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+        vaultRegistry.setMinter(address(vault), true);
 
         vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
