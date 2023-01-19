@@ -54,9 +54,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Thrown when a value is incorrectly equal to zero
     error ValueZero();
 
-    /// @notice Thrown when the VaultRegistry has already been set
-    error VaultRegistryAlreadySet();
-
     /// @notice Thrown when a vault is tried to be closed and debt has not been paid yet
     error UnpaidDebt();
 
@@ -84,7 +81,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     address public immutable treasury;
 
     /// @notice Vault Registry
-    IVaultRegistry public vaultRegistry;
+    IVaultRegistry public immutable vaultRegistry;
 
     /// @notice State variable, which shows if Vault is initialized or not
     bool public isInitialized;
@@ -143,13 +140,15 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         INonfungiblePositionManager positionManager_,
         INFTOracle oracle_,
         address treasury_,
-        address token_
+        address token_,
+        address vaultRegistry_
     ) {
         if (
             address(positionManager_) == address(0) ||
             address(oracle_) == address(0) ||
             address(treasury_) == address(0) ||
-            address(token_) == address(0)
+            address(token_) == address(0) ||
+            address(vaultRegistry_) == address(0)
         ) {
             revert AddressZero();
         }
@@ -158,6 +157,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         oracle = oracle_;
         treasury = treasury_;
         token = IBobToken(token_);
+        vaultRegistry = IVaultRegistry(vaultRegistry_);
         isInitialized = true;
     }
 
@@ -545,22 +545,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         _checkHealthOfVaultAndPosition(vaultId, tokenId);
     }
 
-    /// @notice Set a new vault registry
-    /// @param vaultRegistry_ The new vault registry address
-    function setVaultRegistry(IVaultRegistry vaultRegistry_) external onlyVaultAdmin {
-        if (address(vaultRegistry) != address(0)) {
-            revert VaultRegistryAlreadySet();
-        }
-
-        if (address(vaultRegistry_) == address(0)) {
-            revert AddressZero();
-        }
-
-        vaultRegistry = vaultRegistry_;
-
-        emit VaultRegistrySet(tx.origin, msg.sender, address(vaultRegistry_));
-    }
-
     /// @inheritdoc ICDP
     function changeLiquidationFee(uint32 liquidationFeeD) external onlyVaultAdmin {
         if (liquidationFeeD > DENOMINATOR) {
@@ -915,12 +899,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param sender Sender of the call (msg.sender)
     /// @param stabilisationFee New stabilisation fee
     event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
-
-    /// @notice Emitted when the VaultRegistry is updated
-    /// @param origin Origin of the transaction (tx.origin)
-    /// @param sender Sender of the call (msg.sender)
-    /// @param vaultRegistryAddress New vaultRegistry address
-    event VaultRegistrySet(address indexed origin, address indexed sender, address vaultRegistryAddress);
 
     /// @notice Emitted when the system is set to paused
     /// @param origin Origin of the transaction (tx.origin)

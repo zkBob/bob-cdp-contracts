@@ -32,11 +32,16 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
 
         token = new BobTokenMock();
 
+        vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "baseURI/");
+        vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
+        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+
         vault = new Vault(
             INonfungiblePositionManager(PositionManager),
             INFTOracle(address(nftOracle)),
             treasury,
-            address(token)
+            address(token),
+            address(vaultRegistry)
         );
 
         bytes memory initData = abi.encodeWithSelector(
@@ -48,13 +53,7 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
-        vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "baseURI/");
-
-        vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
-        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
         vaultRegistry.setMinter(address(vault), true);
-
-        vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
         token.approve(address(vault), type(uint256).max);
 

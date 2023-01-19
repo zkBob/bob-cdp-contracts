@@ -25,7 +25,6 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
     event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
     event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
-    event VaultRegistrySet(address indexed origin, address indexed sender, address vaultRegistryAddress);
 
     event SystemPaused(address indexed origin, address indexed sender);
     event SystemUnpaused(address indexed origin, address indexed sender);
@@ -72,11 +71,16 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
         token = new BobTokenMock();
 
+        vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "");
+        vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
+        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+
         vault = new Vault(
             INonfungiblePositionManager(PositionManager),
             INFTOracle(address(nftOracle)),
             treasury,
-            address(token)
+            address(token),
+            address(vaultRegistry)
         );
 
         bytes memory initData = abi.encodeWithSelector(
@@ -88,13 +92,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
-        vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "");
-
-        vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
-        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
         vaultRegistry.setMinter(address(vault), true);
-
-        vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
 
         token.updateMinter(address(vault), true, true);
         token.approve(address(vault), type(uint256).max);
@@ -1667,85 +1665,6 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vm.expectEmit(false, true, false, false);
         emit SystemUnpaused(getNextUserAddress(), address(this));
         vault.unpause();
-    }
-
-    // setVaultRegistry
-
-    function testSetVaultRegistrySuccess() public {
-        Vault newVault = new Vault(
-            INonfungiblePositionManager(PositionManager),
-            INFTOracle(address(nftOracle)),
-            treasury,
-            address(token)
-        );
-
-        bytes memory initData = abi.encodeWithSelector(
-            Vault.initialize.selector,
-            address(this),
-            10**7,
-            type(uint256).max
-        );
-        EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
-        newVault = Vault(address(newVaultProxy));
-
-        address newAddress = getNextUserAddress();
-        newVault.setVaultRegistry(IVaultRegistry(newAddress));
-        assertEq(address(newVault.vaultRegistry()), newAddress);
-    }
-
-    function testSetVaultRegistryWhenNotAdmin() public {
-        vm.prank(getNextUserAddress());
-        vm.expectRevert(VaultAccessControl.Forbidden.selector);
-        vault.setVaultRegistry(IVaultRegistry(getNextUserAddress()));
-    }
-
-    function testSetVaultRegistryWhenItHasAlreadyBeenSet() public {
-        vm.expectRevert(Vault.VaultRegistryAlreadySet.selector);
-        vault.setVaultRegistry(IVaultRegistry(getNextUserAddress()));
-    }
-
-    function testSetVaultRegistryWhenAddressZero() public {
-        Vault newVault = new Vault(
-            INonfungiblePositionManager(PositionManager),
-            INFTOracle(address(nftOracle)),
-            treasury,
-            address(token)
-        );
-
-        bytes memory initData = abi.encodeWithSelector(
-            Vault.initialize.selector,
-            address(this),
-            10**7,
-            type(uint256).max
-        );
-        EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
-        newVault = Vault(address(newVaultProxy));
-
-        vm.expectRevert(VaultAccessControl.AddressZero.selector);
-        newVault.setVaultRegistry(IVaultRegistry(address(0)));
-    }
-
-    function testSetVaultRegistryEmit() public {
-        Vault newVault = new Vault(
-            INonfungiblePositionManager(PositionManager),
-            INFTOracle(address(nftOracle)),
-            treasury,
-            address(token)
-        );
-
-        bytes memory initData = abi.encodeWithSelector(
-            Vault.initialize.selector,
-            address(this),
-            10**7,
-            type(uint256).max
-        );
-        EIP1967Proxy newVaultProxy = new EIP1967Proxy(address(this), address(newVault), initData);
-        newVault = Vault(address(newVaultProxy));
-
-        address newAddress = getNextUserAddress();
-        vm.expectEmit(false, true, false, true);
-        emit VaultRegistrySet(tx.origin, address(this), newAddress);
-        newVault.setVaultRegistry(IVaultRegistry(newAddress));
     }
 
     // vaultNftsById
