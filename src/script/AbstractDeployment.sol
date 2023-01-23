@@ -114,3 +114,9 @@ abstract contract AbstractPolygonDeployment is AbstractDeployment {
         chain = "polygon";
     }
 }
+
+abstract contract AbstractGoerliDeployment is AbstractDeployment {
+    constructor() {
+        chain = "goerli";
+    }
+}
