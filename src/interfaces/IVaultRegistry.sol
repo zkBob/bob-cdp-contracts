@@ -17,6 +17,7 @@ interface IVaultRegistry is IERC721Enumerable {
     function mint(address to) external returns (uint256);
 
     /// @notice Burns an existent token
+    /// Only the minter of the specified token id is allowed to burn it
     /// @param tokenId Id of a token
     function burn(uint256 tokenId) external;
 }

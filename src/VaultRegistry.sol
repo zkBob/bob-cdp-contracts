@@ -25,6 +25,9 @@ contract VaultRegistry is IVaultRegistry, EIP1967Admin, ERC721Enumerable {
         string memory baseURI_
     ) ERC721(name_, symbol_, baseURI_) {}
 
+    /// @notice Enables/disables new Vault Registry NFT minter
+    /// @param minter address of the modified minter
+    /// @param approved true, to enable minter, false otherwise
     function setMinter(address minter, bool approved) external onlyAdmin {
         isMinter[minter] = approved;
     }
