@@ -21,6 +21,7 @@
     "compile": "forge build",
     "deploy:mainnet:uniswap": "forge script src/script/uniswap/UniswapMainnetDeployment.s.sol:UniswapMainnetDeployment --rpc-url $(grep MAINNET_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --etherscan-api-key $(grep MAINNET_ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv",
     "deploy:polygon:uniswap": "forge script src/script/uniswap/UniswapPolygonDeployment.s.sol:UniswapPolygonDeployment --rpc-url $(grep POLYGON_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --etherscan-api-key $(grep POLYGON_ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv",
-    "deploy:polygon:quickswap": "forge script src/script/quickswap/QuickswapPolygonDeployment.s.sol:QuickswapPolygonDeployment --rpc-url $(grep POLYGON_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --etherscan-api-key $(grep POLYGON_ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv"
+    "deploy:polygon:quickswap": "forge script src/script/quickswap/QuickswapPolygonDeployment.s.sol:QuickswapPolygonDeployment --rpc-url $(grep POLYGON_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --etherscan-api-key $(grep POLYGON_ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv",
+    "deploy:goerli:oracles": "forge script src/script/MockOracleDeployment.s.sol:MockOracleDeployment --rpc-url $(grep GOERLI_RPC .env | cut -d '=' -f2) --private-key $(grep PRIVATE_KEY .env | cut -d '=' -f2) --etherscan-api-key $(grep MAINNET_ETHERSCAN_API_KEY .env | cut -d '=' -f2) -vvvv"
   }
 }

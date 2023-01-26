@@ -1,0 +1,35 @@
+{
+    "bobToken": "0x7F33De9781De5764B1F1992F16116323220a5445",
+    "factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
+    "liquidationFeeD": 30000000,
+    "liquidationPremiumD": 30000000,
+    "maxDebtPerVault": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
+    "maxNftsPerVault": 20,
+    "maxPriceRatioDeviation": 10000000000000000,
+    "minSingleNftCollateral": 100000000000000000,
+    "positionManager": "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
+    "stabilisationFee": 10000000,
+    "treasury": "0x341C245124CCDCe62655a29207acBee0f6e3135a",
+    "validPeriod": 3600,
+    "tokens": [
+      {
+        "chainlinkOracle": "0x7269071F8F7c204Aa9573b4707b16405c862772b",
+        "chainlinkOracleHeartbeat": 6000,
+        "tokenAddress": "0x1F2cd0D7E5a7d8fE41f886063E9F11A05dE217Fa"
+      },
+      {
+        "chainlinkOracle": "0xb716320dA546F9Cd30B5b8DBb068A5905aB6640E",
+        "chainlinkOracleHeartbeat": 6000,
+        "tokenAddress": "0x34852e54D9B4Ec4325C7344C28b584Ce972e5E62"
+      }
+    ],
+    "pools": [
+      {
+        "fee": 3000,
+        "liquidationThreshold": 600000000,
+        "token0": "0x1F2cd0D7E5a7d8fE41f886063E9F11A05dE217Fa",
+        "token1": "0x34852e54D9B4Ec4325C7344C28b584Ce972e5E62"
+      }
+    ]
+}
+  

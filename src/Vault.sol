@@ -117,7 +117,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     mapping(uint256 => uint256) public vaultIdByNft;
 
     /// @notice Mapping, returning last cumulative sum of time-weighted debt fees by vault id, generated during last deposit / withdraw / mint / burn
-    mapping(uint256 => uint256) private _globalStabilisationFeePerUSDVaultSnapshotD;
+    mapping(uint256 => uint256) public globalStabilisationFeePerUSDVaultSnapshotD;
 
     /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault)
     uint256 public vaultCount = 0;
@@ -231,7 +231,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     function getOverallDebt(uint256 vaultId) public view returns (uint256) {
         uint256 currentDebt = vaultDebt[vaultId];
         uint256 deltaGlobalStabilisationFeeD = globalStabilisationFeePerUSDD() -
-            _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
+            globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
         return
             currentDebt +
             stabilisationFeeVaultSnapshot[vaultId] +
@@ -803,14 +803,14 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         delete vaultDebt[vaultId];
         delete stabilisationFeeVaultSnapshot[vaultId];
         delete _vaultNfts[vaultId];
-        delete _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
+        delete globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
     }
 
     /// @notice Update stabilisation fee for a given vault (in MUSD weis)
     /// @param vaultId Id of the vault
     function _updateVaultStabilisationFee(uint256 vaultId) internal {
         uint256 deltaGlobalStabilisationFeeD = globalStabilisationFeePerUSDD() -
-            _globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
+            globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
 
         if (deltaGlobalStabilisationFeeD > 0) {
             uint256 currentVaultDebt = vaultDebt[vaultId];
@@ -819,7 +819,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
                 deltaGlobalStabilisationFeeD,
                 DENOMINATOR
             );
-            _globalStabilisationFeePerUSDVaultSnapshotD[vaultId] += deltaGlobalStabilisationFeeD;
+            globalStabilisationFeePerUSDVaultSnapshotD[vaultId] += deltaGlobalStabilisationFeeD;
         }
     }
 
