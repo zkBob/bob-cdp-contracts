@@ -388,7 +388,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @inheritdoc ICDP
     function liquidate(uint256 vaultId) external {
         uint256 overallDebt = getOverallDebt(vaultId);
-        (uint256 vaultAmount, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, true);
+        (uint256 vaultAmount, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, false);
         if (adjustedCollateral >= overallDebt) {
             revert PositionHealthy();
         }
