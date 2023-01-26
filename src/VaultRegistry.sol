@@ -2,55 +2,60 @@
 pragma solidity 0.8.15;
 
 import "@zkbob/proxy/EIP1967Admin.sol";
-import "./interfaces/ICDP.sol";
 import "./token/ERC721/ERC721Enumerable.sol";
+import "./interfaces/IVaultRegistry.sol";
 
-contract VaultRegistry is EIP1967Admin, ERC721Enumerable {
+contract VaultRegistry is IVaultRegistry, EIP1967Admin, ERC721Enumerable {
     /// @notice Thrown when not minter trying to mint
     error Forbidden();
 
-    /// @notice Thrown when user trying to burn nft and has non-empty collateral
-    error NonEmptyCollateral();
+    /// @notice CDP Vault contracts allowed to mint
+    mapping(address => bool) public isMinter;
 
-    /// @notice CDP contract allowed to mint
-    ICDP immutable cdp;
+    /// @notice Vault NFT minter
+    mapping(uint256 => address) public minterOf;
 
     /// @notice Creates a new contract
-    /// @param cdp_ CDP contract allowed to mint
     /// @param name_ Token name
     /// @param symbol_ Token's symbol name
     /// @param baseURI_ Token's baseURI
     constructor(
-        ICDP cdp_,
         string memory name_,
         string memory symbol_,
         string memory baseURI_
-    ) ERC721(name_, symbol_, baseURI_) {
-        cdp = cdp_;
+    ) ERC721(name_, symbol_, baseURI_) {}
+
+    /// @notice Enables/disables new Vault Registry NFT minter
+    /// @param minter address of the modified minter
+    /// @param approved true, to enable minter, false otherwise
+    function setMinter(address minter, bool approved) external onlyAdmin {
+        isMinter[minter] = approved;
     }
 
-    /// @notice Mints a new token
-    /// @param to Token receiver
-    /// @param tokenId Id of a token
-    function mint(address to, uint256 tokenId) external {
-        if (msg.sender != address(cdp)) {
+    /// @inheritdoc IVaultRegistry
+    function isAuthorized(uint256 tokenId, address user) external view returns (bool) {
+        return _isApprovedOrOwner(user, tokenId);
+    }
+
+    /// @inheritdoc IVaultRegistry
+    function mint(address to) external returns (uint256 tokenId) {
+        if (!isMinter[msg.sender]) {
             revert Forbidden();
         }
+
+        tokenId = totalSupply() + 1;
+        minterOf[tokenId] = msg.sender;
+
         _mint(to, tokenId);
     }
 
-    /// @notice Burns an existent token
-    /// @param tokenId Id of a token
+    /// @inheritdoc IVaultRegistry
     function burn(uint256 tokenId) external {
-        if (msg.sender != ownerOf(tokenId)) {
+        if (msg.sender != minterOf[tokenId]) {
             revert Forbidden();
         }
 
-        uint256[] memory vaultNfts = cdp.vaultNftsById(tokenId);
-
-        if (vaultNfts.length != 0) {
-            revert NonEmptyCollateral();
-        }
+        delete minterOf[tokenId];
 
         _burn(tokenId);
     }

@@ -55,11 +55,17 @@ abstract contract AbstractDeployment is ConfigContract {
         INFTOracle nftOracle = _deployOracle(params.positionManager, oracle, params.maxPriceRatioDeviation);
         recordDeployedContract("NFTOracle", address(nftOracle));
 
+        VaultRegistry vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "");
+        EIP1967Proxy vaultRegistryProxy = new EIP1967Proxy(msg.sender, address(vaultRegistry), "");
+        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+        recordDeployedContract("VaultRegistry", address(vaultRegistry));
+
         Vault vault = new Vault(
             INonfungiblePositionManager(params.positionManager),
             nftOracle,
             params.treasury,
-            params.bobToken
+            params.bobToken,
+            address(vaultRegistry)
         );
 
         bytes memory initData = abi.encodeWithSelector(
@@ -70,19 +76,12 @@ abstract contract AbstractDeployment is ConfigContract {
         );
         EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
         vault = Vault(address(vaultProxy));
+        recordDeployedContract("Vault", address(vault));
 
         setupGovernance(params, ICDP(address(vault)));
 
-        recordDeployedContract("Vault", address(vault));
+        vaultRegistry.setMinter(address(vault), true);
 
-        VaultRegistry vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
-
-        EIP1967Proxy vaultRegistryProxy = new EIP1967Proxy(msg.sender, address(vaultRegistry), "");
-        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
-
-        vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
-
-        recordDeployedContract("VaultRegistry", address(vaultRegistry));
         vm.stopBroadcast();
         writeDeployment(string.concat(vm.projectRoot(), "/deployments/", chain, "_", amm, "_deployment.json"));
     }

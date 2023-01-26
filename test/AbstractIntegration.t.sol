@@ -38,11 +38,16 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
 
         token = new BobTokenMock();
 
+        vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "");
+        vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
+        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
+
         vault = new Vault(
             INonfungiblePositionManager(PositionManager),
             INFTOracle(address(nftOracle)),
             treasury,
-            address(token)
+            address(token),
+            address(vaultRegistry)
         );
 
         bytes memory initData = abi.encodeWithSelector(
@@ -54,12 +59,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
-        vaultRegistry = new VaultRegistry(ICDP(address(vault)), "BOB Vault Token", "BVT", "");
-
-        vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
-        vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
-
-        vault.setVaultRegistry(IVaultRegistry(address(vaultRegistry)));
+        vaultRegistry.setMinter(address(vault), true);
 
         token.updateMinter(address(vault), true, true);
         token.approve(address(vault), type(uint256).max);
@@ -76,6 +76,8 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         address[] memory depositors = new address[](1);
         depositors[0] = address(this);
         vault.addDepositorsToAllowlist(depositors);
+
+        skip(1 days);
     }
 
     // integration scenarios

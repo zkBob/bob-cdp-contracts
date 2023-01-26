@@ -54,11 +54,11 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Thrown when a value is incorrectly equal to zero
     error ValueZero();
 
-    /// @notice Thrown when the VaultRegistry has already been set
-    error VaultRegistryAlreadySet();
-
     /// @notice Thrown when a vault is tried to be closed and debt has not been paid yet
     error UnpaidDebt();
+
+    /// @notice Thrown when a vault is tried to be closed and debt has not been paid yet
+    error VaultNonEmpty();
 
     /// @notice Thrown when the vault debt limit (which's set in governance) would been exceeded after a deposit
     error DebtLimitExceeded();
@@ -81,7 +81,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     address public immutable treasury;
 
     /// @notice Vault Registry
-    IVaultRegistry public vaultRegistry;
+    IVaultRegistry public immutable vaultRegistry;
 
     /// @notice State variable, which shows if Vault is initialized or not
     bool public isInitialized;
@@ -110,6 +110,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Mapping, returning debt by vault id (in MUSD weis)
     mapping(uint256 => uint256) public vaultDebt;
 
+    /// @notice Mapping, returning owed by vault id (in MUSD weis)
+    mapping(uint256 => uint256) public vaultOwed;
+
     /// @notice Mapping, returning total accumulated stabilising fees by vault id (which are due to be paid)
     mapping(uint256 => uint256) public stabilisationFeeVaultSnapshot;
 
@@ -118,9 +121,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @notice Mapping, returning last cumulative sum of time-weighted debt fees by vault id, generated during last deposit / withdraw / mint / burn
     mapping(uint256 => uint256) public globalStabilisationFeePerUSDVaultSnapshotD;
-
-    /// @notice State variable, returning vaults quantity (gets incremented after opening a new vault)
-    uint256 public vaultCount = 0;
 
     /// @notice State variable, returning current stabilisation fee (multiplied by DENOMINATOR)
     uint256 public stabilisationFeeRateD;
@@ -140,13 +140,15 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         INonfungiblePositionManager positionManager_,
         INFTOracle oracle_,
         address treasury_,
-        address token_
+        address token_,
+        address vaultRegistry_
     ) {
         if (
             address(positionManager_) == address(0) ||
             address(oracle_) == address(0) ||
             address(treasury_) == address(0) ||
-            address(token_) == address(0)
+            address(token_) == address(0) ||
+            address(vaultRegistry_) == address(0)
         ) {
             revert AddressZero();
         }
@@ -155,6 +157,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         oracle = oracle_;
         treasury = treasury_;
         token = IBobToken(token_);
+        vaultRegistry = IVaultRegistry(vaultRegistry_);
         isInitialized = true;
     }
 
@@ -277,10 +280,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert AllowList();
         }
 
-        vaultId = vaultCount + 1;
-        vaultCount = vaultId;
+        vaultId = vaultRegistry.mint(msg.sender);
 
-        vaultRegistry.mint(msg.sender, vaultId);
+        globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = 1;
 
         emit VaultOpened(msg.sender, vaultId);
     }
@@ -289,7 +291,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param vaultId Id of the vault
     /// @param collateralRecipient The address of collateral recipient
     function closeVault(uint256 vaultId, address collateralRecipient) external onlyUnpaused {
-        _requireVaultOwner(vaultId);
+        _requireVaultAuth(vaultId);
 
         if (vaultDebt[vaultId] + stabilisationFeeVaultSnapshot[vaultId] != 0) {
             revert UnpaidDebt();
@@ -298,6 +300,20 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         _closeVault(vaultId, collateralRecipient);
 
         emit VaultClosed(msg.sender, vaultId);
+    }
+
+    /// @notice Burns a vault NFT
+    /// @param vaultId id of the vault NFT to burn
+    function burnVault(uint256 vaultId) external onlyUnpaused {
+        _requireVaultAuth(vaultId);
+
+        if (vaultOwed[vaultId] != 0 || _vaultNfts[vaultId].length != 0) {
+            revert VaultNonEmpty();
+        }
+
+        delete globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
+
+        vaultRegistry.burn(vaultId);
     }
 
     /// @notice Deposit collateral to a given vault
@@ -311,7 +327,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param nft UniV3 NFT to be withdrawn
     function withdrawCollateral(uint256 nft) external {
         uint256 vaultId = vaultIdByNft[nft];
-        _requireVaultOwner(vaultId);
+        _requireVaultAuth(vaultId);
 
         uint256[] storage vaultNfts = _vaultNfts[vaultId];
         for (uint256 i = 0; i < vaultNfts.length; i++) {
@@ -340,7 +356,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param vaultId Id of the vault
     /// @param amount The debt amount to be mited
     function mintDebt(uint256 vaultId, uint256 amount) public onlyUnpaused {
-        _requireVaultOwner(vaultId);
+        _requireVaultAuth(vaultId);
         _updateVaultStabilisationFee(vaultId);
 
         token.mint(msg.sender, amount);
@@ -363,7 +379,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param vaultId Id of the vault
     /// @param amount The debt amount to be burned
     function burnDebt(uint256 vaultId, uint256 amount) external {
-        _requireVaultOwner(vaultId);
         _updateVaultStabilisationFee(vaultId);
 
         uint256 currentVaultDebt = vaultDebt[vaultId];
@@ -393,8 +408,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert PositionHealthy();
         }
 
-        address owner = vaultRegistry.ownerOf(vaultId);
-
         uint256 returnAmount = FullMath.mulDiv(
             DENOMINATOR - _protocolParams.liquidationPremiumD,
             vaultAmount,
@@ -415,12 +428,30 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             daoReceiveAmount = returnAmount - currentDebt;
         }
         // returnAmount - overallDebt + liquidationFeeD * vaultAmount
-        token.transfer(owner, returnAmount - currentDebt - daoReceiveAmount);
+        vaultOwed[vaultId] += returnAmount - currentDebt - daoReceiveAmount;
         token.transfer(treasury, daoReceiveAmount);
 
+        delete vaultDebt[vaultId];
+        delete stabilisationFeeVaultSnapshot[vaultId];
         _closeVault(vaultId, msg.sender);
 
         emit VaultLiquidated(msg.sender, vaultId);
+    }
+
+    /// @inheritdoc ICDP
+    function withdrawOwed(
+        uint256 vaultId,
+        address to,
+        uint256 maxAmount
+    ) external returns (uint256 withdrawnAmount) {
+        _requireVaultAuth(vaultId);
+
+        uint256 owed = vaultOwed[vaultId];
+        withdrawnAmount = maxAmount > owed ? owed : maxAmount;
+
+        token.transfer(to, withdrawnAmount);
+
+        vaultOwed[vaultId] -= withdrawnAmount;
     }
 
     function mintDebtFromScratch(uint256 nft, uint256 amount) external returns (uint256 vaultId) {
@@ -452,7 +483,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     {
         uint256 tokenId = params.tokenId;
         uint256 vaultId = vaultIdByNft[tokenId];
-        _requireVaultOwner(vaultId);
+        _requireVaultAuth(vaultId);
 
         (amount0, amount1) = positionManager.decreaseLiquidity(params);
 
@@ -465,7 +496,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     {
         uint256 tokenId = params.tokenId;
         uint256 vaultId = vaultIdByNft[tokenId];
-        _requireVaultOwner(vaultId);
+        _requireVaultAuth(vaultId);
 
         (amount0, amount1) = positionManager.collect(params);
 
@@ -487,7 +518,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     {
         uint256 tokenId = collectParams.tokenId;
         uint256 vaultId = vaultIdByNft[tokenId];
-        _requireVaultOwner(vaultId);
+        _requireVaultAuth(vaultId);
 
         (returnAmount0, returnAmount1) = positionManager.collect(collectParams);
 
@@ -512,22 +543,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         }
 
         _checkHealthOfVaultAndPosition(vaultId, tokenId);
-    }
-
-    /// @notice Set a new vault registry
-    /// @param vaultRegistry_ The new vault registry address
-    function setVaultRegistry(IVaultRegistry vaultRegistry_) external onlyVaultAdmin {
-        if (address(vaultRegistry) != address(0)) {
-            revert VaultRegistryAlreadySet();
-        }
-
-        if (address(vaultRegistry_) == address(0)) {
-            revert AddressZero();
-        }
-
-        vaultRegistry = vaultRegistry_;
-
-        emit VaultRegistrySet(tx.origin, msg.sender, address(vaultRegistry_));
     }
 
     /// @inheritdoc ICDP
@@ -660,10 +675,10 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     // -------------------  INTERNAL, VIEW  -----------------------
 
-    /// @notice Check if the caller is the vault owner
+    /// @notice Check if the caller is authorized to manage the vault
     /// @param vaultId Vault id
-    function _requireVaultOwner(uint256 vaultId) internal view {
-        if (vaultRegistry.ownerOf(vaultId) != msg.sender) {
+    function _requireVaultAuth(uint256 vaultId) internal view {
+        if (!vaultRegistry.isAuthorized(vaultId, msg.sender)) {
             revert Forbidden();
         }
     }
@@ -767,7 +782,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert NFTLimitExceeded();
         }
 
-        if (vaultRegistry.ownerOf(vaultId) == address(0)) {
+        // revert if vault NFT was burnt or is being managed by another minter
+        if (globalStabilisationFeePerUSDVaultSnapshotD[vaultId] == 0) {
             revert InvalidVault();
         }
 
@@ -800,10 +816,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             positionManager.transferFrom(address(this), nftsRecipient, nft);
         }
 
-        delete vaultDebt[vaultId];
-        delete stabilisationFeeVaultSnapshot[vaultId];
         delete _vaultNfts[vaultId];
-        delete globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
     }
 
     /// @notice Update stabilisation fee for a given vault (in MUSD weis)
@@ -886,12 +899,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param sender Sender of the call (msg.sender)
     /// @param stabilisationFee New stabilisation fee
     event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
-
-    /// @notice Emitted when the VaultRegistry is updated
-    /// @param origin Origin of the transaction (tx.origin)
-    /// @param sender Sender of the call (msg.sender)
-    /// @param vaultRegistryAddress New vaultRegistry address
-    event VaultRegistrySet(address indexed origin, address indexed sender, address vaultRegistryAddress);
 
     /// @notice Emitted when the system is set to paused
     /// @param origin Origin of the transaction (tx.origin)
