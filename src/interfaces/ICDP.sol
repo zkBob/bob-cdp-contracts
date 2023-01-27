@@ -108,5 +108,5 @@ interface ICDP {
     function calculateVaultCollateral(uint256 vaultId)
         external
         view
-        returns (uint256 overallCollateral, uint256 adjustedCollateral)
+        returns (uint256 overallCollateral, uint256 adjustedCollateral);
 }
