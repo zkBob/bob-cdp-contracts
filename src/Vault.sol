@@ -209,10 +209,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         return super.supportsInterface(interfaceId) || type(IERC721Receiver).interfaceId == interfaceId;
     }
 
-    /// @notice Calculate adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis)
-    /// @param vaultId Id of the vault
-    /// @return overallCollateral Overall collateral
-    /// @return adjustedCollateral Adjusted collateral
+    /// @inheritdoc ICDP
     function calculateVaultCollateral(uint256 vaultId)
         public
         view
