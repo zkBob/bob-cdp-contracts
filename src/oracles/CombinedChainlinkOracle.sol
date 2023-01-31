@@ -33,7 +33,7 @@ contract CombinedChainlinkOracle {
 
         answer = (overallDecimals < decimals)
             ? firstOracleAnswer * secondOracleAnswer * int256(10**(decimals - overallDecimals))
-            : firstOracleAnswer * secondOracleAnswer / int256(10**(overallDecimals - decimals));
+            : (firstOracleAnswer * secondOracleAnswer) / int256(10**(overallDecimals - decimals));
 
         return (
             0,
