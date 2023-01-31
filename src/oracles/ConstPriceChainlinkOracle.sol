@@ -1,8 +1,14 @@
 // SPDX-License-Identifier: BSL-1.1
 pragma solidity 0.8.15;
 
-contract BobChainlinkOracle {
-    uint8 public decimals = 18;
+contract ConstPriceChainlinkOracle {
+    int256 public immutable price;
+    uint8 public immutable decimals;
+
+    constructor(int256 price_, uint8 decimals_) {
+        price = price_;
+        decimals = decimals_;
+    }
 
     function latestRoundData()
         external
@@ -15,6 +21,6 @@ contract BobChainlinkOracle {
             uint80 answeredInRound
         )
     {
-        return (0, 10**18, 0, block.timestamp, 0);
+        return (0, price, 0, block.timestamp, 0);
     }
 }

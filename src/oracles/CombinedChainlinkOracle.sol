@@ -4,15 +4,13 @@ pragma solidity 0.8.15;
 import "../interfaces/external/chainlink/IAggregatorV3.sol";
 
 contract CombinedChainlinkOracle {
-    uint8 public decimals = 18;
+    uint8 public immutable decimals;
 
-    IAggregatorV3 public firstOracle;
-    IAggregatorV3 public secondOracle;
-
-    uint8 private overallDecimals;
+    IAggregatorV3 public immutable firstOracle;
+    IAggregatorV3 public immutable secondOracle;
 
     constructor(IAggregatorV3 firstOracle_, IAggregatorV3 secondOracle_) {
-        overallDecimals = firstOracle.decimals() + secondOracle.decimals();
+        decimals = firstOracle_.decimals() + secondOracle_.decimals();
         firstOracle = firstOracle_;
         secondOracle = secondOracle_;
     }
@@ -31,13 +29,9 @@ contract CombinedChainlinkOracle {
         (, int256 firstOracleAnswer, , uint256 firstOracleFallbackUpdatedAt, ) = firstOracle.latestRoundData();
         (, int256 secondOracleAnswer, , uint256 secondOracleFallbackUpdatedAt, ) = secondOracle.latestRoundData();
 
-        answer = (overallDecimals < decimals)
-            ? firstOracleAnswer * secondOracleAnswer * int256(10**(decimals - overallDecimals))
-            : (firstOracleAnswer * secondOracleAnswer) / int256(10**(overallDecimals - decimals));
-
         return (
             0,
-            answer,
+            firstOracleAnswer * secondOracleAnswer,
             0,
             (firstOracleFallbackUpdatedAt < secondOracleFallbackUpdatedAt)
                 ? firstOracleFallbackUpdatedAt
