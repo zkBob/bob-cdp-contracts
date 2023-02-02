@@ -14,6 +14,9 @@ contract ChainlinkOracle is IOracle, Ownable {
     /// @notice Thrown when price feed doesn't work by some reason
     error InvalidOracle();
 
+    /// @notice Thrown when sum of token.decimals and oracle.decimals is too high
+    error InvalidOverallDecimals();
+
     /// @notice Price update error
     error PriceUpdateFailed();
 
@@ -177,6 +180,12 @@ contract ChainlinkOracle is IOracle, Ownable {
             }
 
             uint256 decimals = uint256(IERC20Metadata(token).decimals() + IAggregatorV3(oracle).decimals());
+
+            // when decimals is more than 18 + 26 priceDeviation becomes too high
+            if (decimals > 44) {
+                revert InvalidOverallDecimals();
+            }
+
             uint256 priceMultiplier;
             if (DECIMALS > decimals) {
                 priceMultiplier = (10**(DECIMALS - decimals)) * Q96;
