@@ -9,6 +9,7 @@ import "./mocks/MockOracle.sol";
 import "./mocks/MockChainlinkOracle.sol";
 import "./shared/ForkTests.sol";
 import "../src/oracles/ChainlinkOracle.sol";
+import "../src/oracles/ConstPriceChainlinkOracle.sol";
 
 contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
     event OraclesAdded(
@@ -114,6 +115,20 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
         currentHeartbeats[0] = 1500;
 
         vm.expectRevert(ChainlinkOracle.InvalidOracle.selector);
+        chainlinkOracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
+    }
+
+    function testOracleNotAddedBecauseOfDecimals() public {
+        ConstPriceChainlinkOracle constPriceOracle = new ConstPriceChainlinkOracle(10**36, 36);
+
+        address[] memory currentTokens = new address[](1);
+        currentTokens[0] = dai;
+        address[] memory currentOracles = new address[](1);
+        currentOracles[0] = address(constPriceOracle);
+        uint48[] memory currentHeartbeats = new uint48[](1);
+        currentHeartbeats[0] = 1500;
+
+        vm.expectRevert(ChainlinkOracle.InvalidOverallDecimals.selector);
         chainlinkOracle.addChainlinkOracles(currentTokens, currentOracles, currentHeartbeats);
     }
 
