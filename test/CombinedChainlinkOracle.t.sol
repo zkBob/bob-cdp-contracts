@@ -59,7 +59,7 @@ contract CombinedChainlinkOracleTest is
             INonfungiblePositionManager.MintParams({
                 token0: wsteth,
                 token1: weth,
-                fee: 3000,
+                fee: 500,
                 tickLower: currentTick - 600,
                 tickUpper: currentTick + 600,
                 amount0Desired: 100 ether,
