@@ -100,4 +100,13 @@ interface ICDP {
         address to,
         uint256 maxAmount
     ) external returns (uint256 withdrawnAmount);
+
+    /// @notice Calculate adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis)
+    /// @param vaultId Id of the vault
+    /// @return overallCollateral Overall collateral
+    /// @return adjustedCollateral Adjusted collateral
+    function calculateVaultCollateral(uint256 vaultId)
+        external
+        view
+        returns (uint256 overallCollateral, uint256 adjustedCollateral);
 }
