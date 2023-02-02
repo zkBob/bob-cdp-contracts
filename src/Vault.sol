@@ -36,6 +36,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Thrown when a vault id does not exist
     error InvalidVault();
 
+    /// @notice Thrown when liquidations are private and a liquidator is not allowed
+    error LiquidatorsAllowList();
+
     /// @notice Thrown when the nft limit for one vault would have been exceeded after the deposit
     error NFTLimitExceeded();
 
@@ -92,11 +95,17 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice State variable, which shows if Vault is public or not
     bool public isPublic;
 
+    /// @notice State variable, which shows if liquidating is private or not
+    bool public isLiquidatingPublic;
+
     /// @notice Protocol params
     ICDP.ProtocolParams private _protocolParams;
 
-    /// @notice Address set, containing only accounts, which are allowed to make deposits
+    /// @notice Address set, containing only accounts, which are allowed to make deposits when system is private
     EnumerableSet.AddressSet private _depositorsAllowlist;
+
+    /// @notice Address set, containing only accounts, which are allowed to liquidate when liquidations are private
+    EnumerableSet.AddressSet private _liquidatorsAllowlist;
 
     /// @notice Set of whitelisted pools
     EnumerableSet.AddressSet private _whitelistedPools;
@@ -253,6 +262,12 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         return _depositorsAllowlist.values();
     }
 
+    /// @notice Get all verified liquidators
+    /// @return address[] Array of verified liquidators
+    function liquidatorsAllowlist() external view returns (address[] memory) {
+        return _liquidatorsAllowlist.values();
+    }
+
     /// @inheritdoc ICDP
     function protocolParams() external view returns (ProtocolParams memory) {
         return _protocolParams;
@@ -399,6 +414,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @inheritdoc ICDP
     function liquidate(uint256 vaultId) external {
+        if (!isLiquidatingPublic && !_liquidatorsAllowlist.contains(msg.sender)) {
+            revert LiquidatorsAllowList();
+        }
         uint256 overallDebt = getOverallDebt(vaultId);
         (uint256 vaultAmount, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, false);
         if (adjustedCollateral >= overallDebt) {
@@ -638,6 +656,20 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         emit SystemPublic(tx.origin, msg.sender);
     }
 
+    /// @notice Make liquidations private
+    function makeLiquidationsPrivate() external onlyVaultAdmin {
+        isLiquidatingPublic = false;
+
+        emit LiquidationsPrivate(tx.origin, msg.sender);
+    }
+
+    /// @notice Make liquidations private
+    function makeLiquidationsPublic() external onlyVaultAdmin {
+        isLiquidatingPublic = true;
+
+        emit LiquidationsPublic(tx.origin, msg.sender);
+    }
+
     /// @notice Add an array of new depositors to the allow list
     /// @param depositors Array of new depositors
     function addDepositorsToAllowlist(address[] calldata depositors) external onlyVaultAdmin {
@@ -651,6 +683,22 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     function removeDepositorsFromAllowlist(address[] calldata depositors) external onlyVaultAdmin {
         for (uint256 i = 0; i < depositors.length; i++) {
             _depositorsAllowlist.remove(depositors[i]);
+        }
+    }
+
+    /// @notice Add an array of new liquidators to the allow list
+    /// @param liquidators Array of new liquidators
+    function addLiquidatorsToAllowlist(address[] calldata liquidators) external onlyVaultAdmin {
+        for (uint256 i = 0; i < liquidators.length; i++) {
+            _liquidatorsAllowlist.add(liquidators[i]);
+        }
+    }
+
+    /// @notice Remove an array of liquidators from the allow list
+    /// @param liquidators Array of new liquidators
+    function removeLiquidatorsFromAllowlist(address[] calldata liquidators) external onlyVaultAdmin {
+        for (uint256 i = 0; i < liquidators.length; i++) {
+            _liquidatorsAllowlist.remove(liquidators[i]);
         }
     }
 
@@ -916,6 +964,16 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     event SystemPublic(address indexed origin, address indexed sender);
+
+    /// @notice Emitted when liquidations is set to private
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    event LiquidationsPrivate(address indexed origin, address indexed sender);
+
+    /// @notice Emitted when liquidations is set to public
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    event LiquidationsPublic(address indexed origin, address indexed sender);
 
     /// @notice Emitted when liquidation fee is updated
     /// @param origin Origin of the transaction (tx.origin)

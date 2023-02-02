@@ -32,6 +32,9 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     event SystemPrivate(address indexed origin, address indexed sender);
     event SystemPublic(address indexed origin, address indexed sender);
 
+    event LiquidationsPrivate(address indexed origin, address indexed sender);
+    event LiquidationsPublic(address indexed origin, address indexed sender);
+
     event LiquidationFeeChanged(address indexed origin, address indexed sender, uint32 liquidationFeeD);
     event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint32 liquidationPremiumD);
     event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
@@ -114,6 +117,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         IERC20(usdc).approve(address(vault), type(uint256).max);
         IERC20(wbtc).approve(address(vault), type(uint256).max);
 
+        vault.makeLiquidationsPublic();
+
         skip(1 days);
     }
 
@@ -138,6 +143,28 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vault.removeDepositorsFromAllowlist(addresses);
         address[] memory depositors = vault.depositorsAllowlist();
         assertEq(getLength(depositors), 0);
+    }
+
+    // addLiquidatorsToAllowlist
+
+    function testAddLiquidatorsToAllowlistSuccess() public {
+        address newAddress = getNextUserAddress();
+        address[] memory addresses = new address[](1);
+        addresses[0] = newAddress;
+        vault.addLiquidatorsToAllowlist(addresses);
+        address[] memory liquidators = vault.liquidatorsAllowlist();
+        assertEq(getLength(liquidators), 1);
+        assertEq(newAddress, liquidators[0]);
+    }
+
+    // removeDepositorsFromAllowlist
+
+    function testRemoveLiquidatorsFromAllowlistSuccess() public {
+        address[] memory addresses = new address[](1);
+        addresses[0] = address(this);
+        vault.removeLiquidatorsFromAllowlist(addresses);
+        address[] memory liquidators = vault.liquidatorsAllowlist();
+        assertEq(getLength(liquidators), 0);
     }
 
     // openVault
@@ -1422,6 +1449,51 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vault.liquidate(vaultId);
     }
 
+    function testLiquidateSuccessWhenLiquidationsPrivate() public {
+        uint256 vaultId = vault.openVault();
+        // overall ~2000$ -> HF: ~1200$
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        vault.mintDebt(vaultId, 1000 * 10**18);
+        // eth 1000 -> 800
+        helper.setTokenPrice(oracle, weth, 700 << 96);
+
+        address randomAddress = getNextUserAddress();
+        token.transfer(randomAddress, vault.vaultDebt(vaultId));
+
+        vm.warp(block.timestamp + 5 * YEAR);
+        (uint256 vaultAmount, uint256 health) = vault.calculateVaultCollateral(vaultId);
+        {
+            uint256 debt = vault.vaultDebt(vaultId) + vault.stabilisationFeeVaultSnapshot(vaultId);
+
+            assertTrue(health < debt);
+        }
+        address liquidator = getNextUserAddress();
+        address[] memory liquidatorsToAllowance = new address[](1);
+        liquidatorsToAllowance[0] = liquidator;
+
+        vault.addLiquidatorsToAllowlist(liquidatorsToAllowance);
+
+        deal(address(token), liquidator, 2000 * 10**18, true);
+        uint256 oldLiquidatorBalance = token.balanceOf(liquidator);
+        uint256 debtToBeRepaid = vault.vaultDebt(vaultId);
+
+        vm.startPrank(liquidator);
+        token.approve(address(vault), type(uint256).max);
+        vault.liquidate(vaultId);
+        vm.stopPrank();
+
+        assertEq(vault.vaultDebt(vaultId), 0);
+        assertEq(vault.stabilisationFeeVaultSnapshot(vaultId), 0);
+    }
+
+    function testLiquidateWhenNotInAllowlist() public {
+        uint256 vaultId = vault.openVault();
+        vault.makeLiquidationsPrivate();
+        vm.expectRevert(Vault.LiquidatorsAllowList.selector);
+        vault.liquidate(vaultId);
+    }
+
     function testLiquidateWhenPricePlummets() public {
         uint256 vaultId = vault.openVault();
         // overall ~2000$ -> HF: ~1200$
@@ -1608,6 +1680,44 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vm.expectEmit(false, true, false, false);
         emit SystemPrivate(getNextUserAddress(), address(this));
         vault.makePrivate();
+    }
+
+    // makeLiquidationsPublic
+
+    function testMakeLiquidationsPublicSuccess() public {
+        vault.makeLiquidationsPublic();
+        assertEq(vault.isLiquidatingPublic(), true);
+    }
+
+    function testMakeLiquidationsPublicWhenNotAdmin() public {
+        vm.prank(getNextUserAddress());
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.makeLiquidationsPublic();
+    }
+
+    function testMakeLiquidationsPublicEmit() public {
+        vm.expectEmit(false, true, false, false);
+        emit LiquidationsPublic(getNextUserAddress(), address(this));
+        vault.makeLiquidationsPublic();
+    }
+
+    // makeLiquidationsPrivate
+
+    function testMakeLiquidationsPrivateSuccess() public {
+        vault.makeLiquidationsPrivate();
+        assertEq(vault.isLiquidatingPublic(), false);
+    }
+
+    function testMakeLiquidationsPrivateWhenNotAdmin() public {
+        vm.prank(getNextUserAddress());
+        vm.expectRevert(VaultAccessControl.Forbidden.selector);
+        vault.makeLiquidationsPrivate();
+    }
+
+    function testMakeLiquidationsPrivateEmit() public {
+        vm.expectEmit(false, true, false, false);
+        emit LiquidationsPrivate(getNextUserAddress(), address(this));
+        vault.makeLiquidationsPrivate();
     }
 
     // pause
