@@ -77,6 +77,8 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         depositors[0] = address(this);
         vault.addDepositorsToAllowlist(depositors);
 
+        vault.makeLiquidationsPublic();
+
         skip(1 days);
     }
 
