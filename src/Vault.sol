@@ -95,7 +95,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice State variable, which shows if Vault is public or not
     bool public isPublic;
 
-    /// @notice State variable, which shows if liquidating is private or not
+    /// @notice State variable, which shows if liquidating is public or not
     bool public isLiquidatingPublic;
 
     /// @notice Protocol params
@@ -663,7 +663,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         emit LiquidationsPrivate(tx.origin, msg.sender);
     }
 
-    /// @notice Make liquidations private
+    /// @notice Make liquidations public
     function makeLiquidationsPublic() external onlyVaultAdmin {
         isLiquidatingPublic = true;
 
