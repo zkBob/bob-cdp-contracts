@@ -150,11 +150,13 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param treasury_ Vault fees treasury
     /// @param token_ Address of token
     /// @param minter_ Address of minter contract
+    /// @param vaultRegistry_ Address of vault registry
     constructor(
         INonfungiblePositionManager positionManager_,
         INFTOracle oracle_,
         address treasury_,
         address token_,
+        address minter_,
         address vaultRegistry_
     ) {
         if (
