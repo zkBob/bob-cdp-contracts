@@ -65,6 +65,7 @@ abstract contract AbstractDeployment is ConfigContract {
             nftOracle,
             params.treasury,
             params.bobToken,
+            params.minter,
             address(vaultRegistry)
         );
 

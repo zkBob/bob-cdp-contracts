@@ -15,6 +15,7 @@ import "./interfaces/oracles/INFTOracle.sol";
 import "./interfaces/ICDP.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
 import "./utils/VaultAccessControl.sol";
+import "./interfaces/IMinter.sol";
 
 /// @notice Contract of the system vault manager
 contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multicall {
@@ -79,6 +80,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @notice Bob Stable Token
     IBobToken public immutable token;
+
+    /// @notice Minter Contract
+    IMinter public immutable minter;
 
     /// @notice Vault fees treasury address
     address public immutable treasury;
@@ -145,6 +149,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param oracle_ Oracle
     /// @param treasury_ Vault fees treasury
     /// @param token_ Address of token
+    /// @param minter_ Address of minter contract
     constructor(
         INonfungiblePositionManager positionManager_,
         INFTOracle oracle_,
@@ -166,6 +171,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         oracle = oracle_;
         treasury = treasury_;
         token = IBobToken(token_);
+        minter = IMinter(minter_);
         vaultRegistry = IVaultRegistry(vaultRegistry_);
         isInitialized = true;
     }
@@ -371,7 +377,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         _requireVaultAuth(vaultId);
         _updateVaultStabilisationFee(vaultId);
 
-        token.mint(msg.sender, amount);
+        minter.mint(msg.sender, amount);
         vaultDebt[vaultId] += amount;
         uint256 overallVaultDebt = stabilisationFeeVaultSnapshot[vaultId] + vaultDebt[vaultId];
 
@@ -400,13 +406,13 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         if (amount > currentVaultDebt) {
             uint256 burningFeeAmount = amount - currentVaultDebt;
-            token.mint(treasury, burningFeeAmount);
+            minter.mint(treasury, burningFeeAmount);
             stabilisationFeeVaultSnapshot[vaultId] -= burningFeeAmount;
             amount -= burningFeeAmount;
         }
 
         token.transferFrom(msg.sender, address(this), overallAmount);
-        token.burn(overallAmount);
+        minter.burn(overallAmount);
         vaultDebt[vaultId] -= amount;
 
         emit DebtBurned(msg.sender, vaultId, overallAmount);
@@ -434,7 +440,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         }
         token.transferFrom(msg.sender, address(this), returnAmount);
 
-        token.burn(currentDebt);
+        minter.burn(currentDebt);
 
         uint256 daoReceiveAmount = overallDebt -
             currentDebt +

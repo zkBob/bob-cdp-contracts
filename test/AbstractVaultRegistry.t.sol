@@ -41,6 +41,7 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
             INFTOracle(address(nftOracle)),
             treasury,
             address(token),
+            address(token),
             address(vaultRegistry)
         );
 
