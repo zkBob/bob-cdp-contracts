@@ -40,11 +40,11 @@ abstract contract AbstractNftOracleTest is SetupContract, AbstractForkTest, Abst
 
     function testPriceIndependentFromSpot() public {
         (, uint256 oldPrice, ) = nftOracle.price(nft);
-        helper.makeDesiredPoolPrice(uint256(1 << 96) / uint256(10 ** 10 * 8), weth, wbtc);
+        helper.makeDesiredPoolPrice(uint256(1 << 96) / uint256(10 ** 10 * 10), weth, wbtc);
         collectEarnings();
         (, uint256 newPrice, ) = nftOracle.price(nft);
         assertEq(oldPrice, newPrice);
-        helper.makeDesiredPoolPrice(uint256(1 << 96) / uint256(10 ** 10 * 12), weth, wbtc);
+        helper.makeDesiredPoolPrice(uint256(1 << 96) / uint256(10 ** 10 * 18), weth, wbtc);
         collectEarnings();
         (, newPrice, ) = nftOracle.price(nft);
         assertEq(oldPrice, newPrice);
