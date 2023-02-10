@@ -6,7 +6,6 @@ import "./SetupContract.sol";
 import "./shared/ForkTests.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
-
 abstract contract AbstractNftOracleTest is SetupContract, AbstractForkTest, AbstractLateSetup {
     uint256 nft;
 
@@ -14,7 +13,7 @@ abstract contract AbstractNftOracleTest is SetupContract, AbstractForkTest, Abst
         vm.createSelectFork(forkRpcUrl, forkBlock);
         _setUp();
         helper.setTokenPrice(oracle, weth, uint256(1200 << 96));
-        helper.setTokenPrice(oracle, wbtc, uint256(17000 << 96) * uint256(10**10));
+        helper.setTokenPrice(oracle, wbtc, uint256(17000 << 96) * uint256(10 ** 10));
         helper.setApprovals();
         nft = helper.openPosition(weth, wbtc, 20 * (10 ** 18), (10 ** 8), address(0));
         collectEarnings();
