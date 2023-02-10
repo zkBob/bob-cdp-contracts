@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import "./AbstractNftOracle.sol";
+import "./AbstractNftOracle.t.sol";
 import "./shared/AbstractUniswapHelper.sol";
 
 contract NftOracleUniswapTest is
