@@ -7,7 +7,7 @@ import "./shared/ForkTests.sol";
 import "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 
 abstract contract AbstractNftOracleTest is SetupContract, AbstractForkTest, AbstractLateSetup {
-    uint256 nft;
+    uint256 public nft;
 
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
