@@ -13,9 +13,9 @@ abstract contract AbstractNftOracleTest is SetupContract, AbstractForkTest, Abst
         vm.createSelectFork(forkRpcUrl, forkBlock);
         _setUp();
         helper.setTokenPrice(oracle, weth, uint256(1200 << 96));
-        helper.setTokenPrice(oracle, wbtc, uint256(17000 << 96) * uint256(10 ** 10));
+        helper.setTokenPrice(oracle, wbtc, uint256(17000 << 96) * uint256(10**10));
         helper.setApprovals();
-        nft = helper.openPosition(weth, wbtc, 20 * (10 ** 18), (10 ** 8), address(0));
+        nft = helper.openPosition(weth, wbtc, 20 * (10**18), (10**8), address(0));
         collectEarnings();
     }
 
@@ -30,20 +30,20 @@ abstract contract AbstractNftOracleTest is SetupContract, AbstractForkTest, Abst
 
         // Other side
         helper.setTokenPrice(oracle, weth, uint256(1200 << 96));
-        helper.setTokenPrice(oracle, wbtc, uint256(22000 << 96) * uint256(10 ** 10));
+        helper.setTokenPrice(oracle, wbtc, uint256(22000 << 96) * uint256(10**10));
         (, oldPrice, ) = nftOracle.price(nft);
-        helper.setTokenPrice(oracle, wbtc, uint256(23000 << 96) * uint256(10 ** 10));
+        helper.setTokenPrice(oracle, wbtc, uint256(23000 << 96) * uint256(10**10));
         (, newPrice, ) = nftOracle.price(nft);
         assertEq(oldPrice, newPrice);
     }
 
     function testPriceIndependentFromSpot() public {
         (, uint256 oldPrice, ) = nftOracle.price(nft);
-        helper.makeDesiredPoolPrice(uint256(1 << 96) / uint256(10 ** 10 * 10), weth, wbtc);
+        helper.makeDesiredPoolPrice(uint256(1 << 96) / uint256(10**10 * 10), weth, wbtc);
         collectEarnings();
         (, uint256 newPrice, ) = nftOracle.price(nft);
         assertEq(oldPrice, newPrice);
-        helper.makeDesiredPoolPrice(uint256(1 << 96) / uint256(10 ** 10 * 18), weth, wbtc);
+        helper.makeDesiredPoolPrice(uint256(1 << 96) / uint256(10**10 * 18), weth, wbtc);
         collectEarnings();
         (, newPrice, ) = nftOracle.price(nft);
         assertEq(oldPrice, newPrice);
