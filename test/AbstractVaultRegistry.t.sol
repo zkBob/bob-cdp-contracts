@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
 import "@zkbob/proxy/EIP1967Proxy.sol";
+import "@zkbob/minters/SurplusMinter.sol" as TreasuryMinter;
 import "../src/VaultRegistry.sol";
 import "../src/Vault.sol";
 import "./SetupContract.sol";
@@ -17,7 +18,7 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
     Vault vault;
     VaultRegistry vaultRegistry;
     INonfungiblePositionManager positionManager;
-    address treasury;
+    ITreasury treasury;
 
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
@@ -28,9 +29,10 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
         helper.setTokenPrice(oracle, weth, uint256(1000 << 96));
         helper.setTokenPrice(oracle, usdc, uint256(1 << 96) * uint256(10**12));
 
-        treasury = getNextUserAddress();
-
         token = new BobTokenMock();
+
+        TreasuryMinter.SurplusMinter treasuryImpl = new TreasuryMinter.SurplusMinter(address(token));
+        treasury = ITreasury(address(treasuryImpl));
 
         vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "baseURI/");
         vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
@@ -39,7 +41,7 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
         vault = new Vault(
             INonfungiblePositionManager(PositionManager),
             INFTOracle(address(nftOracle)),
-            treasury,
+            address(treasury),
             address(token),
             address(vaultRegistry)
         );
@@ -47,12 +49,13 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             address(this),
-            10**7,
+            10**16,
             type(uint256).max
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
+        treasuryImpl.setMinter(address(vault), true);
         vaultRegistry.setMinter(address(vault), true);
 
         token.approve(address(vault), type(uint256).max);

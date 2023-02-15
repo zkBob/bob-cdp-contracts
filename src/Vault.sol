@@ -15,6 +15,7 @@ import "./interfaces/oracles/INFTOracle.sol";
 import "./interfaces/ICDP.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
 import "./utils/VaultAccessControl.sol";
+import "./interfaces/ITreasury.sol";
 
 /// @notice Contract of the system vault manager
 contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multicall {
@@ -69,6 +70,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     using EnumerableSet for EnumerableSet.AddressSet;
 
     uint256 public constant DENOMINATOR = 10**9;
+    uint256 public constant DEBT_DENOMINATOR = 10**18;
     uint256 public constant YEAR = 365 * 24 * 3600;
 
     /// @notice UniswapV3 position manager
@@ -81,7 +83,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     IBobToken public immutable token;
 
     /// @notice Vault fees treasury address
-    address public immutable treasury;
+    ITreasury public immutable treasury;
 
     /// @notice Vault Registry
     IVaultRegistry public immutable vaultRegistry;
@@ -116,11 +118,14 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Mapping, returning set of all nfts, managed by vault
     mapping(uint256 => uint256[]) private _vaultNfts;
 
+    /// @notice Mapping, returning true if vault's NFT is exist and managed by this minter and false otherwise
+    mapping(uint256 => bool) private _isExists;
+
     /// @notice Mapping, returning normalized debt by vault id (in MUSD weis)
-    mapping(uint256 => uint256) public vaultNormalizedDebt; // Vnd
+    mapping(uint256 => uint256) public vaultNormalizedDebt;
 
     /// @notice Mapping, returning sum of all mints minus fraction of all repaid amounts
-    mapping(uint256 => uint256) public vaultMintsToBePaid; // Vmd
+    mapping(uint256 => uint256) public vaultMintsToBePaid;
 
     /// @notice Mapping, returning owed by vault id (in MUSD weis)
     mapping(uint256 => uint256) public vaultOwed;
@@ -128,23 +133,17 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Mapping, returning id of a vault, that storing specific nft
     mapping(uint256 => uint256) public vaultIdByNft;
 
-    /// @notice State variable, meaning total protocol debt on globalStabilisationFeePerUSDSnapshotTimestamp multiplied by denominator
-    uint256 public globalFeesRateDebtAccumulatorD; // Rg
+    /// @notice State variable, meaning total protocol debt on globalStabilisationFeePerUSDSnapshotTimestamp multiplied by DEBT_DENOMINATOR
+    uint256 public globalFeesRateDebtAccumulatorD;
 
     /// @notice State variable, returning latest timestamp of stabilisation fee update
-    uint256 public globalFeesRateUpdateTimestamp; // Rg updateTimestamp
+    uint256 public globalFeesRateUpdateTimestamp;
 
-    /// @notice State variable, returning multiplier for globalFeesRateDebtAccumulator
-    uint256 public globalFeesRateMultiplier;
+    /// @notice State variable, returning current stabilisation fee (multiplied by DEBT_DENOMINATOR)
+    uint256 public stabilisationFeeRateD;
 
     /// @notice State variable, meaning total protocol debt on globalStabilisationFeePerUSDSnapshotTimestamp
-    uint256 public globalDebtAccumulator; // Gd
-
-    /// @notice State variable, meaning amount of stability fees that were already repaid to the protocol
-    uint256 public realizedInterest; // Ir
-
-    /// @notice State variable, meaning amount of total accrued stability fees, that protocol would receive if everyone closed their vaults immediately
-    uint256 public unrealizedInterest; // Iu
+    uint256 public globalDebtAccumulator;
 
     /// @notice Creates a new contract
     /// @param positionManager_ UniswapV3 position manager
@@ -170,7 +169,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         positionManager = positionManager_;
         oracle = oracle_;
-        treasury = treasury_;
+        treasury = ITreasury(treasury_);
         token = IBobToken(token_);
         vaultRegistry = IVaultRegistry(vaultRegistry_);
         isInitialized = true;
@@ -193,7 +192,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert AddressZero();
         }
 
-        if (stabilisationFee_ > DENOMINATOR) {
+        if (stabilisationFee_ > DEBT_DENOMINATOR) {
             revert InvalidValue();
         }
 
@@ -205,8 +204,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         _setRoleAdmin(OPERATOR, ADMIN_DELEGATE_ROLE);
 
         // initial value
+        globalFeesRateDebtAccumulatorD = DEBT_DENOMINATOR;
         stabilisationFeeRateD = stabilisationFee_;
-        globalStabilisationFeePerUSDSnapshotTimestamp = block.timestamp;
+        globalFeesRateUpdateTimestamp = block.timestamp;
         _protocolParams.maxDebtPerVault = maxDebtPerVault;
         isInitialized = true;
     }
@@ -234,16 +234,24 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     }
 
     /// @inheritdoc ICDP
-    function getOverallDebt(uint256 vaultId) public view returns (uint256) {
+    function getOverallDebt(uint256 vaultId) public view returns (uint256 overallDebt) {
         uint256 currentNormalizedDebt = vaultNormalizedDebt[vaultId];
         uint256 updateTimestamp = globalFeesRateUpdateTimestamp;
-        uint256 normalizedDebtMultiplierD = globalFeesRateDebtAccumulatorD;
+        uint256 globalFeesRate = globalFeesRateDebtAccumulatorD;
 
         if (block.timestamp > updateTimestamp) {
-            normalizedDebtMultiplierD += normalizedDebtMultiplierD * (block.timestamp - updateTimestamp) / YEAR;
+            globalFeesRate += FullMath.mulDiv(
+                (stabilisationFeeRateD * (block.timestamp - updateTimestamp)) / YEAR,
+                globalFeesRate,
+                DEBT_DENOMINATOR
+            );
         }
 
-        return FullMath.mulDiv(vaultNormalizedDebt[vaultId], normalizedDebtMultiplierD, DENOMINATOR);
+        overallDebt = FullMath.mulDiv(vaultNormalizedDebt[vaultId], globalFeesRate, DEBT_DENOMINATOR);
+        uint256 mintsToBePaid = vaultMintsToBePaid[vaultId];
+        if (mintsToBePaid > overallDebt) {
+            overallDebt = mintsToBePaid;
+        }
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
@@ -293,7 +301,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         vaultId = vaultRegistry.mint(msg.sender);
 
-        globalStabilisationFeePerUSDVaultSnapshotD[vaultId] = 1;
+        _isExists[vaultId] = true;
 
         emit VaultOpened(msg.sender, vaultId);
     }
@@ -322,7 +330,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert VaultNonEmpty();
         }
 
-        delete globalStabilisationFeePerUSDVaultSnapshotD[vaultId];
+        delete _isExists[vaultId];
 
         vaultRegistry.burn(vaultId);
     }
@@ -371,7 +379,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         _updateRateFee();
 
         token.mint(msg.sender, amount);
-        vaultNormalizedDebt[vaultId] += FullMath.mulDiv(amount, DENOMINATOR, globalFeesRateDebtAccumulatorD);
+        vaultNormalizedDebt[vaultId] += FullMath.mulDiv(amount, DEBT_DENOMINATOR, globalFeesRateDebtAccumulatorD);
         vaultMintsToBePaid[vaultId] += amount;
         globalDebtAccumulator += amount;
 
@@ -393,7 +401,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param vaultId Id of the vault
     /// @param amount The debt amount to be burned
     function burnDebt(uint256 vaultId, uint256 amount) external {
-        _updateRateFee(vaultId);
+        _updateRateFee();
 
         uint256 overallDebt = getOverallDebt(vaultId);
         amount = (overallDebt < amount) ? overallDebt : amount;
@@ -404,15 +412,21 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         uint256 currentGlobalFeesRateD = globalFeesRateDebtAccumulatorD;
         uint256 currentMintsToBePaid = vaultMintsToBePaid[vaultId];
 
-        uint256 tokensToBurn = amount - FullMath.mulDiv(currentMintsToBePaid, amount, overallDebt);
-        token.burn(tokensToBurn);
-        token.transferFrom(address(this), treasury, amount - tokensToBurn);
+        uint256 tokensToBurn = FullMath.mulDiv(currentMintsToBePaid, amount, overallDebt);
 
-        realizedInterest += amount - tokensToBurn;
-        vaultNormalizedDebt[vaultId] -= FullMath.mulDiv(amount, DENOMINATOR, currentGlobalFeesRateD);
+        token.transferAndCall(address(treasury), amount - tokensToBurn, "");
+        token.burn(tokensToBurn);
+
+        uint256 currentNormalizedDebt = vaultNormalizedDebt[vaultId];
+        uint256 normalizedDebtToBurn = FullMath.mulDiv(amount, DEBT_DENOMINATOR, currentGlobalFeesRateD);
+        if (currentNormalizedDebt < normalizedDebtToBurn) {
+            normalizedDebtToBurn = currentNormalizedDebt;
+        }
+
+        vaultNormalizedDebt[vaultId] -= normalizedDebtToBurn;
         vaultMintsToBePaid[vaultId] -= tokensToBurn;
 
-        emit DebtBurned(msg.sender, vaultId, tokensToBurn, amount - tokensToBurn);
+        emit DebtBurned(msg.sender, vaultId, amount);
     }
 
     /// @inheritdoc ICDP
@@ -443,11 +457,18 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         token.burn(tokensToBurn);
 
-        realizedInterest += returnAmount - tokensToBurn;
-        token.transferFrom(address(this), treasury, returnAmount - tokensToBurn);
+        uint256 liquidationFeeAmount = FullMath.mulDiv(vaultAmount, _protocolParams.liquidationFeeD, DENOMINATOR);
+        if (liquidationFeeAmount > returnAmount - overallDebt) {
+            liquidationFeeAmount = returnAmount - overallDebt;
+        }
 
-        unrealizedInterest += returnAmount - overallDebt;
+        token.transferAndCall(
+            address(treasury),
+            overallDebt - tokensToBurn + liquidationFeeAmount,
+            abi.encode(overallDebt - tokensToBurn)
+        );
 
+        vaultOwed[vaultId] += returnAmount - overallDebt - liquidationFeeAmount;
         delete vaultNormalizedDebt[vaultId];
         delete vaultMintsToBePaid[vaultId];
         _closeVault(vaultId, msg.sender);
@@ -704,18 +725,16 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         }
     }
 
-    /// @notice Update stabilisation fee (multiplied by DENOMINATOR) and calculate global stabilisation fee per USD up to current timestamp using previous stabilisation fee
-    /// @param stabilisationFeeRateD_ New stabilisation fee multiplied by DENOMINATOR
+    /// @notice Update stabilisation fee (multiplied by DEBT_DENOMINATOR) and calculate global stabilisation fee per USD up to current timestamp using previous stabilisation fee
+    /// @param stabilisationFeeRateD_ New stabilisation fee multiplied by DEBT_DENOMINATOR
     function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external onlyVaultAdmin {
-        if (stabilisationFeeRateD_ > DENOMINATOR) {
+        if (stabilisationFeeRateD_ > DEBT_DENOMINATOR) {
             revert InvalidValue();
         }
 
-        uint256 delta = block.timestamp - globalStabilisationFeePerUSDSnapshotTimestamp;
-        globalStabilisationFeePerUSDSnapshotD += (delta * stabilisationFeeRateD) / YEAR;
+        _updateRateFee();
 
         stabilisationFeeRateD = stabilisationFeeRateD_;
-        globalStabilisationFeePerUSDSnapshotTimestamp = block.timestamp;
 
         emit StabilisationFeeUpdated(tx.origin, msg.sender, stabilisationFeeRateD_);
     }
@@ -830,7 +849,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         }
 
         // revert if vault NFT was burnt or is being managed by another minter
-        if (globalStabilisationFeePerUSDVaultSnapshotD[vaultId] == 0) {
+        if (!_isExists[vaultId]) {
             revert InvalidVault();
         }
 
@@ -868,20 +887,27 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @notice Update globalRateFee
     function _updateRateFee() internal {
-        uint256 currentFeeRateD = globalFeesRateDebtAccumulatorD;
+        uint256 currentGlobalFeeRateD = globalFeesRateDebtAccumulatorD;
         uint256 updateTimestamp = globalFeesRateUpdateTimestamp;
 
         if (block.timestamp == updateTimestamp) {
             return;
         }
 
-        uint256 newFeeRateD = currentFeeRateD * globalFeesRateMultiplier * (block.timestamp - updateTimestamp) / YEAR;
-        uint256 feeRateDeltaD = newFeeRateD - currentFeeRateD;
-        uint256 globalDebtToIncrease = FullMath.mulDiv(globalDebtAccumulator, feeRateDeltaD, DENOMINATOR);
+        uint256 globalFeeRateDeltaD = FullMath.mulDiv(
+            (stabilisationFeeRateD * (block.timestamp - updateTimestamp)) / YEAR,
+            currentGlobalFeeRateD,
+            DEBT_DENOMINATOR
+        );
+        uint256 globalDebtToIncrease = FullMath.mulDiv(globalDebtAccumulator, globalFeeRateDeltaD, DEBT_DENOMINATOR);
 
-        globalDebtAccumulator += globalDebtToIncrease;
-        unrealizedInterest += globalDebtToIncrease;
-        globalFeesRateDebtAccumulatorD = newFeeRateD;
+        if (globalDebtToIncrease > 0) {
+            globalDebtAccumulator += globalDebtToIncrease;
+            // Increasing unrealized interest
+            treasury.add(globalDebtToIncrease);
+        }
+
+        globalFeesRateDebtAccumulatorD = currentGlobalFeeRateD + globalFeeRateDeltaD;
         globalFeesRateUpdateTimestamp = block.timestamp;
     }
 
@@ -940,9 +966,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Emitted when a debt is burnt
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
-    /// @param burnedAmount Burned debt amount
-    /// @param treasuryAmount Treasury received amount
-    event DebtBurned(address indexed sender, uint256 vaultId, uint256 burnedAmount, uint256 treasuryAmount);
+    /// @param amount Debt amount
+    event DebtBurned(address indexed sender, uint256 vaultId, uint256 amount);
 
     /// @notice Emitted when the stabilisation fee is updated
     /// @param origin Origin of the transaction (tx.origin)
