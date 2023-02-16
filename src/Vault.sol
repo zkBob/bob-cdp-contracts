@@ -409,22 +409,30 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         token.transferFrom(msg.sender, address(this), amount);
 
         globalDebtAccumulator -= amount;
-        uint256 currentGlobalFeesRateD = globalFeesRateDebtAccumulatorD;
+        uint256 tokensToBurn;
         uint256 currentMintsToBePaid = vaultMintsToBePaid[vaultId];
 
-        uint256 tokensToBurn = FullMath.mulDiv(currentMintsToBePaid, amount, overallDebt);
+        if (amount == overallDebt) {
+            tokensToBurn = currentMintsToBePaid;
+            vaultNormalizedDebt[vaultId] = 0;
+            vaultMintsToBePaid[vaultId] = 0;
+        } else {
+            uint256 currentGlobalFeesRateD = globalFeesRateDebtAccumulatorD;
+
+            tokensToBurn = FullMath.mulDiv(currentMintsToBePaid, amount, overallDebt);
+
+            uint256 currentNormalizedDebt = vaultNormalizedDebt[vaultId];
+            uint256 normalizedDebtToBurn = FullMath.mulDiv(amount, DEBT_DENOMINATOR, currentGlobalFeesRateD);
+            if (currentNormalizedDebt < normalizedDebtToBurn) {
+                normalizedDebtToBurn = currentNormalizedDebt;
+            }
+
+            vaultNormalizedDebt[vaultId] -= normalizedDebtToBurn;
+            vaultMintsToBePaid[vaultId] -= tokensToBurn;
+        }
 
         token.transferAndCall(address(treasury), amount - tokensToBurn, "");
         token.burn(tokensToBurn);
-
-        uint256 currentNormalizedDebt = vaultNormalizedDebt[vaultId];
-        uint256 normalizedDebtToBurn = FullMath.mulDiv(amount, DEBT_DENOMINATOR, currentGlobalFeesRateD);
-        if (currentNormalizedDebt < normalizedDebtToBurn) {
-            normalizedDebtToBurn = currentNormalizedDebt;
-        }
-
-        vaultNormalizedDebt[vaultId] -= normalizedDebtToBurn;
-        vaultMintsToBePaid[vaultId] -= tokensToBurn;
 
         emit DebtBurned(msg.sender, vaultId, amount);
     }
