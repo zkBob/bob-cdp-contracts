@@ -89,7 +89,7 @@ contract CombinedChainlinkOracleTest is
 
         ChainlinkOracle oracle = new ChainlinkOracle(newTokens, newOracles, heartbeats, 3600);
         UniV3Oracle nftOracle = new UniV3Oracle(PositionManager, IOracle(address(oracle)), 10**16);
-        (bool deviationSafety, , ) = nftOracle.price(tokenId);
+        (bool deviationSafety, , , ) = nftOracle.price(tokenId);
         // Checking that deviation from spot price is not bigger than 1%
         assertTrue(deviationSafety);
     }

@@ -23,29 +23,29 @@ abstract contract AbstractNftOracleTest is SetupContract, AbstractForkTest, Abst
         // One side
         nftOracle.price(nft);
         helper.setTokenPrice(oracle, weth, uint256(1500 << 96));
-        (, uint256 oldPrice, ) = nftOracle.price(nft);
+        (, uint256 oldPrice, , ) = nftOracle.price(nft);
         helper.setTokenPrice(oracle, weth, uint256(1700 << 96));
-        (, uint256 newPrice, ) = nftOracle.price(nft);
+        (, uint256 newPrice, , ) = nftOracle.price(nft);
         assertEq(oldPrice, newPrice);
 
         // Other side
         helper.setTokenPrice(oracle, weth, uint256(1200 << 96));
         helper.setTokenPrice(oracle, wbtc, uint256(22000 << 96) * uint256(10**10));
-        (, oldPrice, ) = nftOracle.price(nft);
+        (, oldPrice, , ) = nftOracle.price(nft);
         helper.setTokenPrice(oracle, wbtc, uint256(23000 << 96) * uint256(10**10));
-        (, newPrice, ) = nftOracle.price(nft);
+        (, newPrice, , ) = nftOracle.price(nft);
         assertEq(oldPrice, newPrice);
     }
 
     function testPriceIndependentFromSpot() public {
-        (, uint256 oldPrice, ) = nftOracle.price(nft);
+        (, uint256 oldPrice, , ) = nftOracle.price(nft);
         helper.makeDesiredPoolPrice(uint256(1 << 96) / uint256(10**10 * 10), weth, wbtc);
         collectEarnings();
-        (, uint256 newPrice, ) = nftOracle.price(nft);
+        (, uint256 newPrice, , ) = nftOracle.price(nft);
         assertEq(oldPrice, newPrice);
         helper.makeDesiredPoolPrice(uint256(1 << 96) / uint256(10**10 * 18), weth, wbtc);
         collectEarnings();
-        (, newPrice, ) = nftOracle.price(nft);
+        (, newPrice, , ) = nftOracle.price(nft);
         assertEq(oldPrice, newPrice);
     }
 

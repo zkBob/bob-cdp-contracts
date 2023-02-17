@@ -49,6 +49,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         address pool,
         uint256 liquidationThresholdD
     );
+    event MinimalWidthUpdated(address indexed origin, address indexed sender, address pool, uint24 width);
 
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
@@ -780,7 +781,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        (, uint256 price, ) = nftOracle.price(tokenId);
+        (, uint256 price, , ) = nftOracle.price(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
                 tokenId: tokenId,
@@ -790,7 +791,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
                 deadline: type(uint256).max
             })
         );
-        (, uint256 newPrice, ) = nftOracle.price(tokenId);
+        (, uint256 newPrice, , ) = nftOracle.price(tokenId);
         (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         info = helper.positions(tokenId);
         assertEq(info.liquidity, 0);
@@ -2178,5 +2179,39 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vm.expectEmit(false, true, false, true);
         emit LiquidationThresholdSet(getNextUserAddress(), address(this), pool, 10**6);
         vault.setLiquidationThreshold(pool, 10**6);
+    }
+
+    function testMinimalWidthUpdatedEmitted() public {
+        address pool = helper.getPool(weth, usdc);
+        vault.setWhitelistedPool(pool);
+
+        vm.expectEmit(false, true, false, true);
+        emit MinimalWidthUpdated(getNextUserAddress(), address(this), pool, 10);
+        vault.changeMinimalWidth(pool, 10);
+    }
+
+    function testChangeMinimalWidthAddressZero() public {
+        vm.expectRevert(VaultAccessControl.AddressZero.selector);
+        vault.changeMinimalWidth(address(0), 10);
+    }
+
+    function testChangeMinimalWidthInvalidPool() public {
+        address pool = getNextUserAddress();
+        vm.expectRevert(Vault.InvalidPool.selector);
+        vault.changeMinimalWidth(pool, 10);
+    }
+
+    function testChangeMinimalWidth() public {
+        address pool = helper.getPool(weth, usdc);
+        vault.setWhitelistedPool(pool);
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
+
+        vault.changeMinimalWidth(pool, 2000);
+        vm.expectRevert(Vault.TooNarrowNFT.selector);
+        vault.depositCollateral(vaultId, tokenId);
+
+        vault.changeMinimalWidth(pool, 100);
+        vault.depositCollateral(vaultId, tokenId);
     }
 }

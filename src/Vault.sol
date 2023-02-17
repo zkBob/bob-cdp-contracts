@@ -30,6 +30,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Thrown when a pool of NFT is not in the whitelist
     error InvalidPool();
 
+    /// @notice Thrown when NFT's width is too small
+    error TooNarrowNFT();
+
     /// @notice Thrown when a value of a stabilization fee is incorrect
     error InvalidValue();
 
@@ -97,6 +100,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @notice State variable, which shows if liquidating is public or not
     bool public isLiquidatingPublic;
+
+    /// @inheritdoc ICDP
+    mapping(address => uint24) public minimalWidth;
 
     /// @notice Protocol params
     ICDP.ProtocolParams private _protocolParams;
@@ -718,6 +724,18 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         emit StabilisationFeeUpdated(tx.origin, msg.sender, stabilisationFeeRateD_);
     }
 
+    /// @inheritdoc ICDP
+    function changeMinimalWidth(address pool, uint24 width) external {
+        if (pool == address(0)) {
+            revert AddressZero();
+        }
+        if (!_whitelistedPools.contains(pool)) {
+            revert InvalidPool();
+        }
+        minimalWidth[pool] = width;
+        emit MinimalWidthUpdated(tx.origin, msg.sender, pool, width);
+    }
+
     // -------------------  INTERNAL, VIEW  -----------------------
 
     /// @notice Check if the caller is authorized to manage the vault
@@ -763,7 +781,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         for (uint256 i = 0; i < vaultNfts.length; ++i) {
             uint256 nft = vaultNfts[i];
-            (bool deviationSafety, uint256 price, address pool) = oracle.price(nft);
+            (bool deviationSafety, uint256 price, , address pool) = oracle.price(nft);
 
             if (isSafe && !deviationSafety) {
                 revert TickDeviation();
@@ -832,10 +850,14 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert InvalidVault();
         }
 
-        (, uint256 positionAmount, address pool) = oracle.price(nft);
+        (, uint256 positionAmount, uint24 width, address pool) = oracle.price(nft);
 
         if (!_whitelistedPools.contains(pool)) {
             revert InvalidPool();
+        }
+
+        if (width < minimalWidth[pool]) {
+            revert TooNarrowNFT();
         }
 
         if (positionAmount < _protocolParams.minSingleNftCollateral) {
@@ -1028,4 +1050,11 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The deleted whitelisted pool
     event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
+
+    /// @notice Emitted when the minimal position's width for the pool is updated
+    /// @param origin Origin of the transaction (tx.origin)
+    /// @param sender Sender of the call (msg.sender)
+    /// @param pool The address of the pool
+    /// @param width The new minimal position's width
+    event MinimalWidthUpdated(address indexed origin, address indexed sender, address pool, uint24 width);
 }
