@@ -262,7 +262,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 ether);
 
-        vault.updateStabilisationFeeRate(5 * 10**16 / YEAR);
+        vault.updateStabilisationFeeRate((5 * 10**16) / YEAR);
 
         vm.warp(block.timestamp + 5 * YEAR);
         address liquidator = getNextUserAddress();
@@ -325,14 +325,14 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vm.warp(block.timestamp + YEAR);
         assertApproxEqual(vault.getOverallDebt(vaultId), 1555 ether, 1);
 
-        vault.updateStabilisationFeeRate(5 * 10**16 / YEAR); // 5%
+        vault.updateStabilisationFeeRate((5 * 10**16) / YEAR); // 5%
         vm.warp(block.timestamp + YEAR);
         assertApproxEqual(vault.getOverallDebt(vaultId), 1632.75 ether, 1);
 
-        vault.updateStabilisationFeeRate(1 * 10**16 / YEAR); // 1%
+        vault.updateStabilisationFeeRate((1 * 10**16) / YEAR); // 1%
         vm.warp(block.timestamp + YEAR);
         assertApproxEqual(vault.getOverallDebt(vaultId), 1649 ether, 1);
-        vault.updateStabilisationFeeRate(5 * 10**16 / YEAR); // 5%
+        vault.updateStabilisationFeeRate((5 * 10**16) / YEAR); // 5%
         vm.warp(block.timestamp + YEAR);
         assertApproxEqual(vault.getOverallDebt(vaultId), 1731.45 ether, 1);
 

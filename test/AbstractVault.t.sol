@@ -1817,8 +1817,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     // updateStabilisationFeeRate
 
     function testUpdateStabilisationFeeSuccess() public {
-        vault.updateStabilisationFeeRate(2 * 10**16 / YEAR);
-        assertEq(vault.stabilisationFeeRateD(), 2 * 10**16 / YEAR);
+        vault.updateStabilisationFeeRate((2 * 10**16) / YEAR);
+        assertEq(vault.stabilisationFeeRateD(), (2 * 10**16) / YEAR);
     }
 
     function testUpdateStabilisationFeeSuccessWithCalculations() public {
@@ -1848,8 +1848,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
     function testUpdateStabilisationFeeEmit() public {
         vm.expectEmit(false, true, false, true);
-        emit StabilisationFeeUpdated(getNextUserAddress(), address(this), 2 * 10**16 / YEAR);
-        vault.updateStabilisationFeeRate(2 * 10**16 / YEAR);
+        emit StabilisationFeeUpdated(getNextUserAddress(), address(this), (2 * 10**16) / YEAR);
+        vault.updateStabilisationFeeRate((2 * 10**16) / YEAR);
     }
 
     // protocolParams
