@@ -20,6 +20,8 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
     INonfungiblePositionManager positionManager;
     ITreasury treasury;
 
+    uint256 YEAR = 365 * 24 * 60 * 60;
+
     function setUp() public {
         vm.createSelectFork(forkRpcUrl, forkBlock);
         _setUp();
@@ -49,7 +51,7 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             address(this),
-            10**16,
+            10**16 / YEAR,
             type(uint256).max
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);

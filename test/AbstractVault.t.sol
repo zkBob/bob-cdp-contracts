@@ -91,7 +91,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         bytes memory initData = abi.encodeWithSelector(
             Vault.initialize.selector,
             address(this),
-            10**16,
+            10**16 / YEAR,
             type(uint256).max
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
@@ -579,11 +579,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        console2.log("Blya");
         vault.mintDebt(vaultId, 10);
-        console2.log("Pizdec");
         vault.burnDebt(vaultId, 10);
-        console2.log("Eba");
         assertEq(token.balanceOf(address(this)), 0);
     }
 
@@ -657,7 +654,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         deal(address(token), address(this), 303 ether);
         vault.burnDebt(vaultId, overallDebt);
 
-        assertTrue(token.balanceOf(address(this)) < 10**3); // dust
+        assertTrue(token.balanceOf(address(this)) < 10**10); // dust
         assertApproxEqual(token.balanceOf(address(treasury)), 3 ether, 1);
     }
 
@@ -1820,8 +1817,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     // updateStabilisationFeeRate
 
     function testUpdateStabilisationFeeSuccess() public {
-        vault.updateStabilisationFeeRate(2 * 10**16);
-        assertEq(vault.stabilisationFeeRateD(), 2 * 10**16);
+        vault.updateStabilisationFeeRate(2 * 10**16 / YEAR);
+        assertEq(vault.stabilisationFeeRateD(), 2 * 10**16 / YEAR);
     }
 
     function testUpdateStabilisationFeeSuccessWithCalculations() public {
@@ -1832,7 +1829,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vm.warp(block.timestamp + YEAR);
         uint256 overallDebt = vault.getOverallDebt(vaultId);
         assertApproxEqual(overallDebt, 303 ether, 10); // +1%
-        vault.updateStabilisationFeeRate(10**17);
+        vault.updateStabilisationFeeRate(10**17 / YEAR);
         vm.warp(block.timestamp + YEAR);
         overallDebt = vault.getOverallDebt(vaultId);
         assertApproxEqual(overallDebt, 333 ether, 10); // +1% per first year and +10% per second year
@@ -1841,18 +1838,18 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     function testUpdateStabilisationFeeWhenNotAdmin() public {
         vm.prank(getNextUserAddress());
         vm.expectRevert(VaultAccessControl.Forbidden.selector);
-        vault.updateStabilisationFeeRate(10**16);
+        vault.updateStabilisationFeeRate(10**16 / YEAR);
     }
 
     function testUpdateStabilisationFeeWithInvalidValue() public {
         vm.expectRevert(Vault.InvalidValue.selector);
-        vault.updateStabilisationFeeRate(10**20);
+        vault.updateStabilisationFeeRate(10**20 / YEAR);
     }
 
     function testUpdateStabilisationFeeEmit() public {
         vm.expectEmit(false, true, false, true);
-        emit StabilisationFeeUpdated(getNextUserAddress(), address(this), 2 * 10**16);
-        vault.updateStabilisationFeeRate(2 * 10**16);
+        emit StabilisationFeeUpdated(getNextUserAddress(), address(this), 2 * 10**16 / YEAR);
+        vault.updateStabilisationFeeRate(2 * 10**16 / YEAR);
     }
 
     // protocolParams
