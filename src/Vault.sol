@@ -118,9 +118,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Mapping, returning set of all nfts, managed by vault
     mapping(uint256 => uint256[]) private _vaultNfts;
 
-    /// @notice Mapping, returning true if vault's NFT is exist and managed by this minter and false otherwise
-    mapping(uint256 => bool) private _isExists;
-
     /// @notice Mapping, returning normalized debt by vault id (in MUSD weis)
     mapping(uint256 => uint256) public vaultNormalizedDebt;
 
@@ -297,8 +294,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         vaultId = vaultRegistry.mint(msg.sender);
 
-        _isExists[vaultId] = true;
-
         emit VaultOpened(msg.sender, vaultId);
     }
 
@@ -325,8 +320,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         if (vaultOwed[vaultId] != 0 || _vaultNfts[vaultId].length != 0) {
             revert VaultNonEmpty();
         }
-
-        delete _isExists[vaultId];
 
         vaultRegistry.burn(vaultId);
     }
