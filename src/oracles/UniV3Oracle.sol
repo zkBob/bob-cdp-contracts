@@ -60,6 +60,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
         returns (
             bool deviationSafety,
             uint256 positionAmount,
+            uint24 width,
             address pool
         )
     {
@@ -70,6 +71,7 @@ contract UniV3Oracle is INFTOracle, Ownable {
 
         uint160 sqrtRatioAX96 = TickMath.getSqrtRatioAtTick(info.tickLower);
         uint160 sqrtRatioBX96 = TickMath.getSqrtRatioAtTick(info.tickUpper);
+        width = uint24(info.tickUpper - info.tickLower);
 
         uint256[2] memory tokenAmounts;
         uint256[2] memory pricesX96;

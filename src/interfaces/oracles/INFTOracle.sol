@@ -6,6 +6,7 @@ interface INFTOracle {
     /// @param nft The token id of the position
     /// @return deviationSafety True if price deviation is safe, False otherwise
     /// @return positionAmount The value of the given position
+    /// @return width The width of the position (in ticks)
     /// @return pool Address of the position's pool
     function price(uint256 nft)
         external
@@ -13,6 +14,7 @@ interface INFTOracle {
         returns (
             bool deviationSafety,
             uint256 positionAmount,
+            uint24 width,
             address pool
         );
 

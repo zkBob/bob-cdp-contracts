@@ -51,6 +51,10 @@ interface ICDP {
     /// @return uint256 Total debt value (in MUSD weis)
     function getOverallDebt(uint256 vaultId) external view returns (uint256);
 
+    /// @notice Get minimal position's width for the pool
+    /// @param pool The address of the pool
+    function minimalWidth(address pool) external view returns (uint24);
+
     // -------------------  EXTERNAL, MUTATING  -------------------
 
     /// @notice Change liquidation fee (multiplied by DENOMINATOR) to a given value
@@ -80,6 +84,11 @@ interface ICDP {
     /// @notice Revoke a pool from the whitelist
     /// @param pool Address of the revoked whitelisted pool
     function revokeWhitelistedPool(address pool) external;
+
+    /// @notice Changes a minimal position's width for the pool
+    /// @param pool Address of the pool
+    /// @param width The new minimal width
+    function changeMinimalWidth(address pool, uint24 width) external;
 
     /// @notice Set liquidation threshold (multiplied by DENOMINATOR) for a given pool
     /// @param pool Address of the pool
