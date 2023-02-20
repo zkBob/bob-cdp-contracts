@@ -234,7 +234,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     }
 
     /// @inheritdoc ICDP
-    function getOverallDebt(uint256 vaultId) public view returns (uint256 overallDebt) {
+    function getOverallDebt(uint256 vaultId) public view returns (uint256) {
         uint256 currentNormalizedDebt = vaultNormalizedDebt[vaultId];
         uint256 updateTimestamp = normalizationRateUpdateTimestamp;
         uint256 globalFeesRate = normalizationRate;
@@ -247,11 +247,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             );
         }
 
-        overallDebt = FullMath.mulDiv(currentNormalizedDebt, globalFeesRate, DEBT_DENOMINATOR);
-        uint256 mintsToBePaid = vaultMintedDebt[vaultId];
-        if (mintsToBePaid > overallDebt) {
-            overallDebt = mintsToBePaid;
-        }
+        return FullMath.mulDiv(currentNormalizedDebt, globalFeesRate, DEBT_DENOMINATOR);
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
@@ -379,7 +375,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         uint256 currentNormalizationRate = _updateRateFee();
 
         token.mint(msg.sender, amount);
-        vaultNormalizedDebt[vaultId] += FullMath.mulDiv(amount, DEBT_DENOMINATOR, currentNormalizationRate);
+        vaultNormalizedDebt[vaultId] += FullMath.mulDiv(amount, DEBT_DENOMINATOR, currentNormalizationRate) + 1;
         vaultMintedDebt[vaultId] += amount;
         globalDebt += amount;
 
