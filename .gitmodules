@@ -13,9 +13,6 @@
 	path = lib/@uniswap/v3-periphery
 	url = https://github.com/Uniswap/v3-periphery
 	branch = 0.8
-[submodule "lib/@zkbob"]
-	path = lib/@zkbob
-	url = https://github.com/zkbob/zkbob-contracts
 [submodule "lib/@quickswap"]
 	path = lib/@quickswap
 	url = https://github.com/zkBob/algebra-solidity-interfaces
