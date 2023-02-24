@@ -15,6 +15,9 @@ contract VaultRegistry is IVaultRegistry, EIP1967Admin, ERC721Enumerable {
     /// @notice Vault NFT minter
     mapping(uint256 => address) public minterOf;
 
+    /// @notice Token ID of last minted Vault NFT
+    uint256 public counter;
+
     /// @notice Creates a new contract
     /// @param name_ Token name
     /// @param symbol_ Token's symbol name
@@ -43,7 +46,7 @@ contract VaultRegistry is IVaultRegistry, EIP1967Admin, ERC721Enumerable {
             revert Forbidden();
         }
 
-        tokenId = totalSupply() + 1;
+        tokenId = ++counter;
         minterOf[tokenId] = msg.sender;
 
         _mint(to, tokenId);

@@ -2,7 +2,7 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
-remappings = ["@openzeppelin/=lib/openzeppelin-contracts/", "@zkbob/=lib/@zkbob/src/"]
+remappings = ["@openzeppelin/=lib/openzeppelin-contracts/", "@zkbob/=lib/zkbob-contracts/src/"]
 optimizer = true
 fs_permissions = [{ access = "read-write", path = "./" }]
 
