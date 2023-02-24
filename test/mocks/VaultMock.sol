@@ -53,7 +53,7 @@ contract VaultMock is Vault, Test {
             overallDebtSum - mintedDebtSum,
             "Fees Invariant Failed: global debt must be lower or equal to vault's overall debt"
         );
-//        assertGe(globalDebt, mintedDebtSum + treasury.surplus(), "Fees Invariant Failed: global debt must be lower or equal to sum of vault's minted debt and unrealised interest");
+        //        assertGe(globalDebt, mintedDebtSum + treasury.surplus(), "Fees Invariant Failed: global debt must be lower or equal to sum of vault's minted debt and unrealised interest");
     }
 
     function _checkVaultInvariant(uint256 vaultId) internal {
