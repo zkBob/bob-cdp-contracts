@@ -11,11 +11,12 @@ import "../src/VaultRegistry.sol";
 import "./SetupContract.sol";
 import "./mocks/BobTokenMock.sol";
 import "./mocks/MockOracle.sol";
+import "./mocks/VaultMock.sol";
 import "./shared/ForkTests.sol";
 
 abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractForkTest, AbstractLateSetup {
     BobTokenMock token;
-    Vault vault;
+    VaultMock vault;
     VaultRegistry vaultRegistry;
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
@@ -44,7 +45,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
 
-        vault = new Vault(
+        vault = new VaultMock(
             INonfungiblePositionManager(PositionManager),
             INFTOracle(address(nftOracle)),
             address(treasury),
@@ -59,7 +60,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
             type(uint256).max
         );
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
-        vault = Vault(address(vaultProxy));
+        vault = VaultMock(address(vaultProxy));
 
         treasuryImpl.setMinter(address(vault), true);
         vaultRegistry.setMinter(address(vault), true);
@@ -92,6 +93,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         uint256 nftA = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault)); // 2000 USD
         uint256 nftB = helper.openPosition(wbtc, usdc, 5 * 10**8, 100000 * 10**6, address(vault)); // 200000 USD
         (, uint256 wbtcPriceX96) = oracle.price(wbtc);
+        vault.checkInvariantOnVault(vaultId);
         (, uint256 wethPriceX96) = oracle.price(weth);
         helper.makeDesiredPoolPrice(FullMath.mulDiv(wbtcPriceX96, Q96, wethPriceX96), wbtc, weth);
         uint256 nftC = helper.openPosition(wbtc, weth, 10**8 / 20000, 10**18 / 1000, address(vault)); // 2 USD
@@ -100,9 +102,11 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
 
         vault.depositCollateral(vaultId, nftA);
         vault.mintDebt(vaultId, 1000 ether);
+        vault.checkInvariantOnVault(vaultId);
 
         vault.depositCollateral(vaultId, nftB);
         vault.mintDebt(vaultId, 50000 ether);
+        vault.checkInvariantOnVault(vaultId);
 
         vault.depositCollateral(vaultId, nftC);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
@@ -114,16 +118,19 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vault.depositCollateral(vaultId, nftC);
 
         vault.burnDebt(vaultId, 51000 ether);
+        vault.checkInvariantOnVault(vaultId);
         vault.withdrawCollateral(nftB);
         vault.withdrawCollateral(nftA);
 
         vault.changeMinSingleNftCollateral(18 * 10**20);
         vault.mintDebt(vaultId, 10);
+        vault.checkInvariantOnVault(vaultId);
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.withdrawCollateral(nftC);
 
         vault.burnDebt(vaultId, 10);
+        vault.checkInvariantOnVault(vaultId);
         vault.withdrawCollateral(nftC);
 
         positionManager.approve(address(vault), nftC);
@@ -150,8 +157,14 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vault.depositCollateral(vaultA, nftA);
         vault.depositCollateral(vaultB, nftB);
 
+        uint256[] memory vaultIds = new uint256[](2);
+        vaultIds[0] = vaultA;
+        vaultIds[1] = vaultB;
+
         vault.mintDebt(vaultA, 1000 ether);
+        vault.checkInvariantOnVaults(vaultIds);
         vault.mintDebt(vaultB, 1 ether);
+        vault.checkInvariantOnVaults(vaultIds);
 
         // bankrupt first vault
 
@@ -166,6 +179,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
 
         token.approve(address(vault), type(uint256).max);
         vault.liquidate(vaultA);
+        vault.checkInvariantOnVaults(vaultIds);
 
         // second vault is okay at the moment
 
@@ -211,12 +225,18 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vault.depositCollateral(vaultId, tokenId);
 
         vault.mintDebt(vaultId, 1180 ether);
+        vault.checkInvariantOnVault(vaultId);
         vm.startPrank(secondAddress);
 
         positionManager.approve(address(vault), secondNft);
         uint256 secondVault = vault.openVault();
         vault.depositCollateral(secondVault, secondNft);
         vault.mintDebt(secondVault, 230 ether);
+
+        uint256[] memory vaultIds = new uint256[](2);
+        vaultIds[0] = vaultId;
+        vaultIds[1] = secondVault;
+        vault.checkInvariantOnVaults(vaultIds);
 
         vm.stopPrank();
         vm.warp(block.timestamp + 4 * YEAR);
@@ -228,6 +248,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vm.stopPrank();
 
         vault.burnDebt(vaultId, vault.getOverallDebt(vaultId));
+        vault.checkInvariantOnVaults(vaultIds);
         vault.closeVault(vaultId, address(this));
     }
 
@@ -237,6 +258,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 ether);
+        vault.checkInvariantOnVault(vaultId);
         // eth 1000 -> 800
         helper.setTokenPrice(oracle, weth, 800 << 96);
 
@@ -261,6 +283,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 ether);
+        vault.checkInvariantOnVault(vaultId);
 
         vault.updateStabilisationFeeRate((5 * 10**16) / YEAR);
 
@@ -269,7 +292,9 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         deal(address(token), liquidator, 10000 ether, true);
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
+        vault.checkInvariantOnVault(vaultId);
         vault.liquidate(vaultId); // liquidated
+        vault.checkInvariantOnVault(vaultId);
         assertTrue(token.balanceOf(address(treasury)) > 0); // liquidation succeded
         vm.stopPrank();
     }
@@ -282,14 +307,17 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
             uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
             vault.depositCollateral(vaultId, tokenId);
             vault.mintDebt(vaultId, 1000 ether);
+            vault.checkInvariantOnVault(vaultId);
             helper.setTokenPrice(oracle, weth, 800 << 96);
 
             address liquidator = getNextUserAddress();
             deal(address(token), liquidator, 10000 ether, true);
 
             vm.startPrank(liquidator);
+            vault.checkInvariantOnVault(vaultId);
             token.approve(address(vault), type(uint256).max);
             vault.liquidate(vaultId); // liquidated
+            vault.checkInvariantOnVault(vaultId);
 
             uint256 newTreasuryBalance = token.balanceOf(address(treasury));
             assertTrue(oldTreasuryBalance < newTreasuryBalance);
@@ -308,17 +336,20 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vault.depositCollateral(vaultId, tokenId);
 
         vault.mintDebt(vaultId, 1000 ether);
+        vault.checkInvariantOnVault(vaultId);
         assertApproxEqual(vault.getOverallDebt(vaultId), 1000 ether, 1);
 
         vm.warp(block.timestamp + YEAR);
         assertApproxEqual(vault.getOverallDebt(vaultId), 1010 ether, 1);
 
+        vault.checkInvariantOnVault(vaultId);
         vault.mintDebt(vaultId, 2000 ether);
         assertApproxEqual(vault.getOverallDebt(vaultId), 3010 ether, 1);
 
         vm.warp(block.timestamp + YEAR);
         assertApproxEqual(vault.getOverallDebt(vaultId), 3040 ether, 1);
 
+        vault.checkInvariantOnVault(vaultId);
         vault.burnDebt(vaultId, 1500 ether);
         assertApproxEqual(vault.getOverallDebt(vaultId), 1540 ether, 1);
 
@@ -327,6 +358,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
 
         vault.updateStabilisationFeeRate((5 * 10**16) / YEAR); // 5%
         vm.warp(block.timestamp + YEAR);
+        vault.checkInvariantOnVault(vaultId);
         assertApproxEqual(vault.getOverallDebt(vaultId), 1632.75 ether, 1);
 
         vault.updateStabilisationFeeRate((1 * 10**16) / YEAR); // 1%
@@ -336,16 +368,19 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vm.warp(block.timestamp + YEAR);
         assertApproxEqual(vault.getOverallDebt(vaultId), 1731.45 ether, 1);
 
+        vault.checkInvariantOnVault(vaultId);
         vault.burnDebt(vaultId, 900 ether);
         assertApproxEqual(vault.getOverallDebt(vaultId), 831.45 ether, 1);
 
+        vault.checkInvariantOnVault(vaultId);
         vault.updateStabilisationFeeRate(0); // 0%
         vm.warp(block.timestamp + 10 * YEAR);
         assertApproxEqual(vault.getOverallDebt(vaultId), 831.45 ether, 1);
 
-        console2.log(vault.getOverallDebt(vaultId));
         deal(address(token), address(this), 833 ether, true);
+        vault.checkInvariantOnVault(vaultId);
         vault.burnDebt(vaultId, vault.getOverallDebt(vaultId));
+        vault.checkInvariantOnVault(vaultId);
         vault.closeVault(vaultId, address(this));
     }
 
@@ -355,6 +390,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vault.depositCollateral(vaultId, tokenId);
 
         vault.mintDebt(vaultId, 1000 ether);
+        vault.checkInvariantOnVault(vaultId);
         uint256 beforeDebt = vault.getOverallDebt(vaultId);
 
         vault.updateStabilisationFeeRate(10**17 / YEAR);
@@ -369,13 +405,16 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         uint256 tokenId = helper.openPosition(weth, usdc, 10**20, 10**11, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
+        vault.checkInvariantOnVault(vaultId);
         vault.mintDebt(vaultId, 1000 ether);
         uint256 beforeDebt = vault.getOverallDebt(vaultId);
 
+        vault.checkInvariantOnVault(vaultId);
         vm.warp(block.timestamp + 3600);
         uint256 hourFee = vault.getOverallDebt(vaultId) - beforeDebt;
         vm.warp(block.timestamp + 3600 * 23);
 
+        vault.checkInvariantOnVault(vaultId);
         uint256 dailyFee = vault.getOverallDebt(vaultId) - beforeDebt;
         assertApproxEqual(dailyFee / 24, hourFee, 1); // <0.1% delta
     }
@@ -387,6 +426,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
 
         (, uint256 healthBeforeSwaps) = vault.calculateVaultCollateral(vaultId);
         vault.mintDebt(vaultId, healthBeforeSwaps - 1);
+        vault.checkInvariantOnVault(vaultId);
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, 100);
@@ -429,23 +469,27 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         uint256 newDebt = vault.getOverallDebt(vaultId);
         assertTrue(currentDebt < newDebt);
         currentDebt = newDebt;
+        vault.checkInvariantOnVault(vaultId);
 
         vm.warp(block.timestamp + YEAR);
         vault.burnDebt(vaultId, 0);
         newDebt = vault.getOverallDebt(vaultId);
         assertTrue(currentDebt < newDebt);
         currentDebt = newDebt;
+        vault.checkInvariantOnVault(vaultId);
 
         vm.warp(block.timestamp + YEAR); // +1%
         vault.depositCollateral(vaultId, tokenB);
         newDebt = vault.getOverallDebt(vaultId);
         assertApproxEqual((currentDebt * 101) / 100, newDebt, 1);
         currentDebt = newDebt;
+        vault.checkInvariantOnVault(vaultId);
 
         vm.warp(block.timestamp + YEAR); // +1%
         vault.withdrawCollateral(tokenB);
         newDebt = vault.getOverallDebt(vaultId);
         assertApproxEqual((currentDebt * 101) / 100, newDebt, 1);
+        vault.checkInvariantOnVault(vaultId);
     }
 
     function testLiquidationThresholdChangedHenceLiquidated() public {
@@ -454,17 +498,20 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         uint256 nftA = helper.openPosition(weth, usdc, 10**19, 10**10, address(vault)); // 20000 USD
         vault.depositCollateral(vaultId, nftA);
         vault.mintDebt(vaultId, 10000 * (10**18));
+        vault.checkInvariantOnVault(vaultId);
 
         address pool = helper.getPool(weth, usdc);
 
         vault.setLiquidationThreshold(pool, 2 * 10**8);
         vault.burnDebt(vaultId, 5000 * (10**18)); // repaid debt partially and anyway liquidated
+        vault.checkInvariantOnVault(vaultId);
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 100000 ether, true);
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
         vault.liquidate(vaultId);
+        vault.checkInvariantOnVault(vaultId);
         vm.stopPrank();
     }
 }

@@ -9,4 +9,8 @@ interface ITreasury {
      * @param _surplus unrealized surplus to add.
      */
     function add(uint256 _surplus) external;
+
+    /// @notice Returns current unrealized interest
+    /// @return uint256 unrealized interest
+    function surplus() external view returns (uint256);
 }

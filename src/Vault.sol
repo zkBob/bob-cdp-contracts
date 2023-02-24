@@ -139,8 +139,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice State variable, returning current stabilisation fee per second (multiplied by DEBT_DENOMINATOR)
     uint256 public stabilisationFeeRateD;
 
-    /// @notice State variable, meaning total protocol debt
-    uint256 public globalDebt;
+    /// @notice State variable, meaning normalized total protocol debt
+    uint256 public normalizedGlobalDebt;
 
     /// @notice Creates a new contract
     /// @param positionManager_ UniswapV3 position manager
@@ -236,7 +236,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         uint256 globalFeesRate = normalizationRate;
 
         if (block.timestamp > updateTimestamp) {
-            globalFeesRate += FullMath.mulDiv(
+            globalFeesRate += FullMath.mulDivRoundingUp(
                 stabilisationFeeRateD * (block.timestamp - updateTimestamp),
                 globalFeesRate,
                 DEBT_DENOMINATOR
@@ -369,9 +369,10 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         uint256 currentNormalizationRate = _updateRateFee();
 
         token.mint(msg.sender, amount);
-        vaultNormalizedDebt[vaultId] += FullMath.mulDivRoundingUp(amount, DEBT_DENOMINATOR, currentNormalizationRate);
+        uint256 normalizedDebtDelta = FullMath.mulDivRoundingUp(amount, DEBT_DENOMINATOR, currentNormalizationRate);
+        vaultNormalizedDebt[vaultId] += normalizedDebtDelta;
         vaultMintedDebt[vaultId] += amount;
-        globalDebt += amount;
+        normalizedGlobalDebt += normalizedDebtDelta;
 
         uint256 overallVaultDebt = _getOverallDebt(vaultId, currentNormalizationRate);
 
@@ -398,13 +399,13 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         token.transferFrom(msg.sender, address(this), amount);
 
-        globalDebt -= amount;
         uint256 mintedDebt = vaultMintedDebt[vaultId];
-        uint256 tokensToBurn = FullMath.mulDiv(mintedDebt, amount, overallDebt);
+        uint256 tokensToBurn = FullMath.mulDivRoundingUp(mintedDebt, amount, overallDebt);
 
         uint256 normalizedDebtToBurn = FullMath.mulDivRoundingUp(amount, DEBT_DENOMINATOR, currentNormalizationRate);
 
         vaultNormalizedDebt[vaultId] -= normalizedDebtToBurn;
+        normalizedGlobalDebt -= normalizedDebtToBurn;
         vaultMintedDebt[vaultId] = mintedDebt - tokensToBurn;
 
         token.transferAndCall(address(treasury), amount - tokensToBurn, "");
@@ -419,7 +420,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert LiquidatorsAllowList();
         }
         uint256 currentNormalizationRate = _updateRateFee();
-        uint256 overallDebt = _getOverallDebt(vaultId, currentNormalizationRate);
+        uint256 currentNormalizedDebt = vaultNormalizedDebt[vaultId];
+        normalizedGlobalDebt -= currentNormalizedDebt;
+        uint256 overallDebt = FullMath.mulDiv(currentNormalizedDebt, currentNormalizationRate, DEBT_DENOMINATOR);
         (uint256 vaultAmount, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, false);
         if (adjustedCollateral >= overallDebt) {
             revert PositionHealthy();
@@ -886,17 +889,20 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             return currentNormalizationRate;
         }
 
-        uint256 normalizationRateDelta = FullMath.mulDiv(
+        uint256 normalizationRateDelta = FullMath.mulDivRoundingUp(
             stabilisationFeeRateD * (block.timestamp - updateTimestamp),
             currentNormalizationRate,
             DEBT_DENOMINATOR
         );
-        uint256 globalDebtToIncrease = FullMath.mulDiv(globalDebt, normalizationRateDelta, DEBT_DENOMINATOR);
+        uint256 unrealizedInterestToIncrease = FullMath.mulDiv(
+            normalizedGlobalDebt,
+            normalizationRateDelta,
+            DEBT_DENOMINATOR
+        );
 
-        if (globalDebtToIncrease > 0) {
-            globalDebt += globalDebtToIncrease;
+        if (unrealizedInterestToIncrease > 0) {
             // Increasing unrealized interest
-            treasury.add(globalDebtToIncrease);
+            treasury.add(unrealizedInterestToIncrease);
         }
 
         updatedNormalizationRate = currentNormalizationRate + normalizationRateDelta;
