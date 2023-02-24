@@ -400,7 +400,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         token.transferFrom(msg.sender, address(this), amount);
 
         uint256 mintedDebt = vaultMintedDebt[vaultId];
-        uint256 tokensToBurn = FullMath.mulDivRoundingUp(mintedDebt, amount, overallDebt);
+        uint256 tokensToBurn = FullMath.mulDiv(mintedDebt, amount, overallDebt);
 
         uint256 normalizedDebtToBurn = FullMath.mulDivRoundingUp(amount, DEBT_DENOMINATOR, currentNormalizationRate);
 
