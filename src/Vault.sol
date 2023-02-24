@@ -236,7 +236,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         uint256 globalFeesRate = normalizationRate;
 
         if (block.timestamp > updateTimestamp) {
-            globalFeesRate += FullMath.mulDivRoundingUp(
+            globalFeesRate += FullMath.mulDiv(
                 stabilisationFeeRateD * (block.timestamp - updateTimestamp),
                 globalFeesRate,
                 DEBT_DENOMINATOR
@@ -889,7 +889,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             return currentNormalizationRate;
         }
 
-        uint256 normalizationRateDelta = FullMath.mulDivRoundingUp(
+        uint256 normalizationRateDelta = FullMath.mulDiv(
             stabilisationFeeRateD * (block.timestamp - updateTimestamp),
             currentNormalizationRate,
             DEBT_DENOMINATOR
