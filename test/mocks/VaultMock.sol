@@ -11,8 +11,9 @@ contract VaultMock is Vault, Test {
         INFTOracle oracle_,
         address treasury_,
         address token_,
+        address minter_,
         address vaultRegistry_
-    ) Vault(positionManager_, oracle_, treasury_, token_, vaultRegistry_) {}
+    ) Vault(positionManager_, oracle_, treasury_, token_, minter_, vaultRegistry_) {}
 
     function checkInvariantOnVault(uint256 vaultId) external {
         updateNormalizationRate();
