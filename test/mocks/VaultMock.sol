@@ -70,13 +70,11 @@ contract VaultMock is Vault, Test {
     function _checkVaultInvariant(uint256 vaultId) internal {
         uint256 currentNormalizedDebt = vaultNormalizedDebt[vaultId];
         uint256 currentMintedDebt = vaultMintedDebt[vaultId];
-        if (currentNormalizedDebt * currentMintedDebt == 0) {
-            assertEq(
-                currentNormalizedDebt == 0,
-                currentMintedDebt == 0,
-                "Fees Invariant Failed: normalized debt and minted debt always must be both equal or unequal to zero"
-            );
-        }
+        assertEq(
+            currentNormalizedDebt == 0,
+            currentMintedDebt == 0,
+            "Fees Invariant Failed: normalized debt and minted debt always must be both equal or unequal to zero"
+        );
         assertGe(
             getOverallDebt(vaultId),
             currentMintedDebt,
