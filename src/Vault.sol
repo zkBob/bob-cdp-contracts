@@ -246,6 +246,38 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         return _getOverallDebt(vaultId, globalFeesRate);
     }
 
+    // -------------------  PUBLIC, MUTATING   -------------------
+
+    /// @notice Recalculate normalizationRate and increase unrealized interest accordingly
+    function updateNormalizationRate() public returns (uint256 updatedNormalizationRate) {
+        uint256 currentNormalizationRate = normalizationRate;
+        uint256 updateTimestamp = normalizationRateUpdateTimestamp;
+
+        if (block.timestamp == updateTimestamp) {
+            return currentNormalizationRate;
+        }
+
+        uint256 normalizationRateDelta = FullMath.mulDiv(
+            stabilisationFeeRateD * (block.timestamp - updateTimestamp),
+            currentNormalizationRate,
+            DEBT_DENOMINATOR
+        );
+        uint256 unrealizedInterestToIncrease = FullMath.mulDiv(
+            normalizedGlobalDebt,
+            normalizationRateDelta,
+            DEBT_DENOMINATOR
+        );
+
+        if (unrealizedInterestToIncrease > 0) {
+            // Increasing unrealized interest
+            treasury.add(unrealizedInterestToIncrease);
+        }
+
+        updatedNormalizationRate = currentNormalizationRate + normalizationRateDelta;
+        normalizationRate = uint216(updatedNormalizationRate);
+        normalizationRateUpdateTimestamp = uint40(block.timestamp);
+    }
+
     // -------------------  EXTERNAL, VIEW  -------------------
 
     /// @notice Get all NFTs, managed by vault with given id
@@ -333,7 +365,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Withdraw collateral from a given vault
     /// @param nft UniV3 NFT to be withdrawn
     function withdrawCollateral(uint256 nft) external {
-        uint256 currentNormalizationRate = _updateRateFee();
+        uint256 currentNormalizationRate = updateNormalizationRate();
 
         uint256 vaultId = vaultIdByNft[nft];
         _requireVaultAuth(vaultId);
@@ -366,7 +398,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param amount The debt amount to be mited
     function mintDebt(uint256 vaultId, uint256 amount) public onlyUnpaused {
         _requireVaultAuth(vaultId);
-        uint256 currentNormalizationRate = _updateRateFee();
+        uint256 currentNormalizationRate = updateNormalizationRate();
 
         token.mint(msg.sender, amount);
         uint256 normalizedDebtDelta = FullMath.mulDivRoundingUp(amount, DEBT_DENOMINATOR, currentNormalizationRate);
@@ -392,7 +424,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param vaultId Id of the vault
     /// @param amount The debt amount to be burned
     function burnDebt(uint256 vaultId, uint256 amount) external {
-        uint256 currentNormalizationRate = _updateRateFee();
+        uint256 currentNormalizationRate = updateNormalizationRate();
 
         uint256 overallDebt = _getOverallDebt(vaultId, currentNormalizationRate);
         amount = (overallDebt < amount) ? overallDebt : amount;
@@ -419,7 +451,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         if (!isLiquidatingPublic && !_liquidatorsAllowlist.contains(msg.sender)) {
             revert LiquidatorsAllowList();
         }
-        uint256 currentNormalizationRate = _updateRateFee();
+        uint256 currentNormalizationRate = updateNormalizationRate();
         uint256 currentNormalizedDebt = vaultNormalizedDebt[vaultId];
         normalizedGlobalDebt -= currentNormalizedDebt;
         uint256 overallDebt = FullMath.mulDiv(currentNormalizedDebt, currentNormalizationRate, DEBT_DENOMINATOR);
@@ -719,7 +751,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert InvalidValue();
         }
 
-        _updateRateFee();
+        updateNormalizationRate();
 
         stabilisationFeeRateD = stabilisationFeeRateD_;
 
@@ -878,36 +910,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         }
 
         delete _vaultNfts[vaultId];
-    }
-
-    /// @notice Update globalRateFee
-    function _updateRateFee() internal returns (uint256 updatedNormalizationRate) {
-        uint256 currentNormalizationRate = normalizationRate;
-        uint256 updateTimestamp = normalizationRateUpdateTimestamp;
-
-        if (block.timestamp == updateTimestamp) {
-            return currentNormalizationRate;
-        }
-
-        uint256 normalizationRateDelta = FullMath.mulDiv(
-            stabilisationFeeRateD * (block.timestamp - updateTimestamp),
-            currentNormalizationRate,
-            DEBT_DENOMINATOR
-        );
-        uint256 unrealizedInterestToIncrease = FullMath.mulDiv(
-            normalizedGlobalDebt,
-            normalizationRateDelta,
-            DEBT_DENOMINATOR
-        );
-
-        if (unrealizedInterestToIncrease > 0) {
-            // Increasing unrealized interest
-            treasury.add(unrealizedInterestToIncrease);
-        }
-
-        updatedNormalizationRate = currentNormalizationRate + normalizationRateDelta;
-        normalizationRate = uint216(updatedNormalizationRate);
-        normalizationRateUpdateTimestamp = uint40(block.timestamp);
     }
 
     // -----------------------  MODIFIERS  --------------------------

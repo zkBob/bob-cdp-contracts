@@ -15,11 +15,13 @@ contract VaultMock is Vault, Test {
     ) Vault(positionManager_, oracle_, treasury_, token_, vaultRegistry_) {}
 
     function checkInvariantOnVault(uint256 vaultId) external {
+        updateNormalizationRate();
         _checkVaultInvariant(vaultId);
         _checkSumInvariant(getOverallDebt(vaultId), vaultMintedDebt[vaultId]);
     }
 
     function checkInvariantOnVaults(uint256[] memory vaultIds) external {
+        updateNormalizationRate();
         uint256 overallDebtSum = 0;
         uint256 mintedDebtSum = 0;
         uint256 len;
@@ -35,7 +37,7 @@ contract VaultMock is Vault, Test {
     }
 
     function debugInfo(uint256 vaultId) public {
-        uint256 currentNormalizationRate = _updateRateFee();
+        uint256 currentNormalizationRate = updateNormalizationRate();
         console2.log("PRINTING INFO FOR", vaultId);
         console2.log("ON", block.timestamp);
         console2.log("minted", vaultMintedDebt[vaultId]);
@@ -53,7 +55,16 @@ contract VaultMock is Vault, Test {
             overallDebtSum - mintedDebtSum,
             "Fees Invariant Failed: global debt must be lower or equal to vault's overall debt"
         );
-        //        assertGe(globalDebt, mintedDebtSum + treasury.surplus(), "Fees Invariant Failed: global debt must be lower or equal to sum of vault's minted debt and unrealised interest");
+        assertLe(
+            globalDebt,
+            mintedDebtSum + treasury.surplus() + 10,
+            "Fees Invariant Failed: global debt must be lower or equal to sum of vault's minted debt and unrealised interest"
+        );
+        assertGe(
+            globalDebt,
+            mintedDebtSum + treasury.surplus(),
+            "Fees Invariant Failed: global debt must be lower or equal to sum of vault's minted debt and unrealised interest"
+        );
     }
 
     function _checkVaultInvariant(uint256 vaultId) internal {
@@ -61,8 +72,8 @@ contract VaultMock is Vault, Test {
         uint256 currentMintedDebt = vaultMintedDebt[vaultId];
         if (currentNormalizedDebt * currentMintedDebt == 0) {
             assertEq(
-                currentNormalizedDebt**2 + currentMintedDebt**2,
-                0,
+                currentNormalizedDebt == 0,
+                currentMintedDebt == 0,
                 "Fees Invariant Failed: normalized debt and minted debt always must be both equal or unequal to zero"
             );
         }
