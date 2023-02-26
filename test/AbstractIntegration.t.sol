@@ -239,13 +239,11 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vault.checkInvariantOnVaults(vaultIds);
 
         vm.stopPrank();
-        vm.warp(block.timestamp + 4 * YEAR);
-        (, uint256 healthFactor) = vault.calculateVaultCollateral(vaultId);
-        assertTrue(vault.getOverallDebt(vaultId) > healthFactor);
+        vm.warp(block.timestamp + 20 * YEAR);
+        (, uint256 liquidationLimit, ) = vault.calculateVaultCollateral(vaultId);
+        assertGt(vault.getOverallDebt(vaultId), liquidationLimit);
 
-        vm.startPrank(secondAddress);
-        token.transfer(firstAddress, 230 ether);
-        vm.stopPrank();
+        deal(address(token), firstAddress, 2000 ether);
 
         vault.burnDebt(vaultId, vault.getOverallDebt(vaultId));
         vault.checkInvariantOnVaults(vaultIds);
@@ -257,14 +255,14 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         // overall ~2000$ -> HF: ~1200$
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vault.mintDebt(vaultId, 1000 ether);
+        vault.mintDebt(vaultId, 1180 ether);
         vault.checkInvariantOnVault(vaultId);
         // eth 1000 -> 800
         helper.setTokenPrice(oracle, weth, 800 << 96);
 
-        (, uint256 healthFactor) = vault.calculateVaultCollateral(vaultId);
+        (, uint256 liquidationLimit, ) = vault.calculateVaultCollateral(vaultId);
         uint256 overallDebt = vault.getOverallDebt(vaultId);
-        assertTrue(healthFactor <= overallDebt); // hence subject to liquidation
+        assertLe(liquidationLimit, overallDebt); // hence subject to liquidation
 
         helper.setTokenPrice(oracle, weth, 1200 << 96); // price got back
 
@@ -287,7 +285,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
 
         vault.updateStabilisationFeeRate((5 * 10**16) / YEAR);
 
-        vm.warp(block.timestamp + 5 * YEAR);
+        vm.warp(block.timestamp + 10 * YEAR);
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 10000 ether, true);
         vm.startPrank(liquidator);
@@ -306,7 +304,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
             uint256 vaultId = vault.openVault();
             uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
             vault.depositCollateral(vaultId, tokenId);
-            vault.mintDebt(vaultId, 1000 ether);
+            vault.mintDebt(vaultId, 1180 ether);
             vault.checkInvariantOnVault(vaultId);
             helper.setTokenPrice(oracle, weth, 800 << 96);
 
@@ -424,27 +422,27 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         uint256 nftA = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, nftA);
 
-        (, uint256 healthBeforeSwaps) = vault.calculateVaultCollateral(vaultId);
-        vault.mintDebt(vaultId, healthBeforeSwaps - 1);
+        (, , uint256 borrowLimitBefore) = vault.calculateVaultCollateral(vaultId);
+        vault.mintDebt(vaultId, borrowLimitBefore - 1);
         vault.checkInvariantOnVault(vaultId);
 
         vm.expectRevert(Vault.PositionUnhealthy.selector);
         vault.mintDebt(vaultId, 100);
 
         helper.setTokenPrice(oracle, weth, 999 << 96); // small price change to make position slightly lower than health threshold
-        (, uint256 healthAfterPriceChanged) = vault.calculateVaultCollateral(vaultId);
+        (, , uint256 borrowLimitAfter) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.getOverallDebt(vaultId);
 
-        assertTrue(healthAfterPriceChanged <= debt);
+        assertTrue(borrowLimitAfter <= debt);
 
         for (uint256 i = 0; i < 5; i++) {
             uint256 amountOut = helper.makeSwap(weth, usdc, 10**22); // have to get a lot of fees
             helper.makeSwap(usdc, weth, amountOut);
         }
 
-        (, uint256 healthAfterSwaps) = vault.calculateVaultCollateral(vaultId);
+        (, , uint256 borrowLimitAfterSwaps) = vault.calculateVaultCollateral(vaultId);
 
-        assertApproxEqual(healthAfterSwaps, healthBeforeSwaps, 30); // difference < 3% though
+        assertApproxEqual(borrowLimitBefore, borrowLimitAfterSwaps, 30); // difference < 3% though
 
         address liquidator = getNextUserAddress();
         deal(address(token), liquidator, 10000 ether, true);
@@ -502,7 +500,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
 
         address pool = helper.getPool(weth, usdc);
 
-        vault.setLiquidationThreshold(pool, 2 * 10**8);
+        vault.setPoolParams(pool, ICDP.PoolParams(0.2 gwei, 0.2 gwei, 0));
         vault.burnDebt(vaultId, 5000 * (10**18)); // repaid debt partially and anyway liquidated
         vault.checkInvariantOnVault(vaultId);
 

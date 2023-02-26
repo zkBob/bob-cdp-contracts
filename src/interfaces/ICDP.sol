@@ -16,6 +16,16 @@ interface ICDP {
         uint8 maxNftsPerVault;
     }
 
+    /// @notice Collateral pool params
+    /// @param liquidationThreshold collateral liquidation threshold (9 decimals)
+    /// @param borrowThreshold maximum borrow threshold, should be less than or equal to liquidationThreshold (9 decimals)
+    /// @param minWidth min allowed position width in UniV3 ticks
+    struct PoolParams {
+        uint32 liquidationThreshold;
+        uint32 borrowThreshold;
+        uint24 minWidth;
+    }
+
     // -------------------  EXTERNAL, VIEW  -------------------
 
     /// @notice Get all NFTs, managed by vault with given id
@@ -23,37 +33,19 @@ interface ICDP {
     /// @return uint256[] Array of NFTs, managed by vault
     function vaultNftsById(uint256 vaultId) external view returns (uint256[] memory);
 
-    /// @notice Liquidation threshold for a certain pool (multiplied by DENOMINATOR)
-    /// @dev The logic of this parameter is following:
-    /// Assume we have nft's n1,...,nk from corresponding pools with liq.thresholds l1,...,lk and real MUSD values v1,...,vk (which can be obtained from Uni info & Chainlink oracle)
-    /// Then, a position is healthy <=> (l1 * v1 + ... + lk * vk) <= totalDebt
-    /// Hence, 0 <= threshold <= 1 is held
-    /// @param pool The given address of pool
-    /// @return uint256 Liquidation threshold value (multiplied by DENOMINATOR)
-    function liquidationThresholdD(address pool) external view returns (uint256);
-
     /// @notice Global protocol params
     /// @return ProtocolParams Protocol params struct
     function protocolParams() external view returns (ProtocolParams memory);
 
-    /// @notice Check if pool is in the whitelist
-    /// @param pool The given address of pool
-    /// @return bool True if pool is whitelisted, false if not
-    function isPoolWhitelisted(address pool) external view returns (bool);
-
-    /// @notice Get a whitelisted pool by its index
-    /// @param i Index of the pool
-    /// @return address Address of the pool
-    function whitelistedPool(uint256 i) external view returns (address);
+    /// @notice Tells pool collateral params.
+    /// @param pool address of collateral pool.
+    /// @return pool params struct
+    function poolParams(address pool) external view returns (PoolParams memory);
 
     /// @notice Get total debt for a given vault by id (including fees)
     /// @param vaultId Id of the vault
     /// @return uint256 Total debt value (in MUSD weis)
     function getOverallDebt(uint256 vaultId) external view returns (uint256);
-
-    /// @notice Get minimal position's width for the pool
-    /// @param pool The address of the pool
-    function minimalWidth(address pool) external view returns (uint24);
 
     // -------------------  EXTERNAL, MUTATING  -------------------
 
@@ -77,23 +69,10 @@ interface ICDP {
     /// @param maxNftsPerVault The new max possible amount of NFTs for one vault
     function changeMaxNftsPerVault(uint8 maxNftsPerVault) external;
 
-    /// @notice Add a new pool to the whitelist
-    /// @param pool Address of the new whitelisted pool
-    function setWhitelistedPool(address pool) external;
-
-    /// @notice Revoke a pool from the whitelist
-    /// @param pool Address of the revoked whitelisted pool
-    function revokeWhitelistedPool(address pool) external;
-
-    /// @notice Changes a minimal position's width for the pool
-    /// @param pool Address of the pool
-    /// @param width The new minimal width
-    function changeMinimalWidth(address pool, uint24 width) external;
-
-    /// @notice Set liquidation threshold (multiplied by DENOMINATOR) for a given pool
-    /// @param pool Address of the pool
-    /// @param liquidationThresholdD_ The new liquidation threshold (multiplied by DENOMINATOR)
-    function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external;
+    /// @notice Change whitelisted pool parameters
+    /// @param pool address of the pool contract to change params for
+    /// @param params new collateral params
+    function setPoolParams(address pool, ICDP.PoolParams calldata params) external;
 
     /// @notice Liquidate a vault
     /// @param vaultId Id of the vault subject to liquidation
@@ -112,10 +91,15 @@ interface ICDP {
 
     /// @notice Calculate adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis)
     /// @param vaultId Id of the vault
-    /// @return overallCollateral Overall collateral
-    /// @return adjustedCollateral Adjusted collateral
+    /// @return total Total vault collateral value
+    /// @return borrowLimit Borrow limit
+    /// @return liquidationLimit Debt liquidation limit
     function calculateVaultCollateral(uint256 vaultId)
         external
         view
-        returns (uint256 overallCollateral, uint256 adjustedCollateral);
+        returns (
+            uint256 total,
+            uint256 borrowLimit,
+            uint256 liquidationLimit
+        );
 }

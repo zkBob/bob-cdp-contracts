@@ -31,19 +31,25 @@
   "pools": [
     {
       "fee": 3000,
-      "liquidationThreshold": 600000000,
+      "liquidationThreshold": 700000000,
+      "borrowThreshold": 600000000,
+      "minWidth": 0,
       "token0": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
       "token1": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
     },
     {
       "fee": 3000,
-      "liquidationThreshold": 600000000,
+      "liquidationThreshold": 700000000,
+      "borrowThreshold": 600000000,
+      "minWidth": 0,
       "token0": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
       "token1": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
     },
     {
       "fee": 3000,
-      "liquidationThreshold": 600000000,
+      "liquidationThreshold": 700000000,
+      "borrowThreshold": 600000000,
+      "minWidth": 0,
       "token0": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
       "token1": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
     }

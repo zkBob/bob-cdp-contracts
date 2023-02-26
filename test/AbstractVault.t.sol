@@ -15,6 +15,7 @@ import "./mocks/VaultMock.sol";
 
 abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, AbstractLateSetup {
     error MissingOracle();
+
     event VaultOpened(address indexed sender, uint256 vaultId);
     event VaultLiquidated(address indexed sender, uint256 vaultId);
     event VaultClosed(address indexed sender, uint256 vaultId);
@@ -42,16 +43,14 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
     event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
     event MaxNftsPerVaultChanged(address indexed origin, address indexed sender, uint8 maxNftsPerVault);
-    event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
-    event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
-    event TokenLimitSet(address indexed origin, address indexed sender, address token, uint256 stagedLimit);
-    event LiquidationThresholdSet(
+    event LiquidationThresholdChanged(
         address indexed origin,
         address indexed sender,
         address pool,
-        uint256 liquidationThresholdD
+        uint32 liquidationThreshold
     );
-    event MinimalWidthUpdated(address indexed origin, address indexed sender, address pool, uint24 width);
+    event BorrowThresholdChanged(address indexed origin, address indexed sender, address pool, uint32 borrowThreshold);
+    event MinWidthChanged(address indexed origin, address indexed sender, address pool, uint24 minWidth);
 
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
@@ -256,7 +255,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     function testDepositCollateralInvalidPool() public {
         uint256 vaultId = vault.openVault();
 
-        vault.revokeWhitelistedPool(helper.getPool(weth, usdc));
+        vault.setPoolParams(helper.getPool(weth, usdc), ICDP.PoolParams(0.5 gwei, 0, 123));
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**25, address(vault));
 
         vm.expectRevert(Vault.InvalidPool.selector);
@@ -277,15 +276,6 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**10, 10**5, address(vault));
 
         vm.expectRevert(Vault.CollateralUnderflow.selector);
-        vault.depositCollateral(vaultId, tokenId);
-    }
-
-    function testDepositCollateralWhenPositionExceedsMinCapitalButEstimationNotSuccess() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setLiquidationThreshold(pool, 10**7); // 1%
-        uint256 vaultId = vault.openVault();
-        uint256 tokenId = helper.openPosition(weth, usdc, 10**15, 10**6, address(vault));
-
         vault.depositCollateral(vaultId, tokenId);
     }
 
@@ -753,9 +743,10 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vault.depositCollateral(vaultId, tokenId);
         helper.makeSwap(weth, usdc, 10**22);
         vault.withdrawCollateral(tokenId);
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        assertEq(overallCollateral, 0);
-        assertEq(adjustedCollateral, 0);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
+        assertEq(total, 0);
+        assertEq(liquidationLimit, 0);
+        assertEq(borrowLimit, 0);
     }
 
     function testWithdrawCollateralWhenManipulatingPriceAndVaultNonEmpty() public {
@@ -804,7 +795,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
         (, uint256 price, , ) = nftOracle.price(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -816,11 +807,14 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
             })
         );
         (, uint256 newPrice, , ) = nftOracle.price(tokenId);
-        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        (uint256 newTotal, uint256 newLiquidationLimit, uint256 newBorrowLimit) = vault.calculateVaultCollateral(
+            vaultId
+        );
         info = helper.positions(tokenId);
         assertEq(info.liquidity, 0);
-        assertTrue(overallCollateral != newOverallCollateral);
-        assertTrue(adjustedCollateral != newAdjustedCollateral);
+        assertTrue(total != newTotal);
+        assertTrue(liquidationLimit != newLiquidationLimit);
+        assertTrue(borrowLimit != newBorrowLimit);
         assertTrue(price != newPrice);
     }
 
@@ -867,7 +861,6 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
-        (uint256 adjustedCollateral, ) = vault.calculateVaultCollateral(vaultId);
         vault.mintDebt(vaultId, 1190 * 10**18);
         helper.setTokenPrice(oracle, weth, 800 << 96);
         vm.expectRevert(Vault.PositionUnhealthy.selector);
@@ -888,7 +881,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -907,9 +900,12 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
                 amount1Max: type(uint128).max
             })
         );
-        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        assertApproxEqual(overallCollateral / 2, newOverallCollateral, 10);
-        assertApproxEqual(adjustedCollateral / 2, newAdjustedCollateral, 10);
+        (uint256 newTotal, uint256 newLiquidationLimit, uint256 newBorrowLimit) = vault.calculateVaultCollateral(
+            vaultId
+        );
+        assertApproxEqual(total / 2, newTotal, 10);
+        assertApproxEqual(liquidationLimit / 2, newLiquidationLimit, 10);
+        assertApproxEqual(borrowLimit / 2, newBorrowLimit, 10);
     }
 
     function testCollectWhenPaused() public {
@@ -917,7 +913,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -936,16 +932,18 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
                 amount1Max: type(uint128).max
             })
         );
-        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        assertApproxEqual(overallCollateral / 2, newOverallCollateral, 10);
-        assertApproxEqual(adjustedCollateral / 2, newAdjustedCollateral, 10);
+        (uint256 newTotal, uint256 newLiquidationLimit, uint256 newBorrowLimit) = vault.calculateVaultCollateral(
+            vaultId
+        );
+        assertApproxEqual(total / 2, newTotal, 10);
+        assertApproxEqual(liquidationLimit / 2, newLiquidationLimit, 10);
+        assertApproxEqual(borrowLimit / 2, newBorrowLimit, 10);
     }
 
     function testCollectWhenManipulatingPrice() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -1043,7 +1041,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
 
         bytes[] memory data = new bytes[](2);
@@ -1068,9 +1066,12 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         );
 
         vault.multicall(data);
-        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        assertApproxEqual(overallCollateral / 2, newOverallCollateral, 10);
-        assertApproxEqual(adjustedCollateral / 2, newAdjustedCollateral, 10);
+        (uint256 newTotal, uint256 newLiquidationLimit, uint256 newBorrowLimit) = vault.calculateVaultCollateral(
+            vaultId
+        );
+        assertApproxEqual(total / 2, newTotal, 10);
+        assertApproxEqual(liquidationLimit / 2, newLiquidationLimit, 10);
+        assertApproxEqual(borrowLimit / 2, newBorrowLimit, 10);
     }
 
     // collectAndIncrease
@@ -1079,7 +1080,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -1109,9 +1110,12 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
                 deadline: type(uint256).max
             })
         );
-        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        assertApproxEqual(overallCollateral, newOverallCollateral, 10);
-        assertApproxEqual(adjustedCollateral, newAdjustedCollateral, 10);
+        (uint256 newTotal, uint256 newLiquidationLimit, uint256 newBorrowLimit) = vault.calculateVaultCollateral(
+            vaultId
+        );
+        assertApproxEqual(total, newTotal, 10);
+        assertApproxEqual(liquidationLimit, newLiquidationLimit, 10);
+        assertApproxEqual(borrowLimit, newBorrowLimit, 10);
     }
 
     function testCollectAndIncreaseAmountWhenPaused() public {
@@ -1119,7 +1123,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.pause();
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -1149,9 +1153,12 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
                 deadline: type(uint256).max
             })
         );
-        (uint256 newOverallCollateral, uint256 newAdjustedCollateral) = vault.calculateVaultCollateral(vaultId);
-        assertApproxEqual(overallCollateral, newOverallCollateral, 10);
-        assertApproxEqual(adjustedCollateral, newAdjustedCollateral, 10);
+        (uint256 newTotal, uint256 newLiquidationLimit, uint256 newBorrowLimit) = vault.calculateVaultCollateral(
+            vaultId
+        );
+        assertApproxEqual(total, newTotal, 10);
+        assertApproxEqual(liquidationLimit, newLiquidationLimit, 10);
+        assertApproxEqual(borrowLimit, newBorrowLimit, 10);
     }
 
     function testCollectAndIncreaseAmountWhenManipulatingPrice() public {
@@ -1195,7 +1202,6 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -1232,7 +1238,6 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -1271,7 +1276,6 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.mintDebt(vaultId, 1000 ether);
-        (uint256 overallCollateral, uint256 adjustedCollateral) = vault.calculateVaultCollateral(vaultId);
         INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
         vault.decreaseLiquidity(
             INonfungiblePositionManager.DecreaseLiquidityParams({
@@ -1308,8 +1312,10 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
     function testHealthFactorSuccess() public {
         uint256 vaultId = vault.openVault();
-        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
-        assertEq(health, 0);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
+        assertEq(total, 0);
+        assertEq(liquidationLimit, 0);
+        assertEq(borrowLimit, 0);
     }
 
     function testHealthFactorAfterDeposit() public {
@@ -1318,8 +1324,10 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 lowCapitalBound = 10**18 * 1100;
         uint256 upCapitalBound = 10**18 * 1300; // health apparently ~1200USD est: (1000(eth price) + 1000) * 0.6 = 1200
         vault.depositCollateral(vaultId, tokenId);
-        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
-        assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
+        assertApproxEqual(2000 ether, total, 50);
+        assertApproxEqual(1400 ether, liquidationLimit, 50);
+        assertApproxEqual(1200 ether, borrowLimit, 50);
     }
 
     function testHealthFactorAfterDepositWithdraw() public {
@@ -1327,23 +1335,32 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
         vault.withdrawCollateral(tokenId);
-        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
-        assertEq(health, 0);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
+        assertEq(total, 0);
+        assertEq(liquidationLimit, 0);
+        assertEq(borrowLimit, 0);
     }
 
     function testHealthFactorMultipleDeposits() public {
         uint256 vaultId = vault.openVault();
         uint256 nftA = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         uint256 nftB = helper.openPosition(wbtc, weth, 10**8, 10**18 * 20, address(vault));
+        uint256[3] memory total;
+        uint256[3] memory liquidationLimit;
+        uint256[3] memory borrowLimit;
         vault.depositCollateral(vaultId, nftA);
-        (, uint256 healthOneAsset) = vault.calculateVaultCollateral(vaultId);
+        (total[0], liquidationLimit[0], borrowLimit[0]) = vault.calculateVaultCollateral(vaultId);
         vault.depositCollateral(vaultId, nftB);
-        (, uint256 healthTwoAssets) = vault.calculateVaultCollateral(vaultId);
+        (total[1], liquidationLimit[1], borrowLimit[1]) = vault.calculateVaultCollateral(vaultId);
         vault.withdrawCollateral(nftB);
-        (, uint256 healthOneAssetFinal) = vault.calculateVaultCollateral(vaultId);
+        (total[2], liquidationLimit[2], borrowLimit[2]) = vault.calculateVaultCollateral(vaultId);
 
-        assertEq(healthOneAsset, healthOneAssetFinal);
-        assertTrue(healthOneAsset < healthTwoAssets);
+        assertEq(total[0], total[2]);
+        assertEq(liquidationLimit[0], liquidationLimit[2]);
+        assertEq(borrowLimit[0], borrowLimit[2]);
+        assertLt(total[0], total[1]);
+        assertLt(liquidationLimit[0], liquidationLimit[1]);
+        assertLt(borrowLimit[0], borrowLimit[1]);
     }
 
     function testHealthFactorAfterPriceChange() public {
@@ -1351,14 +1368,21 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        (, uint256 healthPreAction) = vault.calculateVaultCollateral(vaultId);
+        uint256[3] memory total;
+        uint256[3] memory liquidationLimit;
+        uint256[3] memory borrowLimit;
+        (total[0], liquidationLimit[0], borrowLimit[0]) = vault.calculateVaultCollateral(vaultId);
         helper.setTokenPrice(oracle, weth, 800 << 96);
-        (, uint256 healthLowPrice) = vault.calculateVaultCollateral(vaultId);
+        (total[1], liquidationLimit[1], borrowLimit[1]) = vault.calculateVaultCollateral(vaultId);
         helper.setTokenPrice(oracle, weth, 1400 << 96);
-        (, uint256 healthHighPrice) = vault.calculateVaultCollateral(vaultId);
+        (total[2], liquidationLimit[2], borrowLimit[2]) = vault.calculateVaultCollateral(vaultId);
 
-        assertTrue(healthLowPrice < healthPreAction);
-        assertTrue(healthPreAction < healthHighPrice);
+        assertGt(total[0], total[1]);
+        assertLt(total[1], total[2]);
+        assertGt(liquidationLimit[0], liquidationLimit[1]);
+        assertLt(liquidationLimit[1], liquidationLimit[2]);
+        assertGt(borrowLimit[0], borrowLimit[1]);
+        assertLt(borrowLimit[1], borrowLimit[2]);
     }
 
     function testHealthFactorAfterPoolChange() public {
@@ -1366,11 +1390,15 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        (, uint256 healthPreAction) = vault.calculateVaultCollateral(vaultId);
+        uint256[2] memory total;
+        uint256[2] memory liquidationLimit;
+        uint256[2] memory borrowLimit;
+        (total[0], liquidationLimit[0], borrowLimit[0]) = vault.calculateVaultCollateral(vaultId);
         helper.makeSwap(weth, usdc, 10**18);
-        (, uint256 healthPostAction) = vault.calculateVaultCollateral(vaultId);
-        assertTrue(healthPreAction != healthPostAction);
-        assertApproxEqual(healthPreAction, healthPostAction, 1);
+        (total[1], liquidationLimit[1], borrowLimit[1]) = vault.calculateVaultCollateral(vaultId);
+        assertLt(total[0], total[1]);
+        assertLt(liquidationLimit[0], liquidationLimit[1]);
+        assertLt(borrowLimit[0], borrowLimit[1]);
     }
 
     function testHealthFactorAfterThresholdChange() public {
@@ -1379,28 +1407,34 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vault.depositCollateral(vaultId, tokenId);
         address pool = helper.getPool(weth, usdc);
 
-        vault.setLiquidationThreshold(pool, 1e8);
-        uint256 lowCapitalBound = 10**18 * 150;
-        uint256 upCapitalBound = 10**18 * 250; // health apparently ~200USD
-        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
-        assertTrue(health >= lowCapitalBound && health <= upCapitalBound);
+        vault.setPoolParams(pool, ICDP.PoolParams(0.5 gwei, 0.1 gwei, 123));
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
+        assertApproxEqual(2000 ether, total, 50);
+        assertApproxEqual(1000 ether, liquidationLimit, 50);
+        assertApproxEqual(200 ether, borrowLimit, 50);
 
-        vault.revokeWhitelistedPool(pool);
-        (, uint256 healthNoAssets) = vault.calculateVaultCollateral(vaultId);
-        assertEq(healthNoAssets, 0);
+        vault.setPoolParams(pool, ICDP.PoolParams(0, 0, 0));
+        (total, liquidationLimit, borrowLimit) = vault.calculateVaultCollateral(vaultId);
+        assertApproxEqual(2000 ether, total, 50);
+        assertEq(liquidationLimit, 0);
+        assertEq(borrowLimit, 0);
     }
 
     function testHealthFactorFromRandomAddress() public {
         uint256 vaultId = vault.openVault();
         vm.prank(getNextUserAddress());
-        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
-        assertEq(health, 0);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(vaultId);
+        assertEq(total, 0);
+        assertEq(liquidationLimit, 0);
+        assertEq(borrowLimit, 0);
     }
 
     function testHealthFactorNonExistingVault() public {
         uint256 nextId = vaultRegistry.totalSupply() + 123;
-        (, uint256 health) = vault.calculateVaultCollateral(nextId);
-        assertEq(health, 0);
+        (uint256 total, uint256 liquidationLimit, uint256 borrowLimit) = vault.calculateVaultCollateral(nextId);
+        assertEq(total, 0);
+        assertEq(liquidationLimit, 0);
+        assertEq(borrowLimit, 0);
     }
 
     // liquidate
@@ -1420,11 +1454,11 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
         vm.warp(block.timestamp + 5 * YEAR);
         vault.checkInvariantOnVault(vaultId);
-        (uint256 vaultAmount, uint256 health) = vault.calculateVaultCollateral(vaultId);
+        (uint256 total, uint256 liquidationLimit, ) = vault.calculateVaultCollateral(vaultId);
         {
             uint256 debt = vault.getOverallDebt(vaultId);
 
-            assertTrue(health < debt);
+            assertTrue(liquidationLimit < debt);
         }
         address liquidator = getNextUserAddress();
 
@@ -1440,9 +1474,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
         uint256 liquidatorSpent = oldLiquidatorBalance - token.balanceOf(liquidator);
 
-        uint256 targetTreasuryBalance = 50 ether +
-            (vaultAmount * uint256(vault.protocolParams().liquidationFeeD)) /
-            10**9;
+        uint256 targetTreasuryBalance = 50 ether + (total * uint256(vault.protocolParams().liquidationFeeD)) / 10**9;
         uint256 treasuryGot = token.balanceOf(address(treasury));
 
         assertApproxEqual(targetTreasuryBalance, treasuryGot, 150);
@@ -1453,7 +1485,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
         assertTrue(lowerBoundRemaning <= gotBack);
         assertApproxEqual(
-            gotBack + debtToBeRepaid + FullMath.mulDiv(vaultAmount, vault.protocolParams().liquidationFeeD, 10**9),
+            gotBack + debtToBeRepaid + FullMath.mulDiv(total, vault.protocolParams().liquidationFeeD, 10**9),
             liquidatorSpent,
             1
         );
@@ -1471,8 +1503,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         helper.setTokenPrice(oracle, weth, 1 << 96);
 
         address liquidator = getNextUserAddress();
-        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
-        uint256 nftPrice = (health / 6) * 10;
+        (, uint256 liquidationLimit, ) = vault.calculateVaultCollateral(vaultId);
+        uint256 nftPrice = (liquidationLimit / 6) * 10;
         deal(address(token), liquidator, nftPrice, true);
 
         vm.startPrank(liquidator);
@@ -1494,11 +1526,11 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         token.transfer(randomAddress, vault.getOverallDebt(vaultId));
 
         vm.warp(block.timestamp + 5 * YEAR);
-        (uint256 vaultAmount, uint256 health) = vault.calculateVaultCollateral(vaultId);
+        (uint256 total, uint256 liquidationLimit, ) = vault.calculateVaultCollateral(vaultId);
         {
             uint256 debt = vault.getOverallDebt(vaultId);
 
-            assertTrue(health < debt);
+            assertTrue(liquidationLimit < debt);
         }
         address liquidator = getNextUserAddress();
         address[] memory liquidatorsToAllowance = new address[](1);
@@ -1606,10 +1638,10 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
 
-        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
+        (, uint256 liquidationLimit, ) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.getOverallDebt(vaultId);
 
-        assertTrue(debt <= health);
+        assertTrue(debt <= liquidationLimit);
 
         vault.depositCollateral(vaultId, tokenId);
         vm.expectRevert(Vault.PositionHealthy.selector);
@@ -1626,10 +1658,10 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         helper.setTokenPrice(oracle, weth, 800 << 96);
 
         vm.warp(block.timestamp + 5 * YEAR);
-        (, uint256 health) = vault.calculateVaultCollateral(vaultId);
+        (, uint256 liquidationLimit, ) = vault.calculateVaultCollateral(vaultId);
         uint256 debt = vault.getOverallDebt(vaultId);
 
-        assertTrue(health < debt);
+        assertTrue(liquidationLimit < debt);
 
         address liquidator = getNextUserAddress();
 
@@ -1909,67 +1941,6 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         assertEq(newParams.maxNftsPerVault, 30);
     }
 
-    // isPoolWhitelisted + setWhitelistedPool + revokeWhitelistedPool
-
-    function testSetGetWhitelistedPoolSuccess() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
-        assertTrue(vault.isPoolWhitelisted(pool));
-    }
-
-    function testPoolNotWhitelisted() public {
-        address pool = helper.getPool(dai, usdc);
-        assertTrue(!vault.isPoolWhitelisted(pool));
-    }
-
-    function testRevokedPool() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
-        vault.revokeWhitelistedPool(pool);
-        assertTrue(!vault.isPoolWhitelisted(pool));
-    }
-
-    // whitelistedPool
-
-    function testGetWhitelistedPoolSuccess() public {
-        address pool = helper.getPool(dai, usdc);
-        vault.setWhitelistedPool(pool);
-        assertTrue(pool == vault.whitelistedPool(3));
-    }
-
-    function testSeveralPoolsOkay() public {
-        address poolA = helper.getPool(weth, dai);
-        address poolB = helper.getPool(dai, usdc);
-        vault.setWhitelistedPool(poolA);
-        vault.setWhitelistedPool(poolB);
-
-        address pool0 = vault.whitelistedPool(3);
-        address pool1 = vault.whitelistedPool(4);
-
-        assertTrue(pool0 != pool1);
-        assertTrue(pool0 == poolA || pool0 == poolB);
-        assertTrue(pool1 == poolA || pool1 == poolB);
-    }
-
-    function testFailMissingIndex() public {
-        vault.whitelistedPool(10);
-    }
-
-    // Access control of all public methods
-
-    function testAccessControlsAllAccountsMethods() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
-
-        address newAddress = getNextUserAddress();
-        vm.startPrank(newAddress);
-
-        vault.protocolParams();
-        vault.isPoolWhitelisted(pool);
-        vault.liquidationThresholdD(usdc);
-        vault.whitelistedPool(0);
-    }
-
     // changeLiquidationFee
 
     function testLiquidationFeeSuccess() public {
@@ -2094,159 +2065,53 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vault.changeMaxNftsPerVault(20);
     }
 
-    // setWhitelistedPool
+    // setPoolParams
 
-    function testSetWhitelistedPoolZeroAddress() public {
-        vm.expectRevert(VaultAccessControl.AddressZero.selector);
-        vault.setWhitelistedPool(address(0));
-    }
-
-    function testSetWhitelistedPoolAccessControl() public {
-        address newAddress = getNextUserAddress();
-        vm.startPrank(newAddress);
-        address pool = helper.getPool(weth, usdc);
-        vm.expectRevert(VaultAccessControl.Forbidden.selector);
-        vault.setWhitelistedPool(pool);
-    }
-
-    function testSetSeveralPoolsOkay() public {
-        helper.setPools(ICDP(vault));
-    }
-
-    function testSetWhitelistedPoolEmitted() public {
-        address pool = helper.getPool(weth, usdc);
-        vm.expectEmit(false, true, false, true);
-        emit WhitelistedPoolSet(getNextUserAddress(), address(this), pool);
-        vault.setWhitelistedPool(pool);
-    }
-
-    // revokeWhitelistedPool
-
-    function testRevokePoolAccessControl() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
-        address newAddress = getNextUserAddress();
-        vm.startPrank(newAddress);
-        vm.expectRevert(VaultAccessControl.Forbidden.selector);
-        vault.revokeWhitelistedPool(pool);
-    }
-
-    function testTryRevokeUnstagedPoolIsOkay() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.revokeWhitelistedPool(pool);
-    }
-
-    function testRevokePoolEmitted() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
-
-        vm.expectEmit(false, true, false, true);
-        emit WhitelistedPoolRevoked(getNextUserAddress(), address(this), pool);
-        vault.revokeWhitelistedPool(pool);
-    }
-
-    // setLiquidationThreshold
-
-    function testSetThresholdSuccess() public {
+    function testSetPoolParamsSuccess() public {
         address pool = helper.getPool(dai, usdc);
-        vault.setWhitelistedPool(pool);
-        assertEq(vault.liquidationThresholdD(pool), 0);
-        vault.setLiquidationThreshold(pool, 5 * 10**8);
-        assertEq(vault.liquidationThresholdD(pool), 5 * 10**8);
+        vault.setPoolParams(pool, ICDP.PoolParams(0.5 gwei, 0.4 gwei, 123));
+        assertEq(vault.poolParams(pool).liquidationThreshold, 0.5 gwei);
+        assertEq(vault.poolParams(pool).borrowThreshold, 0.4 gwei);
+        assertEq(vault.poolParams(pool).minWidth, 123);
     }
 
-    function testSetZeroThresholdIsOkay() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
-        vault.setLiquidationThreshold(pool, 0);
-        assertEq(vault.liquidationThresholdD(pool), 0);
-    }
-
-    function testSetNewThreshold() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
-        vault.setLiquidationThreshold(pool, 5 * 10**8);
-        assertEq(vault.liquidationThresholdD(pool), 5 * 10**8);
-        vault.setLiquidationThreshold(pool, 3 * 10**8);
-        assertEq(vault.liquidationThresholdD(pool), 3 * 10**8);
-    }
-
-    function testSetThresholdNotWhitelisted() public {
+    function testSetPoolParamsZeroThresholdIsOkay() public {
         address pool = helper.getPool(dai, usdc);
-        vm.expectRevert(Vault.InvalidPool.selector);
-        vault.setLiquidationThreshold(pool, 5 * 10**8);
+        vault.setPoolParams(pool, ICDP.PoolParams(0.5 gwei, 0 gwei, 123));
+        assertEq(vault.poolParams(pool).liquidationThreshold, 0.5 gwei);
+        assertEq(vault.poolParams(pool).borrowThreshold, 0 gwei);
+        assertEq(vault.poolParams(pool).minWidth, 123);
     }
 
-    function testSetThresholdWhitelistedThenRevoked() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
-        vault.setLiquidationThreshold(pool, 5 * 10**8);
-        vault.revokeWhitelistedPool(pool);
-        assertEq(vault.liquidationThresholdD(pool), 0);
-        vm.expectRevert(Vault.InvalidPool.selector);
-        vault.setLiquidationThreshold(pool, 3 * 10**8);
-    }
-
-    function testSetTooLargeThreshold() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
+    function testSetPoolParamsErrors() public {
+        address pool = helper.getPool(dai, usdc);
         vm.expectRevert(Vault.InvalidValue.selector);
-        vault.setLiquidationThreshold(pool, 2 * 10**9);
-    }
-
-    function testSetThresholdZeroAddress() public {
+        vault.setPoolParams(pool, ICDP.PoolParams(1.5 gwei, 0.4 gwei, 123));
+        vm.expectRevert(Vault.InvalidValue.selector);
+        vault.setPoolParams(pool, ICDP.PoolParams(0.5 gwei, 1.4 gwei, 123));
+        vm.expectRevert(Vault.InvalidValue.selector);
+        vault.setPoolParams(pool, ICDP.PoolParams(0.5 gwei, 0.6 gwei, 123));
         vm.expectRevert(VaultAccessControl.AddressZero.selector);
-        vault.setLiquidationThreshold(address(0), 10**5);
+        vault.setPoolParams(address(0), ICDP.PoolParams(0.5 gwei, 0.4 gwei, 123));
     }
 
-    function testSetThresholdAccessControl() public {
+    function testSetPoolParamsAccessControl() public {
         address pool = helper.getPool(weth, usdc);
         address newAddress = getNextUserAddress();
         vm.startPrank(newAddress);
         vm.expectRevert(VaultAccessControl.Forbidden.selector);
-        vault.setLiquidationThreshold(pool, 10**5);
+        vault.setPoolParams(pool, ICDP.PoolParams(0.5 gwei, 0.4 gwei, 123));
     }
 
-    function testSetThresholdEmitted() public {
+    function testSetPoolParamsEmitted() public {
         address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
 
         vm.expectEmit(false, true, false, true);
-        emit LiquidationThresholdSet(getNextUserAddress(), address(this), pool, 10**6);
-        vault.setLiquidationThreshold(pool, 10**6);
-    }
-
-    function testMinimalWidthUpdatedEmitted() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
-
+        emit LiquidationThresholdChanged(getNextUserAddress(), address(this), pool, 0.5 gwei);
         vm.expectEmit(false, true, false, true);
-        emit MinimalWidthUpdated(getNextUserAddress(), address(this), pool, 10);
-        vault.changeMinimalWidth(pool, 10);
-    }
-
-    function testChangeMinimalWidthAddressZero() public {
-        vm.expectRevert(VaultAccessControl.AddressZero.selector);
-        vault.changeMinimalWidth(address(0), 10);
-    }
-
-    function testChangeMinimalWidthInvalidPool() public {
-        address pool = getNextUserAddress();
-        vm.expectRevert(Vault.InvalidPool.selector);
-        vault.changeMinimalWidth(pool, 10);
-    }
-
-    function testChangeMinimalWidth() public {
-        address pool = helper.getPool(weth, usdc);
-        vault.setWhitelistedPool(pool);
-        uint256 vaultId = vault.openVault();
-        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
-
-        vault.changeMinimalWidth(pool, 2000);
-        vm.expectRevert(Vault.TooNarrowNFT.selector);
-        vault.depositCollateral(vaultId, tokenId);
-
-        vault.changeMinimalWidth(pool, 100);
-        vault.depositCollateral(vaultId, tokenId);
+        emit BorrowThresholdChanged(getNextUserAddress(), address(this), pool, 0.4 gwei);
+        vm.expectEmit(false, true, false, true);
+        emit MinWidthChanged(getNextUserAddress(), address(this), pool, 123);
+        vault.setPoolParams(pool, ICDP.PoolParams(0.5 gwei, 0.4 gwei, 123));
     }
 }

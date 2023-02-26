@@ -103,9 +103,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice State variable, which shows if liquidating is public or not
     bool public isLiquidatingPublic;
 
-    /// @inheritdoc ICDP
-    mapping(address => uint24) public minimalWidth;
-
     /// @notice Protocol params
     ICDP.ProtocolParams private _protocolParams;
 
@@ -115,11 +112,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Address set, containing only accounts, which are allowed to liquidate when liquidations are private
     EnumerableSet.AddressSet private _liquidatorsAllowlist;
 
-    /// @notice Set of whitelisted pools
-    EnumerableSet.AddressSet private _whitelistedPools;
-
-    /// @inheritdoc ICDP
-    mapping(address => uint256) public liquidationThresholdD;
+    /// @notice Whitelisted pool params
+    mapping(address => ICDP.PoolParams) private _poolParams;
 
     /// @notice Mapping, returning set of all nfts, managed by vault
     mapping(uint256 => uint256[]) private _vaultNfts;
@@ -228,28 +222,38 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     }
 
     /// @inheritdoc ICDP
+    function poolParams(address pool) external view returns (PoolParams memory) {
+        return _poolParams[pool];
+    }
+
+    /// @inheritdoc ICDP
     function calculateVaultCollateral(uint256 vaultId)
-        public
+        external
         view
-        returns (uint256 overallCollateral, uint256 adjustedCollateral)
+        returns (
+            uint256 total,
+            uint256 liquidationLimit,
+            uint256 borrowLimit
+        )
     {
-        (overallCollateral, adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, false);
+        (total, liquidationLimit, ) = _calculateVaultCollateral(vaultId, 0, LIQUIDATION_LIMIT);
+        (, borrowLimit, ) = _calculateVaultCollateral(vaultId, 0, BORROW_LIMIT);
     }
 
     /// @inheritdoc ICDP
     function getOverallDebt(uint256 vaultId) public view returns (uint256) {
         uint256 updateTimestamp = normalizationRateUpdateTimestamp;
-        uint256 globalFeesRate = normalizationRate;
+        uint256 globalRate = normalizationRate;
 
         if (block.timestamp > updateTimestamp) {
-            globalFeesRate += FullMath.mulDiv(
+            globalRate += FullMath.mulDiv(
                 stabilisationFeeRateD * (block.timestamp - updateTimestamp),
-                globalFeesRate,
+                globalRate,
                 DEBT_DENOMINATOR
             );
         }
 
-        return _getOverallDebt(vaultId, globalFeesRate);
+        return _getOverallDebt(vaultId, globalRate);
     }
 
     // -------------------  PUBLIC, MUTATING   -------------------
@@ -308,16 +312,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @inheritdoc ICDP
     function protocolParams() external view returns (ProtocolParams memory) {
         return _protocolParams;
-    }
-
-    /// @inheritdoc ICDP
-    function isPoolWhitelisted(address pool) external view returns (bool) {
-        return _whitelistedPools.contains(pool);
-    }
-
-    /// @inheritdoc ICDP
-    function whitelistedPool(uint256 i) external view returns (address) {
-        return _whitelistedPools.at(i);
     }
 
     // -------------------  EXTERNAL, MUTATING  -------------------
@@ -391,8 +385,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         positionManager.transferFrom(address(this), msg.sender, nft);
 
         // checking that health factor is more or equal than 1
-        (, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, true);
-        if (adjustedCollateral < _getOverallDebt(vaultId, currentNormalizationRate)) {
+        (, uint256 borrowLimit, ) = _calculateVaultCollateral(vaultId, 0, SAFE_BORROW_LIMIT);
+        if (borrowLimit < _getOverallDebt(vaultId, currentNormalizationRate)) {
             revert PositionUnhealthy();
         }
 
@@ -414,8 +408,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         uint256 overallVaultDebt = _getOverallDebt(vaultId, currentNormalizationRate);
 
-        (, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, true);
-        if (adjustedCollateral < overallVaultDebt) {
+        (, uint256 borrowLimit, ) = _calculateVaultCollateral(vaultId, 0, SAFE_BORROW_LIMIT);
+        if (borrowLimit < overallVaultDebt) {
             revert PositionUnhealthy();
         }
 
@@ -461,8 +455,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         uint256 currentNormalizedDebt = vaultNormalizedDebt[vaultId];
         normalizedGlobalDebt -= currentNormalizedDebt;
         uint256 overallDebt = FullMath.mulDiv(currentNormalizedDebt, currentNormalizationRate, DEBT_DENOMINATOR);
-        (uint256 vaultAmount, uint256 adjustedCollateral, ) = _calculateVaultCollateral(vaultId, 0, false);
-        if (adjustedCollateral >= overallDebt) {
+        (uint256 vaultAmount, uint256 liquidationLimit, ) = _calculateVaultCollateral(vaultId, 0, LIQUIDATION_LIMIT);
+        if (liquidationLimit >= overallDebt) {
             revert PositionHealthy();
         }
 
@@ -645,35 +639,24 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     }
 
     /// @inheritdoc ICDP
-    function setWhitelistedPool(address pool) external onlyVaultAdmin {
+    function setPoolParams(address pool, ICDP.PoolParams calldata params) external onlyVaultAdmin {
         if (pool == address(0)) {
             revert AddressZero();
         }
-        _whitelistedPools.add(pool);
-        emit WhitelistedPoolSet(tx.origin, msg.sender, pool);
-    }
-
-    /// @inheritdoc ICDP
-    function revokeWhitelistedPool(address pool) external onlyVaultAdmin {
-        _whitelistedPools.remove(pool);
-        liquidationThresholdD[pool] = 0;
-        emit WhitelistedPoolRevoked(tx.origin, msg.sender, pool);
-    }
-
-    /// @inheritdoc ICDP
-    function setLiquidationThreshold(address pool, uint256 liquidationThresholdD_) external onlyVaultAdmin {
-        if (pool == address(0)) {
-            revert AddressZero();
+        if (params.liquidationThreshold > DENOMINATOR) {
+            revert InvalidValue();
         }
-        if (!_whitelistedPools.contains(pool)) {
-            revert InvalidPool();
+        if (params.borrowThreshold > DENOMINATOR) {
+            revert InvalidValue();
         }
-        if (liquidationThresholdD_ > DENOMINATOR) {
+        if (params.borrowThreshold > params.liquidationThreshold) {
             revert InvalidValue();
         }
 
-        liquidationThresholdD[pool] = liquidationThresholdD_;
-        emit LiquidationThresholdSet(tx.origin, msg.sender, pool, liquidationThresholdD_);
+        _poolParams[pool] = params;
+        emit LiquidationThresholdChanged(tx.origin, msg.sender, pool, params.liquidationThreshold);
+        emit BorrowThresholdChanged(tx.origin, msg.sender, pool, params.borrowThreshold);
+        emit MinWidthChanged(tx.origin, msg.sender, pool, params.minWidth);
     }
 
     /// @notice Pause the system
@@ -764,18 +747,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         emit StabilisationFeeUpdated(tx.origin, msg.sender, stabilisationFeeRateD_);
     }
 
-    /// @inheritdoc ICDP
-    function changeMinimalWidth(address pool, uint24 width) external {
-        if (pool == address(0)) {
-            revert AddressZero();
-        }
-        if (!_whitelistedPools.contains(pool)) {
-            revert InvalidPool();
-        }
-        minimalWidth[pool] = width;
-        emit MinimalWidthUpdated(tx.origin, msg.sender, pool, width);
-    }
-
     // -------------------  INTERNAL, VIEW  -----------------------
 
     /// @notice Get total debt for a given vault by id (including fees) with given normalization rate
@@ -801,56 +772,72 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         }
     }
 
+    uint256 private constant BORROW_LIMIT = 0x0;
+    uint256 private constant LIQUIDATION_LIMIT = 0x1;
+    uint256 private constant SAFE_BORROW_LIMIT = 0x2;
+
     /// @notice Calculate overall collateral and adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis) and price of tokenId if it contains in vault
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
-    /// @param isSafe If true reverts in case
-    /// @return overallCollateral Overall collateral
-    /// @return adjustedCollateral Adjusted collateral
-    /// @return positionAmount Price of tokenId if it contains in vault, 0 otherwise
+    /// @param limitType Type of limit to return
+    /// @return total Vault collateral value
+    /// @return limit Requested debt limit
+    /// @return positionValue Price of tokenId if it contains in vault, 0 otherwise
     function _calculateVaultCollateral(
         uint256 vaultId,
         uint256 tokenId,
-        bool isSafe
+        uint256 limitType
     )
         internal
         view
         returns (
-            uint256 overallCollateral,
-            uint256 adjustedCollateral,
-            uint256 positionAmount
+            uint256 total,
+            uint256 limit,
+            uint256 positionValue
         )
     {
         uint256[] storage vaultNfts = _vaultNfts[vaultId];
 
-        overallCollateral = 0;
-        adjustedCollateral = 0;
-        positionAmount = 0;
+        total = 0;
+        limit = 0;
+        positionValue = 0;
 
         for (uint256 i = 0; i < vaultNfts.length; ++i) {
             uint256 nft = vaultNfts[i];
-            (bool deviationSafety, uint256 price, , address pool) = oracle.price(nft);
+            (bool deviationSafety, uint256 price, , address poolAddr) = oracle.price(nft);
 
-            if (isSafe && !deviationSafety) {
-                revert TickDeviation();
-            }
+            ICDP.PoolParams memory pool = _poolParams[poolAddr];
 
-            if (nft == tokenId) {
-                positionAmount = price;
+            total += price;
+            if (limitType == LIQUIDATION_LIMIT) {
+                limit += FullMath.mulDiv(price, pool.liquidationThreshold, DENOMINATOR);
+            } else {
+                limit += FullMath.mulDiv(price, pool.borrowThreshold, DENOMINATOR);
+
+                if (limitType == SAFE_BORROW_LIMIT && !deviationSafety) {
+                    revert TickDeviation();
+                }
+
+                if (nft == tokenId) {
+                    positionValue = price;
+                }
             }
-            uint256 liquidationThreshold = liquidationThresholdD[pool];
-            overallCollateral += price;
-            adjustedCollateral += FullMath.mulDiv(price, liquidationThreshold, DENOMINATOR);
         }
     }
 
     /// @notice Checking health of specific vault and position
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
-    function _checkHealthOfVaultAndPosition(uint256 vaultId, uint256 tokenId) internal view {
+    function _checkHealthOfVaultAndPosition(uint256 vaultId, uint256 tokenId) internal {
+        uint256 currentNormalizationRate = updateNormalizationRate();
+
         // checking that health factor is more or equal than 1
-        (, uint256 adjustedCollateral, uint256 positionAmount) = _calculateVaultCollateral(vaultId, tokenId, true);
-        if (adjustedCollateral < getOverallDebt(vaultId)) {
+        (, uint256 borrowLimit, uint256 positionAmount) = _calculateVaultCollateral(
+            vaultId,
+            tokenId,
+            SAFE_BORROW_LIMIT
+        );
+        if (borrowLimit < _getOverallDebt(vaultId, currentNormalizationRate)) {
             revert PositionUnhealthy();
         }
 
@@ -898,13 +885,15 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert InvalidVault();
         }
 
-        (, uint256 positionAmount, uint24 width, address pool) = oracle.price(nft);
+        (, uint256 positionAmount, uint24 width, address poolAddr) = oracle.price(nft);
 
-        if (!_whitelistedPools.contains(pool)) {
+        ICDP.PoolParams memory pool = _poolParams[poolAddr];
+
+        if (pool.borrowThreshold == 0) {
             revert InvalidPool();
         }
 
-        if (width < minimalWidth[pool]) {
+        if (width < pool.minWidth) {
             revert TooNarrowNFT();
         }
 
@@ -1062,30 +1051,25 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The given pool
-    /// @param liquidationThresholdD_ The new liquidation threshold (multiplied by DENOMINATOR)
-    event LiquidationThresholdSet(
+    /// @param liquidationThreshold The new liquidation threshold (multiplied by DENOMINATOR)
+    event LiquidationThresholdChanged(
         address indexed origin,
         address indexed sender,
         address pool,
-        uint256 liquidationThresholdD_
+        uint32 liquidationThreshold
     );
 
-    /// @notice Emitted when new pool is added to the whitelist
+    /// @notice Emitted when borrow threshold for a specific pool is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
-    /// @param pool The new whitelisted pool
-    event WhitelistedPoolSet(address indexed origin, address indexed sender, address pool);
+    /// @param pool The given pool
+    /// @param borrowThreshold The new liquidation threshold (multiplied by DENOMINATOR)
+    event BorrowThresholdChanged(address indexed origin, address indexed sender, address pool, uint32 borrowThreshold);
 
-    /// @notice Emitted when pool is deleted from the whitelist
-    /// @param origin Origin of the transaction (tx.origin)
-    /// @param sender Sender of the call (msg.sender)
-    /// @param pool The deleted whitelisted pool
-    event WhitelistedPoolRevoked(address indexed origin, address indexed sender, address pool);
-
-    /// @notice Emitted when the minimal position's width for the pool is updated
+    /// @notice Emitted when the min position's width for the pool is updated
     /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The address of the pool
-    /// @param width The new minimal position's width
-    event MinimalWidthUpdated(address indexed origin, address indexed sender, address pool, uint24 width);
+    /// @param minWidth The new minimal position's width
+    event MinWidthChanged(address indexed origin, address indexed sender, address pool, uint24 minWidth);
 }
