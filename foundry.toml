@@ -2,7 +2,15 @@
 src = 'src'
 out = 'out'
 libs = ['lib']
-remappings = ["@openzeppelin/=lib/openzeppelin-contracts/", "@zkbob/=lib/zkbob-contracts/src/"]
+remappings = [
+    '@openzeppelin/=lib/openzeppelin-contracts/',
+    '@quickswap/=lib/@quickswap/contracts/',
+    '@uniswap/=lib/@uniswap/',
+    '@zkbob/=lib/zkbob-contracts/src/',
+    'ds-test/=lib/forge-std/lib/ds-test/src/',
+    'forge-std/=lib/forge-std/src/',
+]
+auto_detect_remappings = false
 optimizer = true
 fs_permissions = [{ access = "read-write", path = "./" }]
 
