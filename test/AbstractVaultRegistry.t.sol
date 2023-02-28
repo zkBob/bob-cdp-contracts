@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
 import "@zkbob/proxy/EIP1967Proxy.sol";
+import "@zkbob/minters/DebtMinter.sol" as DebtMinter;
 import "@zkbob/minters/SurplusMinter.sol" as TreasuryMinter;
 import "../src/VaultRegistry.sol";
 import "../src/Vault.sol";
@@ -40,12 +41,21 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
         vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
 
+        DebtMinter.DebtMinter debtMinterImpl = new DebtMinter.DebtMinter(
+            address(token),
+            type(uint104).max,
+            type(uint104).max - 1000,
+            0,
+            1,
+            address(treasury)
+        );
+
         vault = new Vault(
             INonfungiblePositionManager(PositionManager),
             INFTOracle(address(nftOracle)),
             address(treasury),
             address(token),
-            address(token),
+            address(debtMinterImpl),
             address(vaultRegistry)
         );
 
@@ -58,6 +68,7 @@ abstract contract AbstractVaultRegistryTest is Test, SetupContract, AbstractFork
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = Vault(address(vaultProxy));
 
+        debtMinterImpl.setMinter(address(vault), true);
         treasuryImpl.setMinter(address(vault), true);
         vaultRegistry.setMinter(address(vault), true);
 

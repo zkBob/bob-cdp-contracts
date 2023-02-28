@@ -220,6 +220,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         normalizationRateUpdateTimestamp = uint40(block.timestamp);
         _protocolParams.maxDebtPerVault = maxDebtPerVault;
         isInitialized = true;
+
+        // initial approve to minter
+        token.approve(address(minter), type(uint256).max);
     }
 
     // -------------------   PUBLIC, VIEW   -------------------
@@ -414,7 +417,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         _requireVaultAuth(vaultId);
         uint256 currentNormalizationRate = updateNormalizationRate();
 
-        minter.mint(msg.sender, amount);
         uint256 normalizedDebtDelta = FullMath.mulDivRoundingUp(amount, DEBT_DENOMINATOR, currentNormalizationRate);
         vaultNormalizedDebt[vaultId] += normalizedDebtDelta;
         vaultMintedDebt[vaultId] += amount;
@@ -430,6 +432,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         if (_protocolParams.maxDebtPerVault < overallVaultDebt) {
             revert DebtLimitExceeded();
         }
+
+        minter.mint(msg.sender, amount);
 
         emit DebtMinted(msg.sender, vaultId, amount);
     }
@@ -455,7 +459,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         vaultMintedDebt[vaultId] = mintedDebt - tokensToBurn;
 
         token.transferAndCall(address(treasury), amount - tokensToBurn, "");
-        minter.burn(tokensToBurn);
+        minter.burnFrom(address(this), tokensToBurn);
 
         emit DebtBurned(msg.sender, vaultId, amount);
     }
@@ -488,7 +492,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         uint256 tokensToBurn = vaultMintedDebt[vaultId];
 
-        minter.burn(tokensToBurn);
+        minter.burnFrom(address(this), tokensToBurn);
 
         uint256 liquidationFeeAmount = FullMath.mulDiv(vaultAmount, _protocolParams.liquidationFeeD, DENOMINATOR);
         if (liquidationFeeAmount >= returnAmount - overallDebt) {
