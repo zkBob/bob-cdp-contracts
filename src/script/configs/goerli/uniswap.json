@@ -7,6 +7,7 @@
     "maxNftsPerVault": 20,
     "maxPriceRatioDeviation": 10000000000000000,
     "minSingleNftCollateral": 100000000000000000,
+    "minter": "0x7F33De9781De5764B1F1992F16116323220a5445",
     "positionManager": "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
     "stabilisationFee": 10000000,
     "treasury": "0x341C245124CCDCe62655a29207acBee0f6e3135a",

@@ -16,6 +16,7 @@ import "./interfaces/ICDP.sol";
 import "./libraries/UniswapV3FeesCalculation.sol";
 import "./utils/VaultAccessControl.sol";
 import "./interfaces/ITreasury.sol";
+import "./interfaces/IMinter.sol";
 
 /// @notice Contract of the system vault manager
 contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multicall {
@@ -85,6 +86,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Bob Stable Token
     IBobToken public immutable token;
 
+    /// @notice Minter Contract
+    IMinter public immutable minter;
+
     /// @notice Vault fees treasury address
     ITreasury public immutable treasury;
 
@@ -153,11 +157,14 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param oracle_ Oracle
     /// @param treasury_ Vault fees treasury
     /// @param token_ Address of token
+    /// @param minter_ Address of minter contract
+    /// @param vaultRegistry_ Address of vault registry
     constructor(
         INonfungiblePositionManager positionManager_,
         INFTOracle oracle_,
         address treasury_,
         address token_,
+        address minter_,
         address vaultRegistry_
     ) {
         if (
@@ -174,6 +181,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         oracle = oracle_;
         treasury = ITreasury(treasury_);
         token = IBobToken(token_);
+        minter = IMinter(minter_);
         vaultRegistry = IVaultRegistry(vaultRegistry_);
         isInitialized = true;
     }
@@ -212,6 +220,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         normalizationRateUpdateTimestamp = uint40(block.timestamp);
         _protocolParams.maxDebtPerVault = maxDebtPerVault;
         isInitialized = true;
+
+        // initial approve to minter
+        token.approve(address(minter), type(uint256).max);
     }
 
     // -------------------   PUBLIC, VIEW   -------------------
@@ -406,7 +417,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         _requireVaultAuth(vaultId);
         uint256 currentNormalizationRate = updateNormalizationRate();
 
-        token.mint(msg.sender, amount);
         uint256 normalizedDebtDelta = FullMath.mulDivRoundingUp(amount, DEBT_DENOMINATOR, currentNormalizationRate);
         vaultNormalizedDebt[vaultId] += normalizedDebtDelta;
         vaultMintedDebt[vaultId] += amount;
@@ -422,6 +432,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         if (_protocolParams.maxDebtPerVault < overallVaultDebt) {
             revert DebtLimitExceeded();
         }
+
+        minter.mint(msg.sender, amount);
 
         emit DebtMinted(msg.sender, vaultId, amount);
     }
@@ -447,7 +459,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         vaultMintedDebt[vaultId] = mintedDebt - tokensToBurn;
 
         token.transferAndCall(address(treasury), amount - tokensToBurn, "");
-        token.burn(tokensToBurn);
+        minter.burnFrom(address(this), tokensToBurn);
 
         emit DebtBurned(msg.sender, vaultId, amount);
     }
@@ -480,7 +492,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         uint256 tokensToBurn = vaultMintedDebt[vaultId];
 
-        token.burn(tokensToBurn);
+        minter.burnFrom(address(this), tokensToBurn);
 
         uint256 liquidationFeeAmount = FullMath.mulDiv(vaultAmount, _protocolParams.liquidationFeeD, DENOMINATOR);
         if (liquidationFeeAmount >= returnAmount - overallDebt) {

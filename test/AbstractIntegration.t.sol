@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import "forge-std/Test.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@zkbob/proxy/EIP1967Proxy.sol";
+import "@zkbob/minters/DebtMinter.sol" as DebtMinter;
 import "@zkbob/minters/SurplusMinter.sol" as TreasuryMinter;
 import "../src/Vault.sol";
 import "../src/VaultRegistry.sol";
@@ -45,11 +46,21 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vaultRegistryProxy = new EIP1967Proxy(address(this), address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
 
+        DebtMinter.DebtMinter debtMinterImpl = new DebtMinter.DebtMinter(
+            address(token),
+            type(uint104).max,
+            type(uint104).max - 1000,
+            0,
+            1,
+            address(treasury)
+        );
+
         vault = new VaultMock(
             INonfungiblePositionManager(PositionManager),
             INFTOracle(address(nftOracle)),
             address(treasury),
             address(token),
+            address(debtMinterImpl),
             address(vaultRegistry)
         );
 
@@ -62,10 +73,11 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vaultProxy = new EIP1967Proxy(address(this), address(vault), initData);
         vault = VaultMock(address(vaultProxy));
 
+        debtMinterImpl.setMinter(address(vault), true);
         treasuryImpl.setMinter(address(vault), true);
         vaultRegistry.setMinter(address(vault), true);
 
-        token.updateMinter(address(vault), true, true);
+        token.updateMinter(address(debtMinterImpl), true, true);
         token.approve(address(vault), type(uint256).max);
 
         vault.changeLiquidationFee(3 * 10**7);
