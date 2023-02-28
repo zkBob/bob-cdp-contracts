@@ -37,8 +37,10 @@ contract ConfigContract is Script {
     }
 
     struct PoolParams {
+        uint32 borrowThreshold;
         uint256 fee;
-        uint256 liquidationThreshold;
+        uint32 liquidationThreshold;
+        uint24 minWidth;
         address token0;
         address token1;
     }

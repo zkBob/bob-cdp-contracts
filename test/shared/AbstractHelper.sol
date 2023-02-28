@@ -18,8 +18,7 @@ abstract contract AbstractHelper is IHelper, AbstractForkTest, SetupContract {
         pools[2] = getPool(wbtc, weth);
 
         for (uint256 i = 0; i < 3; ++i) {
-            vault.setWhitelistedPool(pools[i]);
-            vault.setLiquidationThreshold(pools[i], 6e8); // 0.6 * DENOMINATOR == 60%
+            vault.setPoolParams(pools[i], ICDP.PoolParams(0.7 gwei, 0.6 gwei, 0));
         }
     }
 

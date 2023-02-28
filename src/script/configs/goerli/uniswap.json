@@ -27,10 +27,11 @@
     "pools": [
       {
         "fee": 3000,
-        "liquidationThreshold": 600000000,
+        "liquidationThreshold": 700000000,
+        "borrowThreshold": 600000000,
+        "minWidth": 0,
         "token0": "0x1F2cd0D7E5a7d8fE41f886063E9F11A05dE217Fa",
         "token1": "0x34852e54D9B4Ec4325C7344C28b584Ce972e5E62"
       }
     ]
 }
-  
