@@ -297,6 +297,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         updatedNormalizationRate = currentNormalizationRate + normalizationRateDelta;
         normalizationRate = uint216(updatedNormalizationRate);
         normalizationRateUpdateTimestamp = uint40(block.timestamp);
+
+        emit NormalizationRateUpdated(updatedNormalizationRate);
     }
 
     // -------------------  EXTERNAL, VIEW  -------------------
@@ -620,7 +622,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert InvalidValue();
         }
         _protocolParams.liquidationFeeD = liquidationFeeD;
-        emit LiquidationFeeChanged(tx.origin, msg.sender, liquidationFeeD);
+        emit LiquidationFeeChanged(msg.sender, liquidationFeeD);
     }
 
     /// @inheritdoc ICDP
@@ -629,25 +631,25 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             revert InvalidValue();
         }
         _protocolParams.liquidationPremiumD = liquidationPremiumD;
-        emit LiquidationPremiumChanged(tx.origin, msg.sender, liquidationPremiumD);
+        emit LiquidationPremiumChanged(msg.sender, liquidationPremiumD);
     }
 
     /// @inheritdoc ICDP
     function changeMaxDebtPerVault(uint256 maxDebtPerVault) external onlyVaultAdmin {
         _protocolParams.maxDebtPerVault = maxDebtPerVault;
-        emit MaxDebtPerVaultChanged(tx.origin, msg.sender, maxDebtPerVault);
+        emit MaxDebtPerVaultChanged(msg.sender, maxDebtPerVault);
     }
 
     /// @inheritdoc ICDP
     function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external onlyVaultAdmin {
         _protocolParams.minSingleNftCollateral = minSingleNftCollateral;
-        emit MinSingleNftCollateralChanged(tx.origin, msg.sender, minSingleNftCollateral);
+        emit MinSingleNftCollateralChanged(msg.sender, minSingleNftCollateral);
     }
 
     /// @inheritdoc ICDP
     function changeMaxNftsPerVault(uint8 maxNftsPerVault) external onlyVaultAdmin {
         _protocolParams.maxNftsPerVault = maxNftsPerVault;
-        emit MaxNftsPerVaultChanged(tx.origin, msg.sender, maxNftsPerVault);
+        emit MaxNftsPerVaultChanged(msg.sender, maxNftsPerVault);
     }
 
     /// @inheritdoc ICDP
@@ -666,51 +668,51 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         }
 
         _poolParams[pool] = params;
-        emit LiquidationThresholdChanged(tx.origin, msg.sender, pool, params.liquidationThreshold);
-        emit BorrowThresholdChanged(tx.origin, msg.sender, pool, params.borrowThreshold);
-        emit MinWidthChanged(tx.origin, msg.sender, pool, params.minWidth);
+        emit LiquidationThresholdChanged(msg.sender, pool, params.liquidationThreshold);
+        emit BorrowThresholdChanged(msg.sender, pool, params.borrowThreshold);
+        emit MinWidthChanged(msg.sender, pool, params.minWidth);
     }
 
     /// @notice Pause the system
     function pause() external onlyAtLeastOperator {
         isPaused = true;
 
-        emit SystemPaused(tx.origin, msg.sender);
+        emit SystemPaused(msg.sender);
     }
 
     /// @notice Unpause the system
     function unpause() external onlyVaultAdmin {
         isPaused = false;
 
-        emit SystemUnpaused(tx.origin, msg.sender);
+        emit SystemUnpaused(msg.sender);
     }
 
     /// @notice Make the system private
     function makePrivate() external onlyVaultAdmin {
         isPublic = false;
 
-        emit SystemPrivate(tx.origin, msg.sender);
+        emit SystemPrivate(msg.sender);
     }
 
     /// @notice Make the system public
     function makePublic() external onlyVaultAdmin {
         isPublic = true;
 
-        emit SystemPublic(tx.origin, msg.sender);
+        emit SystemPublic(msg.sender);
     }
 
     /// @notice Make liquidations private
     function makeLiquidationsPrivate() external onlyVaultAdmin {
         isLiquidatingPublic = false;
 
-        emit LiquidationsPrivate(tx.origin, msg.sender);
+        emit LiquidationsPrivate(msg.sender);
     }
 
     /// @notice Make liquidations public
     function makeLiquidationsPublic() external onlyVaultAdmin {
         isLiquidatingPublic = true;
 
-        emit LiquidationsPublic(tx.origin, msg.sender);
+        emit LiquidationsPublic(msg.sender);
     }
 
     /// @notice Add an array of new depositors to the allow list
@@ -756,7 +758,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         stabilisationFeeRateD = stabilisationFeeRateD_;
 
-        emit StabilisationFeeUpdated(tx.origin, msg.sender, stabilisationFeeRateD_);
+        emit StabilisationFeeUpdated(msg.sender, stabilisationFeeRateD_);
     }
 
     // -------------------  INTERNAL, VIEW  -----------------------
@@ -957,131 +959,115 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Emitted when a new vault is opened
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
-    event VaultOpened(address indexed sender, uint256 vaultId);
+    event VaultOpened(address indexed sender, uint256 indexed vaultId);
 
     /// @notice Emitted when a vault is liquidated
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
-    event VaultLiquidated(address indexed sender, uint256 vaultId);
+    event VaultLiquidated(address indexed sender, uint256 indexed vaultId);
 
     /// @notice Emitted when a vault is closed
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
-    event VaultClosed(address indexed sender, uint256 vaultId);
+    event VaultClosed(address indexed sender, uint256 indexed vaultId);
 
     /// @notice Emitted when a collateral is deposited
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
-    event CollateralDeposited(address indexed sender, uint256 vaultId, uint256 tokenId);
+    event CollateralDeposited(address indexed sender, uint256 indexed vaultId, uint256 tokenId);
 
     /// @notice Emitted when a collateral is withdrawn
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
-    event CollateralWithdrew(address indexed sender, uint256 vaultId, uint256 tokenId);
+    event CollateralWithdrew(address indexed sender, uint256 indexed vaultId, uint256 tokenId);
 
     /// @notice Emitted when a debt is minted
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param amount Debt amount
-    event DebtMinted(address indexed sender, uint256 vaultId, uint256 amount);
+    event DebtMinted(address indexed sender, uint256 indexed vaultId, uint256 amount);
 
     /// @notice Emitted when a debt is burnt
     /// @param sender Sender of the call (msg.sender)
     /// @param vaultId Id of the vault
     /// @param amount Debt amount
-    event DebtBurned(address indexed sender, uint256 vaultId, uint256 amount);
+    event DebtBurned(address indexed sender, uint256 indexed vaultId, uint256 amount);
 
     /// @notice Emitted when the stabilisation fee is updated
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param stabilisationFee New stabilisation fee
-    event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
+    event StabilisationFeeUpdated(address indexed sender, uint256 stabilisationFee);
+
+    /// @notice Emitted when the normalization rate is updated
+    /// @param normalizationRate New normalization rate
+    event NormalizationRateUpdated(uint256 normalizationRate);
 
     /// @notice Emitted when the system is set to paused
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
-    event SystemPaused(address indexed origin, address indexed sender);
+    event SystemPaused(address indexed sender);
 
     /// @notice Emitted when the system is set to unpaused
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
-    event SystemUnpaused(address indexed origin, address indexed sender);
+    event SystemUnpaused(address indexed sender);
 
     /// @notice Emitted when the system is set to private
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
-    event SystemPrivate(address indexed origin, address indexed sender);
+    event SystemPrivate(address indexed sender);
 
     /// @notice Emitted when the system is set to public
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
-    event SystemPublic(address indexed origin, address indexed sender);
+    event SystemPublic(address indexed sender);
 
     /// @notice Emitted when liquidations is set to private
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
-    event LiquidationsPrivate(address indexed origin, address indexed sender);
+    event LiquidationsPrivate(address indexed sender);
 
     /// @notice Emitted when liquidations is set to public
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
-    event LiquidationsPublic(address indexed origin, address indexed sender);
+    event LiquidationsPublic(address indexed sender);
 
     /// @notice Emitted when liquidation fee is updated
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param liquidationFeeD The new liquidation fee (multiplied by DENOMINATOR)
-    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint32 liquidationFeeD);
+    event LiquidationFeeChanged(address indexed sender, uint32 liquidationFeeD);
 
     /// @notice Emitted when liquidation premium is updated
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param liquidationPremiumD The new liquidation premium (multiplied by DENOMINATOR)
-    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint32 liquidationPremiumD);
+    event LiquidationPremiumChanged(address indexed sender, uint32 liquidationPremiumD);
 
     /// @notice Emitted when max debt per vault is updated
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param maxDebtPerVault The new max debt per vault (nominated in MUSD weis)
-    event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
+    event MaxDebtPerVaultChanged(address indexed sender, uint256 maxDebtPerVault);
 
     /// @notice Emitted when min nft collateral is updated
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param minSingleNftCollateral The new min nft collateral (nominated in MUSD weis)
-    event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
+    event MinSingleNftCollateralChanged(address indexed sender, uint256 minSingleNftCollateral);
 
     /// @notice Emitted when min nft collateral is updated
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param maxNftsPerVault The new max possible amount of NFTs for one vault
-    event MaxNftsPerVaultChanged(address indexed origin, address indexed sender, uint8 maxNftsPerVault);
+    event MaxNftsPerVaultChanged(address indexed sender, uint8 maxNftsPerVault);
 
     /// @notice Emitted when liquidation threshold for a specific pool is updated
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The given pool
     /// @param liquidationThreshold The new liquidation threshold (multiplied by DENOMINATOR)
-    event LiquidationThresholdChanged(
-        address indexed origin,
-        address indexed sender,
-        address pool,
-        uint32 liquidationThreshold
-    );
+    event LiquidationThresholdChanged(address indexed sender, address indexed pool, uint32 liquidationThreshold);
 
     /// @notice Emitted when borrow threshold for a specific pool is updated
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The given pool
     /// @param borrowThreshold The new liquidation threshold (multiplied by DENOMINATOR)
-    event BorrowThresholdChanged(address indexed origin, address indexed sender, address pool, uint32 borrowThreshold);
+    event BorrowThresholdChanged(address indexed sender, address indexed pool, uint32 borrowThreshold);
 
     /// @notice Emitted when the min position's width for the pool is updated
-    /// @param origin Origin of the transaction (tx.origin)
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The address of the pool
     /// @param minWidth The new minimal position's width
-    event MinWidthChanged(address indexed origin, address indexed sender, address pool, uint24 minWidth);
+    event MinWidthChanged(address indexed sender, address indexed pool, uint24 minWidth);
 }
