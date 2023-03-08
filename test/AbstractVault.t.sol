@@ -17,41 +17,36 @@ import "./mocks/VaultMock.sol";
 abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, AbstractLateSetup {
     error MissingOracle();
 
-    event VaultOpened(address indexed sender, uint256 vaultId);
-    event VaultLiquidated(address indexed sender, uint256 vaultId);
-    event VaultClosed(address indexed sender, uint256 vaultId);
+    event VaultOpened(address indexed sender, uint256 indexed vaultId);
+    event VaultLiquidated(address indexed sender, uint256 indexed vaultId);
+    event VaultClosed(address indexed sender, uint256 indexed vaultId);
 
-    event CollateralDeposited(address indexed sender, uint256 vaultId, uint256 nft);
-    event CollateralWithdrew(address indexed sender, uint256 vaultId, uint256 nft);
+    event CollateralDeposited(address indexed sender, uint256 indexed vaultId, uint256 tokenId);
+    event CollateralWithdrew(address indexed sender, uint256 indexed vaultId, uint256 tokenId);
 
-    event DebtMinted(address indexed sender, uint256 vaultId, uint256 amount);
-    event DebtBurned(address indexed sender, uint256 vaultId, uint256 amount);
+    event DebtMinted(address indexed sender, uint256 indexed vaultId, uint256 amount);
+    event DebtBurned(address indexed sender, uint256 indexed vaultId, uint256 amount);
 
-    event StabilisationFeeUpdated(address indexed origin, address indexed sender, uint256 stabilisationFee);
-    event OracleUpdated(address indexed origin, address indexed sender, address oracleAddress);
+    event StabilisationFeeUpdated(address indexed sender, uint256 stabilisationFee);
+    event NormalizationRateUpdated(uint256 normalizationRate);
 
-    event SystemPaused(address indexed origin, address indexed sender);
-    event SystemUnpaused(address indexed origin, address indexed sender);
+    event SystemPaused(address indexed sender);
+    event SystemUnpaused(address indexed sender);
 
-    event SystemPrivate(address indexed origin, address indexed sender);
-    event SystemPublic(address indexed origin, address indexed sender);
+    event SystemPrivate(address indexed sender);
+    event SystemPublic(address indexed sender);
 
-    event LiquidationsPrivate(address indexed origin, address indexed sender);
-    event LiquidationsPublic(address indexed origin, address indexed sender);
+    event LiquidationsPrivate(address indexed sender);
+    event LiquidationsPublic(address indexed sender);
 
-    event LiquidationFeeChanged(address indexed origin, address indexed sender, uint32 liquidationFeeD);
-    event LiquidationPremiumChanged(address indexed origin, address indexed sender, uint32 liquidationPremiumD);
-    event MaxDebtPerVaultChanged(address indexed origin, address indexed sender, uint256 maxDebtPerVault);
-    event MinSingleNftCollateralChanged(address indexed origin, address indexed sender, uint256 minSingleNftCollateral);
-    event MaxNftsPerVaultChanged(address indexed origin, address indexed sender, uint8 maxNftsPerVault);
-    event LiquidationThresholdChanged(
-        address indexed origin,
-        address indexed sender,
-        address pool,
-        uint32 liquidationThreshold
-    );
-    event BorrowThresholdChanged(address indexed origin, address indexed sender, address pool, uint32 borrowThreshold);
-    event MinWidthChanged(address indexed origin, address indexed sender, address pool, uint24 minWidth);
+    event LiquidationFeeChanged(address indexed sender, uint32 liquidationFeeD);
+    event LiquidationPremiumChanged(address indexed sender, uint32 liquidationPremiumD);
+    event MaxDebtPerVaultChanged(address indexed sender, uint256 maxDebtPerVault);
+    event MinSingleNftCollateralChanged(address indexed sender, uint256 minSingleNftCollateral);
+    event MaxNftsPerVaultChanged(address indexed sender, uint8 maxNftsPerVault);
+    event LiquidationThresholdChanged(address indexed sender, address indexed pool, uint32 liquidationThreshold);
+    event BorrowThresholdChanged(address indexed sender, address indexed pool, uint32 borrowThreshold);
+    event MinWidthChanged(address indexed sender, address indexed pool, uint24 minWidth);
 
     EIP1967Proxy vaultProxy;
     EIP1967Proxy vaultRegistryProxy;
@@ -205,7 +200,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testOpenVaultEmit() public {
-        vm.expectEmit(true, false, false, true);
+        vm.expectEmit(true, true, false, false);
         emit VaultOpened(address(this), 1);
         vault.openVault();
     }
@@ -315,7 +310,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
 
-        vm.expectEmit(true, false, false, true);
+        vm.expectEmit(true, true, false, true);
         emit CollateralDeposited(address(this), vaultId, tokenId);
         vault.depositCollateral(vaultId, tokenId);
     }
@@ -399,7 +394,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     function testCloseVaultEmit() public {
         uint256 vaultId = vault.openVault();
 
-        vm.expectEmit(true, false, false, true);
+        vm.expectEmit(true, true, false, false);
         emit VaultClosed(address(this), vaultId);
         vault.closeVault(vaultId, address(this));
     }
@@ -451,7 +446,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
 
-        vm.expectEmit(true, false, false, true);
+        vm.expectEmit(true, true, false, true);
         emit DebtMinted(address(this), vaultId, 10);
 
         vault.mintDebt(vaultId, 10);
@@ -522,7 +517,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         bytes memory data = abi.encode(vaultId);
 
-        vm.expectEmit(true, false, false, true);
+        vm.expectEmit(true, true, false, true);
         emit CollateralDeposited(address(this), vaultId, tokenId);
         positionManager.safeTransferFrom(address(this), address(vault), tokenId, data);
     }
@@ -721,7 +716,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
         vault.mintDebt(vaultId, 10);
 
-        vm.expectEmit(true, false, false, true);
+        vm.expectEmit(true, true, false, true);
         emit DebtBurned(address(this), vaultId, 10);
 
         vault.burnDebt(vaultId, 10);
@@ -794,7 +789,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
         vault.depositCollateral(vaultId, tokenId);
-        vm.expectEmit(true, false, false, true);
+        vm.expectEmit(true, true, false, true);
         emit CollateralWithdrew(address(this), vaultId, tokenId);
         vault.withdrawCollateral(tokenId);
     }
@@ -1681,7 +1676,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vm.startPrank(liquidator);
         token.approve(address(vault), type(uint256).max);
 
-        vm.expectEmit(true, false, false, true);
+        vm.expectEmit(true, true, false, false);
         emit VaultLiquidated(liquidator, vaultId);
         vault.liquidate(vaultId);
         vm.stopPrank();
@@ -1737,8 +1732,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testMakePublicEmit() public {
-        vm.expectEmit(false, true, false, false);
-        emit SystemPublic(getNextUserAddress(), address(this));
+        vm.expectEmit(true, false, false, false);
+        emit SystemPublic(address(this));
         vault.makePublic();
     }
 
@@ -1756,8 +1751,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testMakePrivateEmit() public {
-        vm.expectEmit(false, true, false, false);
-        emit SystemPrivate(getNextUserAddress(), address(this));
+        vm.expectEmit(true, false, false, false);
+        emit SystemPrivate(address(this));
         vault.makePrivate();
     }
 
@@ -1775,8 +1770,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testMakeLiquidationsPublicEmit() public {
-        vm.expectEmit(false, true, false, false);
-        emit LiquidationsPublic(getNextUserAddress(), address(this));
+        vm.expectEmit(true, false, false, false);
+        emit LiquidationsPublic(address(this));
         vault.makeLiquidationsPublic();
     }
 
@@ -1794,8 +1789,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testMakeLiquidationsPrivateEmit() public {
-        vm.expectEmit(false, true, false, false);
-        emit LiquidationsPrivate(getNextUserAddress(), address(this));
+        vm.expectEmit(true, false, false, false);
+        emit LiquidationsPrivate(address(this));
         vault.makeLiquidationsPrivate();
     }
 
@@ -1822,8 +1817,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testPauseEmit() public {
-        vm.expectEmit(false, true, false, false);
-        emit SystemPaused(getNextUserAddress(), address(this));
+        vm.expectEmit(true, false, false, false);
+        emit SystemPaused(address(this));
         vault.pause();
     }
 
@@ -1851,8 +1846,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testUnpauseEmit() public {
-        vm.expectEmit(false, true, false, false);
-        emit SystemUnpaused(getNextUserAddress(), address(this));
+        vm.expectEmit(true, false, false, false);
+        emit SystemUnpaused(address(this));
         vault.unpause();
     }
 
@@ -1922,8 +1917,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testUpdateStabilisationFeeEmit() public {
-        vm.expectEmit(false, true, false, true);
-        emit StabilisationFeeUpdated(getNextUserAddress(), address(this), (2 * 10**16) / YEAR);
+        vm.expectEmit(true, false, false, true);
+        emit StabilisationFeeUpdated(address(this), (2 * 10**16) / YEAR);
         vault.updateStabilisationFeeRate((2 * 10**16) / YEAR);
     }
 
@@ -1973,8 +1968,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testLiquidationFeeEventEmitted() public {
-        vm.expectEmit(false, true, false, true);
-        emit LiquidationFeeChanged(getNextUserAddress(), address(this), 10**6);
+        vm.expectEmit(true, false, false, true);
+        emit LiquidationFeeChanged(address(this), 10**6);
         vault.changeLiquidationFee(10**6);
     }
 
@@ -1999,8 +1994,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testLiquidationPremiumEventEmitted() public {
-        vm.expectEmit(false, true, false, true);
-        emit LiquidationPremiumChanged(getNextUserAddress(), address(this), 10**6);
+        vm.expectEmit(true, false, false, true);
+        emit LiquidationPremiumChanged(address(this), 10**6);
         vault.changeLiquidationPremium(10**6);
     }
 
@@ -2029,8 +2024,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testMaxDebtPerVaultEventEmitted() public {
-        vm.expectEmit(false, true, false, true);
-        emit MaxDebtPerVaultChanged(getNextUserAddress(), address(this), 10**10);
+        vm.expectEmit(true, false, false, true);
+        emit MaxDebtPerVaultChanged(address(this), 10**10);
         vault.changeMaxDebtPerVault(10**10);
     }
 
@@ -2050,8 +2045,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testChangeMinSingleNftCollateralEmitted() public {
-        vm.expectEmit(false, true, false, true);
-        emit MinSingleNftCollateralChanged(getNextUserAddress(), address(this), 10**20);
+        vm.expectEmit(true, false, false, true);
+        emit MinSingleNftCollateralChanged(address(this), 10**20);
         vault.changeMinSingleNftCollateral(10**20);
     }
 
@@ -2071,8 +2066,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     }
 
     function testChangeMaxNftsPerVaultEmitted() public {
-        vm.expectEmit(false, true, false, true);
-        emit MaxNftsPerVaultChanged(getNextUserAddress(), address(this), 20);
+        vm.expectEmit(true, false, false, true);
+        emit MaxNftsPerVaultChanged(address(this), 20);
         vault.changeMaxNftsPerVault(20);
     }
 
@@ -2117,12 +2112,12 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     function testSetPoolParamsEmitted() public {
         address pool = helper.getPool(weth, usdc);
 
-        vm.expectEmit(false, true, false, true);
-        emit LiquidationThresholdChanged(getNextUserAddress(), address(this), pool, 0.5 gwei);
-        vm.expectEmit(false, true, false, true);
-        emit BorrowThresholdChanged(getNextUserAddress(), address(this), pool, 0.4 gwei);
-        vm.expectEmit(false, true, false, true);
-        emit MinWidthChanged(getNextUserAddress(), address(this), pool, 123);
+        vm.expectEmit(true, true, false, true);
+        emit LiquidationThresholdChanged(address(this), pool, 0.5 gwei);
+        vm.expectEmit(true, true, false, true);
+        emit BorrowThresholdChanged(address(this), pool, 0.4 gwei);
+        vm.expectEmit(true, true, false, true);
+        emit MinWidthChanged(address(this), pool, 123);
         vault.setPoolParams(pool, ICDP.PoolParams(0.5 gwei, 0.4 gwei, 123));
     }
 }
