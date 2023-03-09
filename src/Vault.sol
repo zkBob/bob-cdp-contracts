@@ -23,7 +23,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
-    /// @notice Thrown when a value of a deposited NFT is less than min single nft capital (set in governance)
+    /// @notice Thrown when a value of a deposited NFT is less than min single nft capital (protocolParams.minSingleNftCollateral)
     error CollateralUnderflow();
 
     /// @notice Thrown when a vault has already been initialized
@@ -68,7 +68,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Thrown when a vault is tried to be closed and debt has not been paid yet
     error VaultNonEmpty();
 
-    /// @notice Thrown when the vault debt limit (which's set in governance) would been exceeded after a deposit
+    /// @notice Thrown when the vault debt limit (protocolParams.maxDebtPerVault) would been exceeded after a deposit
     error DebtLimitExceeded();
 
     using EnumerableSet for EnumerableSet.AddressSet;
@@ -77,7 +77,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     uint256 public constant DEBT_DENOMINATOR = 10**18;
     uint256 public constant YEAR = 365 * 24 * 3600;
 
-    /// @notice UniswapV3 position manager
+    /// @notice Collateral position manager
     INonfungiblePositionManager public immutable positionManager;
 
     /// @notice Oracle for price estimations
@@ -122,13 +122,13 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Mapping, returning set of all nfts, managed by vault
     mapping(uint256 => uint256[]) private _vaultNfts;
 
-    /// @notice Mapping, returning normalized debt by vault id (in MUSD weis)
+    /// @notice Mapping, returning normalized debt by vault id (in BOB weis)
     mapping(uint256 => uint256) public vaultNormalizedDebt;
 
     /// @notice Mapping, returning sum of all outstanding vault debt mints
     mapping(uint256 => uint256) public vaultMintedDebt;
 
-    /// @notice Mapping, returning owed by vault id (in MUSD weis)
+    /// @notice Mapping, returning owed by vault id (in BOB weis)
     mapping(uint256 => uint256) public vaultOwed;
 
     /// @notice Mapping, returning id of a vault, that storing specific nft
@@ -147,7 +147,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     uint256 public normalizedGlobalDebt;
 
     /// @notice Creates a new contract
-    /// @param positionManager_ UniswapV3 position manager
+    /// @param positionManager_ Collateral position manager
     /// @param oracle_ Oracle
     /// @param treasury_ Vault fees treasury
     /// @param token_ Address of token
@@ -182,8 +182,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @notice Initialized a new contract.
     /// @param admin Protocol admin
-    /// @param stabilisationFee_ MUSD initial stabilisation fee
-    /// @param maxDebtPerVault Initial max possible debt to a one vault (nominated in MUSD weis)
+    /// @param stabilisationFee_ BOB initial stabilisation fee
+    /// @param maxDebtPerVault Initial max possible debt to a one vault (nominated in BOB weis)
     function initialize(
         address admin,
         uint256 stabilisationFee_,
@@ -370,13 +370,13 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @notice Deposit collateral to a given vault
     /// @param vaultId Id of the vault
-    /// @param nft UniV3 NFT to be deposited
+    /// @param nft Collateral NFT to be deposited
     function depositCollateral(uint256 vaultId, uint256 nft) public {
         positionManager.safeTransferFrom(msg.sender, address(this), nft, abi.encode(vaultId));
     }
 
     /// @notice Withdraw collateral from a given vault
-    /// @param nft UniV3 NFT to be withdrawn
+    /// @param nft Collateral NFT to be withdrawn
     function withdrawCollateral(uint256 nft) external {
         uint256 currentNormalizationRate = updateNormalizationRate();
 
@@ -766,7 +766,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Get total debt for a given vault by id (including fees) with given normalization rate
     /// @param vaultId Id of the vault
     /// @param normalizationRate_ Given Normalization Rate
-    /// @return uint256 Total debt value (in MUSD weis)
+    /// @return uint256 Total debt value (in BOB weis)
     function _getOverallDebt(uint256 vaultId, uint256 normalizationRate_) internal view returns (uint256) {
         return FullMath.mulDiv(vaultNormalizedDebt[vaultId], normalizationRate_, DEBT_DENOMINATOR);
     }
@@ -790,7 +790,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     uint256 private constant LIQUIDATION_LIMIT = 0x1;
     uint256 private constant SAFE_BORROW_LIMIT = 0x2;
 
-    /// @notice Calculate overall collateral and adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis) and price of tokenId if it contains in vault
+    /// @notice Calculate overall collateral and adjusted collateral for a given vault (token capitals of each specific collateral in the vault in BOB weis) and price of tokenId if it contains in vault
     /// @param vaultId Id of the vault
     /// @param tokenId Id of the token
     /// @param limitType Type of limit to return
@@ -879,7 +879,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Completes deposit of a collateral to vault
     /// @param caller Caller address
     /// @param vaultId Id of the vault
-    /// @param nft UniV3 NFT to be deposited
+    /// @param nft Collateral NFT to be deposited
     function _depositCollateral(
         address caller,
         uint256 vaultId,
@@ -921,7 +921,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         emit CollateralDeposited(caller, vaultId, nft);
     }
 
-    /// @notice Close a vault (internal)
+    /// @notice Closes a vault (internal)
     /// @param vaultId Id of the vault
     /// @param nftsRecipient Address to receive nft of the positions in the closed vault
     function _closeVault(uint256 vaultId, address nftsRecipient) internal {
@@ -939,16 +939,19 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     // -----------------------  MODIFIERS  --------------------------
 
+    // @notice Checks that caller is vault admin
     modifier onlyVaultAdmin() {
         _requireAdmin();
         _;
     }
 
+    // @notice Checks that caller is vault operator or admin
     modifier onlyAtLeastOperator() {
         _requireAtLeastOperator();
         _;
     }
 
+    // @notice Checks that system is unpaused
     modifier onlyUnpaused() {
         _requireUnpaused();
         _;
@@ -1040,12 +1043,12 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @notice Emitted when max debt per vault is updated
     /// @param sender Sender of the call (msg.sender)
-    /// @param maxDebtPerVault The new max debt per vault (nominated in MUSD weis)
+    /// @param maxDebtPerVault The new max debt per vault (nominated in BOB weis)
     event MaxDebtPerVaultChanged(address indexed sender, uint256 maxDebtPerVault);
 
     /// @notice Emitted when min nft collateral is updated
     /// @param sender Sender of the call (msg.sender)
-    /// @param minSingleNftCollateral The new min nft collateral (nominated in MUSD weis)
+    /// @param minSingleNftCollateral The new min nft collateral (nominated in BOB weis)
     event MinSingleNftCollateralChanged(address indexed sender, uint256 minSingleNftCollateral);
 
     /// @notice Emitted when min nft collateral is updated
