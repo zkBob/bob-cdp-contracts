@@ -10,7 +10,7 @@ This repository contains the smart contract implementation for the BOB CDP model
 
 Create `.env` file following `.env.example` for proper testing
 
-Run `yarn test` if you set only `MAINNET_RPC`.
+Run `yarn test` for running all tests.
 
 Run `yarn test:better` if you also set `ETHERSCAN_API_KEY`. This command allow showing readable trace for external contracts.
 
