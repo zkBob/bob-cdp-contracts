@@ -17,5 +17,6 @@ Run `yarn test:better` if you also set `ETHERSCAN_API_KEY`. This command allow s
 ## References
 - [zkbob-contract repository](https://github.com/zkBob/zkbob-contracts): BOB stablecoin smart contract implementation.
 - [subgraph repository](https://github.com/zkBob/cdp-nft-subgraph): BOB CDP model the graph manifest implementation for data indexing.
+- [liqbot repository](https://github.com/zkBob/cdp-nft-liqbot): BOB Liquidator Bot source code.
 - [BOB Stablecoin documentation](https://docs.zkbob.com/bob-stablecoin/bob-highlights): Official documentation for the BOB stablecoin.
 
