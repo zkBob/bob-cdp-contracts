@@ -5,6 +5,7 @@ import "@zkbob/proxy/EIP1967Admin.sol";
 import "./token/ERC721/ERC721Enumerable.sol";
 import "./interfaces/IVaultRegistry.sol";
 
+/// @notice Registry contract for managing CDP positions
 contract VaultRegistry is IVaultRegistry, EIP1967Admin, ERC721Enumerable {
     /// @notice Thrown when not minter trying to mint
     error Forbidden();

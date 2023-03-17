@@ -3,10 +3,10 @@ pragma solidity ^0.8.0;
 
 interface ICDP {
     /// @notice Global protocol params
-    /// @param maxDebtPerVault Max possible debt for one vault (nominated in MUSD weis)
-    /// @param minSingleNftCapital Min possible MUSD NFT value allowed to deposit (nominated in MUSD weis)
-    /// @param liquidationFee Share of the MUSD value of assets of a vault, due to be transferred to the Protocol Treasury after a liquidation (multiplied by DENOMINATOR)
-    /// @param liquidationPremium Share of the MUSD value of assets of a vault, due to be awarded to a liquidator after a liquidation (multiplied by DENOMINATOR)
+    /// @param maxDebtPerVault Max possible debt for one vault (nominated in BOB weis)
+    /// @param minSingleNftCapital Min possible BOB NFT value allowed to deposit (nominated in BOB weis)
+    /// @param liquidationFee Share of the BOB value of assets of a vault, due to be transferred to the Protocol Treasury after a liquidation (multiplied by DENOMINATOR)
+    /// @param liquidationPremium Share of the BOB value of assets of a vault, due to be awarded to a liquidator after a liquidation (multiplied by DENOMINATOR)
     /// @param maxNftsPerVault Max possible amount of NFTs for one vault
     struct ProtocolParams {
         uint256 maxDebtPerVault;
@@ -19,7 +19,7 @@ interface ICDP {
     /// @notice Collateral pool params
     /// @param liquidationThreshold collateral liquidation threshold (9 decimals)
     /// @param borrowThreshold maximum borrow threshold, should be less than or equal to liquidationThreshold (9 decimals)
-    /// @param minWidth min allowed position width in UniV3 ticks
+    /// @param minWidth min allowed position width in collateral ticks
     struct PoolParams {
         uint32 liquidationThreshold;
         uint32 borrowThreshold;
@@ -44,7 +44,7 @@ interface ICDP {
 
     /// @notice Get total debt for a given vault by id (including fees)
     /// @param vaultId Id of the vault
-    /// @return uint256 Total debt value (in MUSD weis)
+    /// @return uint256 Total debt value (in BOB weis)
     function getOverallDebt(uint256 vaultId) external view returns (uint256);
 
     // -------------------  EXTERNAL, MUTATING  -------------------
@@ -57,12 +57,12 @@ interface ICDP {
     /// @param liquidationPremiumD The new liquidation premium (multiplied by DENOMINATOR)
     function changeLiquidationPremium(uint32 liquidationPremiumD) external;
 
-    /// @notice Change max debt per vault (nominated in MUSD weis) to a given value
-    /// @param maxDebtPerVault The new max possible debt per vault (nominated in MUSD weis)
+    /// @notice Change max debt per vault (nominated in BOB weis) to a given value
+    /// @param maxDebtPerVault The new max possible debt per vault (nominated in BOB weis)
     function changeMaxDebtPerVault(uint256 maxDebtPerVault) external;
 
-    /// @notice Change min single nft collateral to a given value (nominated in MUSD weis)
-    /// @param minSingleNftCollateral The new min possible nft collateral (nominated in MUSD weis)
+    /// @notice Change min single nft collateral to a given value (nominated in BOB weis)
+    /// @param minSingleNftCollateral The new min possible nft collateral (nominated in BOB weis)
     function changeMinSingleNftCollateral(uint256 minSingleNftCollateral) external;
 
     /// @notice Change max possible amount of NFTs for one vault
@@ -89,7 +89,7 @@ interface ICDP {
         uint256 maxAmount
     ) external returns (uint256 withdrawnAmount);
 
-    /// @notice Calculate adjusted collateral for a given vault (token capitals of each specific collateral in the vault in MUSD weis)
+    /// @notice Calculate adjusted collateral for a given vault (token capitals of each specific collateral in the vault in BOB weis)
     /// @param vaultId Id of the vault
     /// @return total Total vault collateral value
     /// @return borrowLimit Borrow limit

@@ -13,11 +13,12 @@ import "@uniswap/v3-periphery/contracts/libraries/LiquidityAmounts.sol";
 import "@uniswap/v3-core/contracts/libraries/TickMath.sol";
 import "@openzeppelin/contracts/utils/math/Math.sol";
 
+/// @notice Contract of the quickswap v3 positions oracle
 contract QuickswapV3Oracle is INFTOracle, Ownable {
     /// @notice Thrown when a given address is zero
     error AddressZero();
 
-    /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Uniswap V3 NFT
+    /// @notice Thrown when no Chainlink oracle is added for one of tokens of a deposited Quickswap V3 NFT
     error MissingOracle();
 
     /// @notice QuickswapV3 position manager
@@ -29,7 +30,7 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
     /// @notice Oracle for price estimations
     IOracle public immutable oracle;
 
-    /// @notice Maximum price deviation allowed between oracle and univ3 pool
+    /// @notice Maximum price deviation allowed between oracle and quickswap v3 pool
     uint256 public maxPriceRatioDeviation;
 
     uint256 public constant Q96 = 2**96;
