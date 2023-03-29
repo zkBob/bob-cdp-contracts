@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: BSL-1.1
+// SPDX-License-Identifier: CC0-1.0
+
 pragma solidity 0.8.15;
 
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";

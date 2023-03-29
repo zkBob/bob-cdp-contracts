@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: GPL-2.0-or-later
+// SPDX-License-Identifier: CC0-1.0
+
 pragma solidity 0.8.15;
 
 import "@uniswap/v3-core/contracts/interfaces/IUniswapV3Pool.sol";
