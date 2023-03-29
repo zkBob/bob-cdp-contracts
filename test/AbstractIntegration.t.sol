@@ -78,6 +78,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vaultRegistry.setMinter(address(vault), true);
 
         token.updateMinter(address(debtMinterImpl), true, true);
+        token.updateMinter(address(treasuryImpl), true, true);
         token.approve(address(vault), type(uint256).max);
 
         vault.changeLiquidationFee(3 * 10**7);

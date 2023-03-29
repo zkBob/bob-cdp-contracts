@@ -109,6 +109,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vaultRegistry.setMinter(address(vault), true);
 
         token.updateMinter(address(debtMinterImpl), true, true);
+        token.updateMinter(address(treasuryImpl), true, true);
         token.approve(address(vault), type(uint256).max);
 
         vault.changeLiquidationFee(3 * 10**7);
@@ -641,7 +642,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vault.mintDebt(vaultId, 300 ether);
         vm.warp(block.timestamp + YEAR);
 
-        deal(address(token), address(this), 303 ether);
+        deal(address(token), address(this), 303 ether, true);
         vault.checkInvariantOnVault(vaultId);
         vault.burnDebt(vaultId, 302 ether);
         vault.checkInvariantOnVault(vaultId);
@@ -662,7 +663,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         uint256 overallDebt = vault.getOverallDebt(vaultId);
         assertApproxEqual(overallDebt, 303 ether, 1); // +1%
         // setting balance manually assuming that we'll swap tokens on DEX
-        deal(address(token), address(this), 303 ether);
+        deal(address(token), address(this), 303 ether, true);
         vault.checkInvariantOnVault(vaultId);
         vault.burnDebt(vaultId, overallDebt);
         vault.checkInvariantOnVault(vaultId);
@@ -679,7 +680,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         vm.warp(block.timestamp + YEAR);
         vault.checkInvariantOnVault(vaultId);
 
-        deal(address(token), address(this), 303 * 10**18);
+        deal(address(token), address(this), 303 * 10**18, true);
         vault.pause();
         assertApproxEqual(vault.getOverallDebt(vaultId), 303 ether, 1);
         vault.checkInvariantOnVault(vaultId);
@@ -699,7 +700,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
         address user = getNextUserAddress();
         vm.startPrank(user);
-        deal(address(token), user, 10);
+        deal(address(token), user, 10, true);
         token.approve(address(vault), 10);
         vault.checkInvariantOnVault(vaultId);
         vault.burnDebt(vaultId, 1);
