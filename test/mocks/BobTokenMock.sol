@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: BSL-1.1
+// SPDX-License-Identifier: CC0-1.0
+
 pragma solidity ^0.8.0;
 
 import {BobToken} from "@zkbob/BobToken.sol";

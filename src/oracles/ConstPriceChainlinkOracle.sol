@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: BSL-1.1
+// SPDX-License-Identifier: CC0-1.0
+
 pragma solidity 0.8.15;
 
 /// @notice Contract that have necessary for chainlink oracle interface and returning constant price

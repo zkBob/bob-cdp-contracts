@@ -1,4 +1,5 @@
-// SPDX-License-Identifier: UNLICENSED
+// SPDX-License-Identifier: CC0-1.0
+
 pragma solidity ^0.8.0;
 
 import "forge-std/Test.sol";
@@ -78,6 +79,7 @@ abstract contract AbstractIntegrationTestForVault is SetupContract, AbstractFork
         vaultRegistry.setMinter(address(vault), true);
 
         token.updateMinter(address(debtMinterImpl), true, true);
+        token.updateMinter(address(treasuryImpl), true, true);
         token.approve(address(vault), type(uint256).max);
 
         vault.changeLiquidationFee(3 * 10**7);
