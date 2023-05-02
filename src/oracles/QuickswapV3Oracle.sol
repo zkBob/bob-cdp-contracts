@@ -123,6 +123,14 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
         }
     }
 
+    /// @notice Changes maxPriceRatioDeviation
+    /// @param maxPriceRatioDeviation_ New maxPriceRatioDeviation
+    function setMaxPriceRatioDeviation(uint256 maxPriceRatioDeviation_) external onlyOwner {
+        maxPriceRatioDeviation = maxPriceRatioDeviation_;
+
+        emit MaxPriceRatioDeviationChanged(msg.sender, maxPriceRatioDeviation_);
+    }
+
     /// @inheritdoc INFTOracle
     function getPositionTokens(uint256 nft) external view returns (address token0, address token1) {
         INonfungibleQuickswapPositionLoader.PositionInfo memory info = INonfungibleQuickswapPositionLoader(
@@ -130,4 +138,9 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
         ).positions(nft);
         return (info.token0, info.token1);
     }
+
+    /// @notice Emitted when max price ratio deviation is updated
+    /// @param sender Sender of the call (msg.sender)
+    /// @param maxPriceRatioDeviation The new max price ratio deviation
+    event MaxPriceRatioDeviationChanged(address indexed sender, uint256 maxPriceRatioDeviation);
 }

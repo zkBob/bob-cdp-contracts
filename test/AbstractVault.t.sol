@@ -45,8 +45,8 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     event MaxDebtPerVaultChanged(address indexed sender, uint256 maxDebtPerVault);
     event MinSingleNftCollateralChanged(address indexed sender, uint256 minSingleNftCollateral);
     event MaxNftsPerVaultChanged(address indexed sender, uint8 maxNftsPerVault);
-    event LiquidationThresholdChanged(address indexed sender, address indexed pool, uint32 liquidationThreshold);
-    event BorrowThresholdChanged(address indexed sender, address indexed pool, uint32 borrowThreshold);
+    event LiquidationThresholdChanged(address indexed sender, address indexed pool, uint32 liquidationThresholdD);
+    event BorrowThresholdChanged(address indexed sender, address indexed pool, uint32 borrowThresholdD);
     event MinWidthChanged(address indexed sender, address indexed pool, uint24 minWidth);
 
     EIP1967Proxy vaultProxy;
@@ -1206,6 +1206,43 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
         );
     }
 
+    function testCollectAndIncreaseAmountWhenDifferentTokens() public {
+        uint256 vaultId = vault.openVault();
+        uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
+        vault.depositCollateral(vaultId, tokenId);
+        INonfungiblePositionLoader.PositionInfo memory info = helper.positions(tokenId);
+        vault.decreaseLiquidity(
+            INonfungiblePositionManager.DecreaseLiquidityParams({
+                tokenId: tokenId,
+                liquidity: info.liquidity / 2,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+        helper.makeSwap(weth, usdc, 10**22);
+        deal(weth, address(this), 10000 ether);
+        deal(usdc, address(this), 10000 ether);
+        deal(wbtc, address(this), 10000 ether);
+        vm.expectRevert(Vault.InvalidValue.selector);
+        vault.collectAndIncreaseAmount(
+            INonfungiblePositionManager.CollectParams({
+                tokenId: tokenId,
+                recipient: address(this),
+                amount0Max: type(uint128).max,
+                amount1Max: type(uint128).max
+            }),
+            INonfungiblePositionManager.IncreaseLiquidityParams({
+                tokenId: tokenId + 1,
+                amount0Desired: 10**9 / 2,
+                amount1Desired: 10**18 / 2,
+                amount0Min: 0,
+                amount1Min: 0,
+                deadline: type(uint256).max
+            })
+        );
+    }
+
     function testCollectAndIncreaseAmountWhenCollateralUnderflow() public {
         uint256 vaultId = vault.openVault();
         uint256 tokenId = helper.openPosition(weth, usdc, 10**18, 10**9, address(vault));
@@ -1890,7 +1927,7 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
 
     function testUpdateStabilisationFeeSuccess() public {
         vault.updateStabilisationFeeRate((2 * 10**16) / YEAR);
-        assertEq(vault.stabilisationFeeRateD(), (2 * 10**16) / YEAR);
+        assertEq(vault.stabilisationFeeRateD18(), (2 * 10**16) / YEAR);
     }
 
     function testUpdateStabilisationFeeSuccessWithCalculations() public {
@@ -2078,16 +2115,16 @@ abstract contract AbstractVaultTest is SetupContract, AbstractForkTest, Abstract
     function testSetPoolParamsSuccess() public {
         address pool = helper.getPool(dai, usdc);
         vault.setPoolParams(pool, ICDP.PoolParams(0.5 gwei, 0.4 gwei, 123));
-        assertEq(vault.poolParams(pool).liquidationThreshold, 0.5 gwei);
-        assertEq(vault.poolParams(pool).borrowThreshold, 0.4 gwei);
+        assertEq(vault.poolParams(pool).liquidationThresholdD, 0.5 gwei);
+        assertEq(vault.poolParams(pool).borrowThresholdD, 0.4 gwei);
         assertEq(vault.poolParams(pool).minWidth, 123);
     }
 
     function testSetPoolParamsZeroThresholdIsOkay() public {
         address pool = helper.getPool(dai, usdc);
         vault.setPoolParams(pool, ICDP.PoolParams(0.5 gwei, 0 gwei, 123));
-        assertEq(vault.poolParams(pool).liquidationThreshold, 0.5 gwei);
-        assertEq(vault.poolParams(pool).borrowThreshold, 0 gwei);
+        assertEq(vault.poolParams(pool).liquidationThresholdD, 0.5 gwei);
+        assertEq(vault.poolParams(pool).borrowThresholdD, 0 gwei);
         assertEq(vault.poolParams(pool).minWidth, 123);
     }
 

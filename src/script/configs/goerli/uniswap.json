@@ -32,48 +32,48 @@
     "pools": [
       {
         "fee": 500,
-        "liquidationThreshold": 800000000,
-        "borrowThreshold": 700000000,
+        "liquidationThresholdD": 800000000,
+        "borrowThresholdD": 700000000,
         "minWidth": 1000,
         "token0": "0x34852e54D9B4Ec4325C7344C28b584Ce972e5E62",
         "token1": "0xD87Ba7A50B2E7E660f678A895E4B72E7CB4CCd9C"
       },
       {
         "fee": 3000,
-        "liquidationThreshold": 700000000,
-        "borrowThreshold": 600000000,
+        "liquidationThresholdD": 700000000,
+        "borrowThresholdD": 600000000,
         "minWidth": 0,
         "token0": "0x34852e54D9B4Ec4325C7344C28b584Ce972e5E62",
         "token1": "0xD87Ba7A50B2E7E660f678A895E4B72E7CB4CCd9C"
       },
       {
         "fee": 500,
-        "liquidationThreshold": 800000000,
-        "borrowThreshold": 700000000,
+        "liquidationThresholdD": 800000000,
+        "borrowThresholdD": 700000000,
         "minWidth": 1000,
         "token0": "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6",
         "token1": "0xD87Ba7A50B2E7E660f678A895E4B72E7CB4CCd9C"
       },
       {
         "fee": 3000,
-        "liquidationThreshold": 700000000,
-        "borrowThreshold": 600000000,
+        "liquidationThresholdD": 700000000,
+        "borrowThresholdD": 600000000,
         "minWidth": 0,
         "token0": "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6",
         "token1": "0xD87Ba7A50B2E7E660f678A895E4B72E7CB4CCd9C"
       },
       {
         "fee": 500,
-        "liquidationThreshold": 800000000,
-        "borrowThreshold": 700000000,
+        "liquidationThresholdD": 800000000,
+        "borrowThresholdD": 700000000,
         "minWidth": 1000,
         "token0": "0x34852e54D9B4Ec4325C7344C28b584Ce972e5E62",
         "token1": "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6"
       },
       {
         "fee": 3000,
-        "liquidationThreshold": 700000000,
-        "borrowThreshold": 600000000,
+        "liquidationThresholdD": 700000000,
+        "borrowThresholdD": 600000000,
         "minWidth": 0,
         "token0": "0x34852e54D9B4Ec4325C7344C28b584Ce972e5E62",
         "token1": "0xB4FBF271143F4FBf7B91A5ded31805e42b2208d6"

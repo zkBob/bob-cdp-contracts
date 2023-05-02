@@ -17,12 +17,12 @@ interface ICDP {
     }
 
     /// @notice Collateral pool params
-    /// @param liquidationThreshold collateral liquidation threshold (9 decimals)
-    /// @param borrowThreshold maximum borrow threshold, should be less than or equal to liquidationThreshold (9 decimals)
+    /// @param liquidationThresholdD collateral liquidation threshold (9 decimals)
+    /// @param borrowThresholdD maximum borrow threshold, should be less than or equal to liquidationThresholdD (9 decimals)
     /// @param minWidth min allowed position width in collateral ticks
     struct PoolParams {
-        uint32 liquidationThreshold;
-        uint32 borrowThreshold;
+        uint32 liquidationThresholdD;
+        uint32 borrowThresholdD;
         uint24 minWidth;
     }
 

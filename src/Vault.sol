@@ -2,15 +2,17 @@
 
 pragma solidity 0.8.15;
 
+import "@openzeppelin/contracts/security/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 import "@openzeppelin/contracts/utils/Multicall.sol";
 import {INonfungiblePositionManager} from "@uniswap/v3-periphery/contracts/interfaces/INonfungiblePositionManager.sol";
 import "@zkbob/proxy/EIP1967Admin.sol";
 import "./interfaces/oracles/IOracle.sol";
 import "./interfaces/external/univ3/INonfungiblePositionLoader.sol";
-import "./interfaces/IBobToken.sol";
+import {IBobToken} from "./interfaces/IBobToken.sol";
 import "./interfaces/IVaultRegistry.sol";
 import "./interfaces/oracles/INFTOracle.sol";
 import "./interfaces/ICDP.sol";
@@ -20,7 +22,9 @@ import "./interfaces/ITreasury.sol";
 import "./interfaces/IMinter.sol";
 
 /// @notice Contract of the system vault manager
-contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multicall {
+contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multicall, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
     /// @notice Thrown when a vault is private and a depositor is not allowed
     error AllowList();
 
@@ -142,7 +146,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     uint40 public normalizationRateUpdateTimestamp;
 
     /// @notice State variable, returning current stabilisation fee per second (multiplied by DEBT_DENOMINATOR)
-    uint256 public stabilisationFeeRateD;
+    uint256 public stabilisationFeeRateD18;
 
     /// @notice State variable, meaning normalized total protocol debt
     uint256 public normalizedGlobalDebt;
@@ -167,6 +171,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
             address(oracle_) == address(0) ||
             address(treasury_) == address(0) ||
             address(token_) == address(0) ||
+            address(minter_) == address(0) ||
             address(vaultRegistry_) == address(0)
         ) {
             revert AddressZero();
@@ -211,7 +216,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         // initial value
         normalizationRate = uint216(DEBT_DENOMINATOR);
-        stabilisationFeeRateD = stabilisationFee_;
+        stabilisationFeeRateD18 = stabilisationFee_;
         normalizationRateUpdateTimestamp = uint40(block.timestamp);
         _protocolParams.maxDebtPerVault = maxDebtPerVault;
         isInitialized = true;
@@ -259,7 +264,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         if (block.timestamp > updateTimestamp) {
             globalRate += FullMath.mulDiv(
-                stabilisationFeeRateD * (block.timestamp - updateTimestamp),
+                stabilisationFeeRateD18 * (block.timestamp - updateTimestamp),
                 globalRate,
                 DEBT_DENOMINATOR
             );
@@ -280,7 +285,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         }
 
         uint256 normalizationRateDelta = FullMath.mulDiv(
-            stabilisationFeeRateD * (block.timestamp - updateTimestamp),
+            stabilisationFeeRateD18 * (block.timestamp - updateTimestamp),
             currentNormalizationRate,
             DEBT_DENOMINATOR
         );
@@ -332,7 +337,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @notice Open a new Vault
     /// @return vaultId Id of the new vault
-    function openVault() public onlyUnpaused returns (uint256 vaultId) {
+    function openVault() public onlyUnpaused nonReentrant returns (uint256 vaultId) {
         if (!isPublic && !_depositorsAllowlist.contains(msg.sender)) {
             revert AllowList();
         }
@@ -345,7 +350,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Close a vault
     /// @param vaultId Id of the vault
     /// @param collateralRecipient The address of collateral recipient
-    function closeVault(uint256 vaultId, address collateralRecipient) external onlyUnpaused {
+    function closeVault(uint256 vaultId, address collateralRecipient) external onlyUnpaused nonReentrant {
         _requireVaultAuth(vaultId);
 
         if (vaultNormalizedDebt[vaultId] != 0) {
@@ -359,7 +364,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     /// @notice Burns a vault NFT
     /// @param vaultId id of the vault NFT to burn
-    function burnVault(uint256 vaultId) external onlyUnpaused {
+    function burnVault(uint256 vaultId) external onlyUnpaused nonReentrant {
         _requireVaultAuth(vaultId);
 
         if (vaultOwed[vaultId] != 0 || _vaultNfts[vaultId].length != 0) {
@@ -372,13 +377,13 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Deposit collateral to a given vault
     /// @param vaultId Id of the vault
     /// @param nft Collateral NFT to be deposited
-    function depositCollateral(uint256 vaultId, uint256 nft) public {
+    function depositCollateral(uint256 vaultId, uint256 nft) public nonReentrant {
         positionManager.safeTransferFrom(msg.sender, address(this), nft, abi.encode(vaultId));
     }
 
     /// @notice Withdraw collateral from a given vault
     /// @param nft Collateral NFT to be withdrawn
-    function withdrawCollateral(uint256 nft) external {
+    function withdrawCollateral(uint256 nft) external nonReentrant {
         uint256 currentNormalizationRate = updateNormalizationRate();
 
         uint256 vaultId = vaultIdByNft[nft];
@@ -410,7 +415,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Mint debt on a given vault
     /// @param vaultId Id of the vault
     /// @param amount The debt amount to be mited
-    function mintDebt(uint256 vaultId, uint256 amount) public onlyUnpaused {
+    function mintDebt(uint256 vaultId, uint256 amount) public nonReentrant onlyUnpaused {
         _requireVaultAuth(vaultId);
         uint256 currentNormalizationRate = updateNormalizationRate();
 
@@ -438,7 +443,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Burn debt on a given vault
     /// @param vaultId Id of the vault
     /// @param amount The debt amount to be burned
-    function burnDebt(uint256 vaultId, uint256 amount) external {
+    function burnDebt(uint256 vaultId, uint256 amount) external nonReentrant {
         uint256 currentNormalizationRate = updateNormalizationRate();
 
         uint256 overallDebt = _getOverallDebt(vaultId, currentNormalizationRate);
@@ -462,7 +467,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     }
 
     /// @inheritdoc ICDP
-    function liquidate(uint256 vaultId) external {
+    function liquidate(uint256 vaultId) external nonReentrant {
         if (!isLiquidatingPublic && !_liquidatorsAllowlist.contains(msg.sender)) {
             revert LiquidatorsAllowList();
         }
@@ -515,7 +520,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         uint256 vaultId,
         address to,
         uint256 maxAmount
-    ) external returns (uint256 withdrawnAmount) {
+    ) external nonReentrant returns (uint256 withdrawnAmount) {
         _requireVaultAuth(vaultId);
 
         uint256 owed = vaultOwed[vaultId];
@@ -551,6 +556,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     function decreaseLiquidity(INonfungiblePositionManager.DecreaseLiquidityParams calldata params)
         external
+        nonReentrant
         returns (uint256 amount0, uint256 amount1)
     {
         uint256 tokenId = params.tokenId;
@@ -564,6 +570,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
     function collect(INonfungiblePositionManager.CollectParams calldata params)
         external
+        nonReentrant
         returns (uint256 amount0, uint256 amount1)
     {
         uint256 tokenId = params.tokenId;
@@ -580,6 +587,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         INonfungiblePositionManager.IncreaseLiquidityParams calldata increaseLiquidityParams
     )
         external
+        nonReentrant
         returns (
             uint256 depositedLiquidity,
             uint256 depositedAmount0,
@@ -591,6 +599,10 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         uint256 tokenId = collectParams.tokenId;
         uint256 vaultId = vaultIdByNft[tokenId];
         _requireVaultAuth(vaultId);
+
+        if (tokenId != increaseLiquidityParams.tokenId) {
+            revert InvalidValue();
+        }
 
         (returnAmount0, returnAmount1) = positionManager.collect(collectParams);
 
@@ -658,19 +670,19 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         if (pool == address(0)) {
             revert AddressZero();
         }
-        if (params.liquidationThreshold > DENOMINATOR) {
+        if (params.liquidationThresholdD > DENOMINATOR) {
             revert InvalidValue();
         }
-        if (params.borrowThreshold > DENOMINATOR) {
+        if (params.borrowThresholdD > DENOMINATOR) {
             revert InvalidValue();
         }
-        if (params.borrowThreshold > params.liquidationThreshold) {
+        if (params.borrowThresholdD > params.liquidationThresholdD) {
             revert InvalidValue();
         }
 
         _poolParams[pool] = params;
-        emit LiquidationThresholdChanged(msg.sender, pool, params.liquidationThreshold);
-        emit BorrowThresholdChanged(msg.sender, pool, params.borrowThreshold);
+        emit LiquidationThresholdChanged(msg.sender, pool, params.liquidationThresholdD);
+        emit BorrowThresholdChanged(msg.sender, pool, params.borrowThresholdD);
         emit MinWidthChanged(msg.sender, pool, params.minWidth);
     }
 
@@ -749,17 +761,17 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     }
 
     /// @notice Update stabilisation fee (multiplied by DEBT_DENOMINATOR) and calculate global stabilisation fee per USD up to current timestamp using previous stabilisation fee
-    /// @param stabilisationFeeRateD_ New stabilisation fee multiplied by DEBT_DENOMINATOR
-    function updateStabilisationFeeRate(uint256 stabilisationFeeRateD_) external onlyVaultAdmin {
-        if (stabilisationFeeRateD_ > DEBT_DENOMINATOR / YEAR) {
+    /// @param stabilisationFeeRateD18_ New stabilisation fee multiplied by DEBT_DENOMINATOR
+    function updateStabilisationFeeRate(uint256 stabilisationFeeRateD18_) external onlyVaultAdmin {
+        if (stabilisationFeeRateD18_ > DEBT_DENOMINATOR / YEAR) {
             revert InvalidValue();
         }
 
         updateNormalizationRate();
 
-        stabilisationFeeRateD = stabilisationFeeRateD_;
+        stabilisationFeeRateD18 = stabilisationFeeRateD18_;
 
-        emit StabilisationFeeUpdated(msg.sender, stabilisationFeeRateD_);
+        emit StabilisationFeeUpdated(msg.sender, stabilisationFeeRateD18_);
     }
 
     // -------------------  INTERNAL, VIEW  -----------------------
@@ -812,12 +824,13 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         )
     {
         uint256[] storage vaultNfts = _vaultNfts[vaultId];
+        uint256 nftsCount = vaultNfts.length;
 
         total = 0;
         limit = 0;
         positionValue = 0;
 
-        for (uint256 i = 0; i < vaultNfts.length; ++i) {
+        for (uint256 i = 0; i < nftsCount; ++i) {
             uint256 nft = vaultNfts[i];
             (bool deviationSafety, uint256 price, , address poolAddr) = oracle.price(nft);
 
@@ -825,9 +838,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
             total += price;
             if (limitType == LIQUIDATION_LIMIT) {
-                limit += FullMath.mulDiv(price, pool.liquidationThreshold, DENOMINATOR);
+                limit += FullMath.mulDiv(price, pool.liquidationThresholdD, DENOMINATOR);
             } else {
-                limit += FullMath.mulDiv(price, pool.borrowThreshold, DENOMINATOR);
+                limit += FullMath.mulDiv(price, pool.borrowThresholdD, DENOMINATOR);
 
                 if (limitType == SAFE_BORROW_LIMIT && !deviationSafety) {
                     revert TickDeviation();
@@ -873,7 +886,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         address target
     ) internal {
         if (IERC20(targetToken).allowance(address(this), target) < amount) {
-            IERC20(targetToken).approve(target, type(uint256).max);
+            IERC20(targetToken).forceApprove(target, amount);
         }
     }
 
@@ -904,7 +917,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
 
         ICDP.PoolParams memory pool = _poolParams[poolAddr];
 
-        if (pool.borrowThreshold == 0) {
+        if (pool.borrowThresholdD == 0) {
             revert InvalidPool();
         }
 
@@ -927,8 +940,9 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @param nftsRecipient Address to receive nft of the positions in the closed vault
     function _closeVault(uint256 vaultId, address nftsRecipient) internal {
         uint256[] storage vaultNfts = _vaultNfts[vaultId];
+        uint256 nftsCount = vaultNfts.length;
 
-        for (uint256 i = 0; i < vaultNfts.length; ++i) {
+        for (uint256 i = 0; i < nftsCount; ++i) {
             uint256 nft = vaultNfts[i];
             delete vaultIdByNft[nft];
 
@@ -1060,14 +1074,14 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Emitted when liquidation threshold for a specific pool is updated
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The given pool
-    /// @param liquidationThreshold The new liquidation threshold (multiplied by DENOMINATOR)
-    event LiquidationThresholdChanged(address indexed sender, address indexed pool, uint32 liquidationThreshold);
+    /// @param liquidationThresholdD The new liquidation threshold (multiplied by DENOMINATOR)
+    event LiquidationThresholdChanged(address indexed sender, address indexed pool, uint32 liquidationThresholdD);
 
     /// @notice Emitted when borrow threshold for a specific pool is updated
     /// @param sender Sender of the call (msg.sender)
     /// @param pool The given pool
-    /// @param borrowThreshold The new liquidation threshold (multiplied by DENOMINATOR)
-    event BorrowThresholdChanged(address indexed sender, address indexed pool, uint32 borrowThreshold);
+    /// @param borrowThresholdD The new liquidation threshold (multiplied by DENOMINATOR)
+    event BorrowThresholdChanged(address indexed sender, address indexed pool, uint32 borrowThresholdD);
 
     /// @notice Emitted when the min position's width for the pool is updated
     /// @param sender Sender of the call (msg.sender)
