@@ -611,8 +611,8 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         IERC20(token0).transferFrom(msg.sender, address(this), increaseLiquidityParams.amount0Desired);
         IERC20(token1).transferFrom(msg.sender, address(this), increaseLiquidityParams.amount1Desired);
 
-        _checkAllowance(token0, increaseLiquidityParams.amount0Desired, address(positionManager));
-        _checkAllowance(token1, increaseLiquidityParams.amount1Desired, address(positionManager));
+        IERC20(token0).forceApprove(address(positionManager), increaseLiquidityParams.amount0Desired);
+        IERC20(token1).forceApprove(address(positionManager), increaseLiquidityParams.amount1Desired);
 
         (depositedLiquidity, depositedAmount0, depositedAmount1) = positionManager.increaseLiquidity(
             increaseLiquidityParams
@@ -875,20 +875,6 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     }
 
     // -------------------  INTERNAL, MUTATING  -------------------
-
-    /// @notice Checks allowance of specific token to a target address and approves if allowance is too low
-    /// @param targetToken Address of the token
-    /// @param amount Amount to send
-    /// @param target Target address
-    function _checkAllowance(
-        address targetToken,
-        uint256 amount,
-        address target
-    ) internal {
-        if (IERC20(targetToken).allowance(address(this), target) < amount) {
-            IERC20(targetToken).forceApprove(target, amount);
-        }
-    }
 
     /// @notice Completes deposit of a collateral to vault
     /// @param caller Caller address
