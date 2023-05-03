@@ -100,7 +100,7 @@ abstract contract AbstractDeployment is ConfigContract {
             address poolAddr = _getPool(params.factory, pool.token0, pool.token1, pool.fee);
             cdp.setPoolParams(
                 poolAddr,
-                ICDP.PoolParams(pool.liquidationThreshold, pool.borrowThreshold, pool.minWidth)
+                ICDP.PoolParams(pool.liquidationThresholdD, pool.borrowThresholdD, pool.minWidth)
             );
         }
     }

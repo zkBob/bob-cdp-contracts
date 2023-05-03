@@ -123,6 +123,8 @@ contract UniV3Oracle is INFTOracle, Ownable {
     /// @param maxPriceRatioDeviation_ New maxPriceRatioDeviation
     function setMaxPriceRatioDeviation(uint256 maxPriceRatioDeviation_) external onlyOwner {
         maxPriceRatioDeviation = maxPriceRatioDeviation_;
+
+        emit MaxPriceRatioDeviationChanged(msg.sender, maxPriceRatioDeviation_);
     }
 
     /// @inheritdoc INFTOracle
@@ -131,4 +133,9 @@ contract UniV3Oracle is INFTOracle, Ownable {
             .positions(nft);
         return (info.token0, info.token1);
     }
+
+    /// @notice Emitted when max price ratio deviation is updated
+    /// @param sender Sender of the call (msg.sender)
+    /// @param maxPriceRatioDeviation The new max price ratio deviation
+    event MaxPriceRatioDeviationChanged(address indexed sender, uint256 maxPriceRatioDeviation);
 }
