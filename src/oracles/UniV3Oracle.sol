@@ -113,10 +113,9 @@ contract UniV3Oracle is INFTOracle, Ownable {
             tokenAmounts[0] += actualTokensOwed0;
             tokenAmounts[1] += actualTokensOwed1;
         }
-        positionAmount = 0;
-        for (uint256 i = 0; i < 2; ++i) {
-            positionAmount += FullMath.mulDiv(tokenAmounts[i], pricesX96[i], Q96);
-        }
+        positionAmount =
+            FullMath.mulDiv(tokenAmounts[0], pricesX96[0], Q96) +
+            FullMath.mulDiv(tokenAmounts[1], pricesX96[1], Q96);
     }
 
     /// @notice Changes maxPriceRatioDeviation
