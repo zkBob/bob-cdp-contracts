@@ -390,10 +390,11 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         _requireVaultAuth(vaultId);
 
         uint256[] storage vaultNfts = _vaultNfts[vaultId];
-        for (uint256 i = 0; i < vaultNfts.length; i++) {
+        uint256 nftsCount = vaultNfts.length;
+        for (uint256 i = 0; i < nftsCount; ++i) {
             if (vaultNfts[i] == nft) {
-                if (i < vaultNfts.length - 1) {
-                    vaultNfts[i] = vaultNfts[vaultNfts.length - 1];
+                if (i < nftsCount - 1) {
+                    vaultNfts[i] = vaultNfts[nftsCount - 1];
                 }
                 vaultNfts.pop();
                 break;
@@ -542,7 +543,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
         address operator,
         address from,
         uint256 tokenId,
-        bytes memory data
+        bytes calldata data
     ) external onlyUnpaused returns (bytes4) {
         if (msg.sender != address(positionManager)) {
             revert Forbidden();
@@ -731,7 +732,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Add an array of new depositors to the allow list
     /// @param depositors Array of new depositors
     function addDepositorsToAllowlist(address[] calldata depositors) external onlyVaultAdmin {
-        for (uint256 i = 0; i < depositors.length; i++) {
+        for (uint256 i = 0; i < depositors.length; ++i) {
             _depositorsAllowlist.add(depositors[i]);
         }
     }
@@ -739,7 +740,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Remove an array of depositors from the allow list
     /// @param depositors Array of new depositors
     function removeDepositorsFromAllowlist(address[] calldata depositors) external onlyVaultAdmin {
-        for (uint256 i = 0; i < depositors.length; i++) {
+        for (uint256 i = 0; i < depositors.length; ++i) {
             _depositorsAllowlist.remove(depositors[i]);
         }
     }
@@ -747,7 +748,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Add an array of new liquidators to the allow list
     /// @param liquidators Array of new liquidators
     function addLiquidatorsToAllowlist(address[] calldata liquidators) external onlyVaultAdmin {
-        for (uint256 i = 0; i < liquidators.length; i++) {
+        for (uint256 i = 0; i < liquidators.length; ++i) {
             _liquidatorsAllowlist.add(liquidators[i]);
         }
     }
@@ -755,7 +756,7 @@ contract Vault is EIP1967Admin, VaultAccessControl, IERC721Receiver, ICDP, Multi
     /// @notice Remove an array of liquidators from the allow list
     /// @param liquidators Array of new liquidators
     function removeLiquidatorsFromAllowlist(address[] calldata liquidators) external onlyVaultAdmin {
-        for (uint256 i = 0; i < liquidators.length; i++) {
+        for (uint256 i = 0; i < liquidators.length; ++i) {
             _liquidatorsAllowlist.remove(liquidators[i]);
         }
     }

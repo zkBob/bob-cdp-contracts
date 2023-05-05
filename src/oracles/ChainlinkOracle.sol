@@ -168,7 +168,7 @@ contract ChainlinkOracle is IOracle, Ownable {
         if (tokens.length != oracles.length || oracles.length != heartbeats.length) {
             revert InvalidLength();
         }
-        for (uint256 i = 0; i < tokens.length; i++) {
+        for (uint256 i = 0; i < tokens.length; ++i) {
             address token = tokens[i];
             address oracle = oracles[i];
             uint48 heartbeat = heartbeats[i];

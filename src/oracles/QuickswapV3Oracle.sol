@@ -92,15 +92,14 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
             (uint160 spotSqrtRatioX96, int24 tick, , , , , ) = IAlgebraPool(pool).globalState();
             uint256 ratioX96 = FullMath.mulDiv(pricesX96[0], Q96, pricesX96[1]);
 
-            {
-                uint256 priceRatioX96 = FullMath.mulDiv(spotSqrtRatioX96, spotSqrtRatioX96, Q96);
-                uint256 deviation = FullMath.mulDiv(ratioX96, 1 ether, priceRatioX96);
-                if (1 ether - maxPriceRatioDeviation < deviation && deviation < 1 ether + maxPriceRatioDeviation) {
-                    deviationSafety = true;
-                } else {
-                    deviationSafety = false;
-                }
+            uint256 priceRatioX96 = FullMath.mulDiv(spotSqrtRatioX96, spotSqrtRatioX96, Q96);
+            uint256 deviation;
+            if (ratioX96 > priceRatioX96) {
+                deviation = 1 ether - FullMath.mulDiv(priceRatioX96, 1 ether, ratioX96);
+            } else {
+                deviation = 1 ether - FullMath.mulDiv(ratioX96, 1 ether, priceRatioX96);
             }
+            deviationSafety = deviation < maxPriceRatioDeviation;
 
             (tokenAmounts[0], tokenAmounts[1]) = LiquidityAmounts.getAmountsForLiquidity(
                 uint160(Math.sqrt(ratioX96) * Q48),
@@ -117,10 +116,9 @@ contract QuickswapV3Oracle is INFTOracle, Ownable {
             tokenAmounts[0] += actualTokensOwed0;
             tokenAmounts[1] += actualTokensOwed1;
         }
-        positionAmount = 0;
-        for (uint256 i = 0; i < 2; ++i) {
-            positionAmount += FullMath.mulDiv(tokenAmounts[i], pricesX96[i], Q96);
-        }
+        positionAmount =
+            FullMath.mulDiv(tokenAmounts[0], pricesX96[0], Q96) +
+            FullMath.mulDiv(tokenAmounts[1], pricesX96[1], Q96);
     }
 
     /// @notice Changes maxPriceRatioDeviation

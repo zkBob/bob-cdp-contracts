@@ -15,6 +15,8 @@
     "prettier:check": "prettier --check **.sol",
     "test": "forge test -v",
     "test-v": "forge test -vvvv",
+    "snapshot": "forge snapshot -vvv",
+    "snapshot:diff": "yarn snapshot --diff",
     "test:better": "forge test -v --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2)",
     "test-v:better": "forge test -vvvv --etherscan-api-key $(grep ETHERSCAN_API_KEY .env | cut -d '=' -f2)",
     "size": "forge build --sizes --force --via-ir",
