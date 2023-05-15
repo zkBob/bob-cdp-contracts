@@ -142,8 +142,8 @@ contract ChainlinkOracleTest is Test, SetupContract, AbstractMainnetForkTest {
 
     function testSetValidPeriodEmit() public {
         vm.expectEmit(false, true, false, true);
-        chainlinkOracle.setValidPeriod(500);
         emit ValidPeriodUpdated(getNextUserAddress(), address(this), 500);
+        chainlinkOracle.setValidPeriod(500);
     }
 
     function testSetValidPeriodWhenNotOwner() public {
