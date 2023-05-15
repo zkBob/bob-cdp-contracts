@@ -74,7 +74,7 @@ jobs:
 
       - name: Run Forge coverage
         run: |
-          forge coverage -vvv --fork-url=${{secrets.NODE}} --fork-block-number=37610791 --report lcov --report summary
+          forge coverage -vvv --report lcov --report summary
         id: coverage
 
       - name: Sanitize lcov report
