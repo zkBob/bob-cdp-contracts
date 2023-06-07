@@ -3,11 +3,15 @@
 pragma solidity ^0.8.0;
 
 import "@zkbob/proxy/EIP1967Proxy.sol";
+import {FlashMinter} from "@zkbob/minters/FlashMinter.sol";
+import {DebtMinter} from "@zkbob/minters/DebtMinter.sol";
+import {SurplusMinter} from "@zkbob/minters/SurplusMinter.sol";
 import "../interfaces/oracles/IOracle.sol";
 import "../oracles/ChainlinkOracle.sol";
 import "../Vault.sol";
 import "../VaultRegistry.sol";
 import "./ConfigContract.sol";
+import "../oracles/ConstPriceChainlinkOracle.sol";
 
 abstract contract AbstractDeployment is ConfigContract {
     function _deployOracle(
@@ -50,23 +54,46 @@ abstract contract AbstractDeployment is ConfigContract {
 
         (address[] memory oracleTokens, address[] memory oracles, uint48[] memory heartbeats) = oracleParams(params);
 
+        oracles[0] = address(new ConstPriceChainlinkOracle(1e8, 8));
+        recordDeployedContract("BobPriceOracle", address(oracles[0]));
+
         IOracle oracle = new ChainlinkOracle(oracleTokens, oracles, heartbeats, params.validPeriod);
         recordDeployedContract("ChainlinkOracle", address(oracle));
 
         INFTOracle nftOracle = _deployOracle(params.positionManager, oracle, params.maxPriceRatioDeviation);
         recordDeployedContract("NFTOracle", address(nftOracle));
 
-        VaultRegistry vaultRegistry = new VaultRegistry("BOB Vault Token", "BVT", "");
+        VaultRegistry vaultRegistry = new VaultRegistry("BOB CDP NFT", "BOB-CDP", "");
         EIP1967Proxy vaultRegistryProxy = new EIP1967Proxy(msg.sender, address(vaultRegistry), "");
         vaultRegistry = VaultRegistry(address(vaultRegistryProxy));
         recordDeployedContract("VaultRegistry", address(vaultRegistry));
 
+        SurplusMinter surplusMinter = new SurplusMinter(address(params.bobToken));
+        recordDeployedContract("SurplusMinter", address(surplusMinter));
+        FlashMinter flashMinter = new FlashMinter({
+            _token: address(params.bobToken),
+            _limit: 200_000 ether,
+            _treasury: address(surplusMinter),
+            _fee: 0,
+            _maxFee: 0
+        });
+        recordDeployedContract("FlashMinter", address(flashMinter));
+        DebtMinter debtMinter = new DebtMinter({
+            _token: address(params.bobToken),
+            _maxDebtLimit: 500_000 ether,
+            _minDebtLimit: 500_000 ether,
+            _raiseDelay: 12 hours,
+            _raise: 0,
+            _treasury: address(surplusMinter)
+        });
+        recordDeployedContract("DebtMinter", address(debtMinter));
+
         Vault vault = new Vault(
             INonfungiblePositionManager(params.positionManager),
             nftOracle,
-            params.treasury,
+            address(surplusMinter),
             params.bobToken,
-            params.minter,
+            address(debtMinter),
             address(vaultRegistry)
         );
 
@@ -76,13 +103,36 @@ abstract contract AbstractDeployment is ConfigContract {
             params.stabilisationFee,
             type(uint256).max
         );
-        EIP1967Proxy vaultProxy = new EIP1967Proxy(msg.sender, address(vault), initData);
-        vault = Vault(address(vaultProxy));
+        {
+            EIP1967Proxy vaultProxy = new EIP1967Proxy(params.owner, address(vault), initData);
+            vault = Vault(address(vaultProxy));
+        }
         recordDeployedContract("Vault", address(vault));
 
         setupGovernance(params, ICDP(address(vault)));
 
+        debtMinter.setMinter(address(vault), true);
+        surplusMinter.setMinter(address(vault), true);
         vaultRegistry.setMinter(address(vault), true);
+
+        {
+            address zkBobGovernance = EIP1967Proxy(payable(params.bobToken)).admin();
+            debtMinter.transferOwnership(zkBobGovernance);
+            surplusMinter.transferOwnership(zkBobGovernance);
+        }
+
+        // vault.makePublic();
+        // vault.addLiquidatorsToAllowlist(...);
+
+        flashMinter.transferOwnership(params.owner);
+
+        Ownable(address(oracle)).transferOwnership(params.owner);
+        Ownable(address(nftOracle)).transferOwnership(params.owner);
+
+        vaultRegistryProxy.setAdmin(params.owner);
+        vault.grantRole(vault.ADMIN_ROLE(), params.owner);
+        vault.renounceRole(vault.ADMIN_ROLE(), msg.sender);
+        // vault.renounceRole(vault.OPERATOR(), msg.sender);
 
         vm.stopBroadcast();
         writeDeployment(string.concat(vm.projectRoot(), "/deployments/", chain, "_", amm, "_deployment.json"));
@@ -91,8 +141,8 @@ abstract contract AbstractDeployment is ConfigContract {
     function setupGovernance(Params memory params, ICDP cdp) public {
         cdp.changeLiquidationFee(uint32(params.liquidationFeeD));
         cdp.changeLiquidationPremium(uint32(params.liquidationPremiumD));
-        cdp.changeMinSingleNftCollateral(params.minSingleNftCollateral);
-        cdp.changeMaxDebtPerVault(params.maxDebtPerVault);
+        cdp.changeMinSingleNftCollateral(100 ether); // https://github.com/foundry-rs/foundry/issues/5038
+        cdp.changeMaxDebtPerVault(100_000 ether);
         cdp.changeMaxNftsPerVault(uint8(params.maxNftsPerVault));
 
         for (uint256 i = 0; i < params.pools.length; ++i) {

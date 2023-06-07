@@ -1,58 +1,77 @@
 {
   "bobToken": "0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B",
   "factory": "0x1F98431c8aD98523631AE4a59f267346ea31F984",
-  "liquidationFeeD": 30000000,
+  "liquidationFeeD": 50000000,
   "liquidationPremiumD": 30000000,
-  "maxDebtPerVault": 115792089237316195423570985008687907853269984665640564039457584007913129639935,
-  "maxNftsPerVault": 20,
+  "maxDebtPerVault": 0,
+  "maxNftsPerVault": 2,
   "maxPriceRatioDeviation": 10000000000000000,
-  "minSingleNftCollateral": 100000000000000000,
-  "minter": "0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B",
+  "minSingleNftCollateral": 0,
+  "minter": "0x0000000000000000000000000000000000000000",
+  "owner": "0x4dCB8C1e4721651130c17DDc28513be50238e32D",
   "positionManager": "0xC36442b4a4522E871399CD717aBDD847Ab11FE88",
   "stabilisationFee": 10000000,
-  "treasury": "0x07883EbD6f178420f24969279BD425Ab0B99F10B",
+  "treasury": "0x0000000000000000000000000000000000000000",
   "validPeriod": 3600,
   "tokens": [
     {
-      "chainlinkOracle": "0xc907E116054Ad103354f2D350FD2514433D57F6f",
-      "chainlinkOracleHeartbeat": 120,
-      "tokenAddress": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6"
+      "chainlinkOracle": "0x0000000000000000000000000000000000000000",
+      "chainlinkOracleHeartbeat": 3600,
+      "tokenAddress": "0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B"
     },
     {
-      "chainlinkOracle": "0xF9680D99D6C9589e2a93a78A04A279e509205945",
-      "chainlinkOracleHeartbeat": 120,
-      "tokenAddress": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
-    },
-    {
-      "chainlinkOracle": "0xfE4A8cc5b5B2366C1B58Bea3858e81843581b2F7",
-      "chainlinkOracleHeartbeat": 120,
+      "chainlinkOracle": "0xfe4a8cc5b5b2366c1b58bea3858e81843581b2f7",
+      "chainlinkOracleHeartbeat": 3600,
       "tokenAddress": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
+    },
+    {
+      "chainlinkOracle": "0x0a6513e40db6eb1b165753ad52e80663aea50545",
+      "chainlinkOracleHeartbeat": 3600,
+      "tokenAddress": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
+    },
+    {
+      "chainlinkOracle": "0xab594600376ec9fd91f8e885dadf0ce036862de0",
+      "chainlinkOracleHeartbeat": 3600,
+      "tokenAddress": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270"
+    },
+    {
+      "chainlinkOracle": "0xf9680d99d6c9589e2a93a78a04a279e509205945",
+      "chainlinkOracleHeartbeat": 3600,
+      "tokenAddress": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
     }
   ],
   "pools": [
     {
-      "fee": 3000,
-      "liquidationThresholdD": 700000000,
-      "borrowThresholdD": 600000000,
-      "minWidth": 0,
-      "token0": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
-      "token1": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
-    },
-    {
-      "fee": 3000,
-      "liquidationThresholdD": 700000000,
-      "borrowThresholdD": 600000000,
-      "minWidth": 0,
-      "token0": "0x1BFD67037B42Cf73acF2047067bd4F2C47D9BfD6",
-      "token1": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174"
-    },
-    {
-      "fee": 3000,
-      "liquidationThresholdD": 700000000,
-      "borrowThresholdD": 600000000,
+      "fee": 100,
+      "liquidationThresholdD": 900000000,
+      "borrowThresholdD": 850000000,
       "minWidth": 0,
       "token0": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
-      "token1": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619"
+      "token1": "0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B"
+    },
+    {
+      "fee": 100,
+      "liquidationThresholdD": 900000000,
+      "borrowThresholdD": 850000000,
+      "minWidth": 0,
+      "token0": "0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B",
+      "token1": "0xc2132D05D31c914a87C6611C10748AEb04B58e8F"
+    },
+    {
+      "fee": 500,
+      "liquidationThresholdD": 780000000,
+      "borrowThresholdD": 730000000,
+      "minWidth": 1000,
+      "token0": "0x0d500B1d8E8eF31E21C99d1Db9A6444d3ADf1270",
+      "token1": "0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B"
+    },
+    {
+      "fee": 500,
+      "liquidationThresholdD": 830000000,
+      "borrowThresholdD": 780000000,
+      "minWidth": 1000,
+      "token0": "0x7ceB23fD6bC0adD59E62ac25578270cFf1b9f619",
+      "token1": "0xB0B195aEFA3650A6908f15CdaC7D92F8a5791B0B"
     }
   ]
 }

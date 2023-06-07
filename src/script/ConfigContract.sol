@@ -23,6 +23,7 @@ contract ConfigContract is Script {
         uint256 maxPriceRatioDeviation;
         uint256 minSingleNftCollateral;
         address minter;
+        address owner;
         PoolParams[] pools;
         address positionManager;
         uint256 stabilisationFee;
